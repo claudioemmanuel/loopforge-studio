@@ -122,6 +122,16 @@ Respond ONLY with valid JSON, no markdown or additional text.`;
   try {
     return JSON.parse(cleanedText);
   } catch {
+    // Try to extract JSON from mixed content (e.g., text before/after JSON)
+    const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch {
+        // Fall through to fallback
+      }
+    }
+
     // If JSON parsing fails, create a structured response from the text
     const overviewText = cleanedText.startsWith("{")
       ? "Failed to parse AI response. Please try again."

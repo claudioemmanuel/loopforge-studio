@@ -14,6 +14,7 @@ import {
 } from "@/lib/ai";
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
+import { handleError, Errors } from "@/lib/errors";
 
 function getProviderApiKey(
   user: User,
@@ -167,18 +168,12 @@ export async function POST(
   }
 
   if (!aiProvider) {
-    return NextResponse.json(
-      { error: "No AI provider configured" },
-      { status: 400 }
-    );
+    return handleError(Errors.noProviderConfigured());
   }
 
   const encryptedKey = getProviderApiKey(user, aiProvider);
   if (!encryptedKey) {
-    return NextResponse.json(
-      { error: `API key not configured for ${aiProvider}` },
-      { status: 400 }
-    );
+    return handleError(Errors.authError(aiProvider));
   }
 
   try {
@@ -233,9 +228,6 @@ export async function POST(
     });
   } catch (error) {
     console.error("Brainstorm chat error:", error);
-    return NextResponse.json(
-      { error: "Failed to process message. Please try again." },
-      { status: 500 }
-    );
+    return handleError(error);
   }
 }

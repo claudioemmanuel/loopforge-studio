@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { AIClient, ChatMessage, ChatOptions } from "../client";
 import type { AiProvider } from "@/lib/db/schema";
+import { parseOpenAIError } from "@/lib/errors";
 
 export class OpenAIClient implements AIClient {
   private client: OpenAI;
@@ -12,25 +13,30 @@ export class OpenAIClient implements AIClient {
   }
 
   async chat(messages: ChatMessage[], options?: ChatOptions): Promise<string> {
-    // Convert messages to OpenAI format
-    const openaiMessages: Array<{
-      role: "system" | "user" | "assistant";
-      content: string;
-    }> = messages.map((msg) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
+    try {
+      // Convert messages to OpenAI format
+      const openaiMessages: Array<{
+        role: "system" | "user" | "assistant";
+        content: string;
+      }> = messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      max_tokens: options?.maxTokens ?? 4096,
-      temperature: options?.temperature ?? 1,
-      messages: openaiMessages,
-    });
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        max_tokens: options?.maxTokens ?? 4096,
+        temperature: options?.temperature ?? 1,
+        messages: openaiMessages,
+      });
 
-    // Extract text from response
-    const text = response.choices[0]?.message?.content ?? "";
-    return text;
+      // Extract text from response
+      const text = response.choices[0]?.message?.content ?? "";
+      return text;
+    } catch (error) {
+      // Parse and re-throw as APIError
+      throw parseOpenAIError(error);
+    }
   }
 
   getProvider(): AiProvider {

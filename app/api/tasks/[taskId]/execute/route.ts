@@ -6,6 +6,7 @@ import { queueExecution } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
 import { getDefaultModel } from "@/lib/ai/client";
+import { handleError, Errors } from "@/lib/errors";
 
 // Helper to get API key for a specific provider
 function getProviderApiKey(
@@ -119,25 +120,12 @@ export async function POST(
     // BYOK: User needs at least one API key configured
     const configuredProvider = findConfiguredProvider();
     if (!configuredProvider) {
-      return NextResponse.json(
-        {
-          error: "No AI provider configured. Please add an API key in Settings.",
-          code: "NO_PROVIDER_CONFIGURED",
-        },
-        { status: 400 }
-      );
+      return handleError(Errors.noProviderConfigured());
     }
 
     const encryptedKey = getProviderApiKey(user, configuredProvider);
     if (!encryptedKey) {
-      return NextResponse.json(
-        {
-          error: `API key not configured for ${configuredProvider}`,
-          code: "API_KEY_NOT_CONFIGURED",
-          provider: configuredProvider,
-        },
-        { status: 400 }
-      );
+      return handleError(Errors.authError(configuredProvider));
     }
 
     apiKey = decryptApiKey(encryptedKey);
@@ -265,14 +253,9 @@ export async function POST(
       jobId: job.id,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-
-    // Enhanced error logging with full context
     console.error("Execution error:", {
       taskId,
-      error: errorMessage,
-      stack: errorStack,
+      error,
       timestamp: new Date().toISOString(),
     });
 
@@ -282,32 +265,6 @@ export async function POST(
       .set({ status: "ready", updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
 
-    // Check if error is related to API key
-    const isApiKeyError =
-      errorMessage.toLowerCase().includes("api key") ||
-      errorMessage.includes("API_KEY") ||
-      errorMessage.toLowerCase().includes("invalid api") ||
-      errorMessage.toLowerCase().includes("unauthorized") ||
-      errorMessage.toLowerCase().includes("authentication") ||
-      errorMessage.includes("401");
-
-    if (isApiKeyError) {
-      return NextResponse.json(
-        {
-          error: "Invalid or missing API key. Please check your API key in Settings > Integrations.",
-          details: process.env.NODE_ENV === "development" ? errorMessage : undefined,
-        },
-        { status: 401 }
-      );
-    }
-
-    // Return more informative error in development
-    return NextResponse.json(
-      {
-        error: "Failed to start execution. Please try again.",
-        details: process.env.NODE_ENV === "development" ? errorMessage : undefined,
-      },
-      { status: 500 }
-    );
+    return handleError(error);
   }
 }

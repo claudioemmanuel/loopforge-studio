@@ -25,6 +25,8 @@ import {
 import { formatDistanceToNow, format } from "date-fns";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import { BrainstormPanel } from "@/components/brainstorm-panel";
+import { useAPIError } from "@/components/hooks/use-api-error";
+import { ErrorDialog } from "@/components/ui/error-dialog";
 
 // Helper to strip markdown code blocks
 function stripMarkdownCodeBlocks(text: string): string {
@@ -130,6 +132,30 @@ interface TaskModalProps {
   autoStartBrainstorm?: boolean;
 }
 
+// Collapsible section component using native HTML5 details/summary
+interface CollapsibleSectionProps {
+  title: string;
+  emoji?: string;
+  iconColor?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}
+
+function CollapsibleSection({ title, emoji, iconColor, defaultOpen, children }: CollapsibleSectionProps) {
+  return (
+    <details className="group/section" open={defaultOpen}>
+      <summary className="flex items-center gap-2 cursor-pointer select-none list-none py-1.5 text-xs font-semibold uppercase tracking-wide hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
+        <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 group-open/section:rotate-90", iconColor)} />
+        {emoji && <span>{emoji}</span>}
+        <span className={iconColor}>{title}</span>
+      </summary>
+      <div className="pl-5 pb-2">
+        {children}
+      </div>
+    </details>
+  );
+}
+
 // Simple markdown-like text renderer
 function renderFormattedText(text: string): React.ReactNode {
   // Split by **bold** patterns
@@ -217,9 +243,17 @@ const workflowSteps: TaskStatus[] = [
 export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false }: TaskModalProps) {
   const [loading, setLoading] = useState(false);
   const [actionType, setActionType] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [showBrainstormPanel, setShowBrainstormPanel] = useState(autoStartBrainstorm);
   const [mounted, setMounted] = useState(false);
+
+  // Error handling
+  const {
+    error: apiError,
+    retryCountdown,
+    isApiKeyError,
+    clearError,
+    handleAPIResponse,
+  } = useAPIError();
 
   // Track mount state for portal
   useEffect(() => {
@@ -241,26 +275,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   const isStuck = task.status === "stuck";
 
   const handleApiError = async (res: Response) => {
-    try {
-      const data = await res.json();
-      const isApiKeyError =
-        data.error?.toLowerCase().includes("api key") ||
-        data.error?.includes("No AI provider") ||
-        data.error?.toLowerCase().includes("invalid") ||
-        res.status === 401;
-
-      if (isApiKeyError) {
-        setError("Please configure a valid API key in Settings > Integrations to use AI features.");
-      } else if (data.error) {
-        // Include details in development
-        const errorMsg = data.details ? `${data.error}\n\nDetails: ${data.details}` : data.error;
-        setError(errorMsg);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-    } catch {
-      setError("An unexpected error occurred. Please try again.");
-    }
+    await handleAPIResponse(res);
   };
 
   const handleBrainstorm = () => {
@@ -284,7 +299,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   const handlePlan = async () => {
     setLoading(true);
     setActionType("plan");
-    setError(null);
+    clearError();
     try {
       const res = await fetch(`/api/tasks/${task.id}/plan`, {
         method: "POST",
@@ -297,7 +312,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
       }
     } catch (err) {
       console.error("Error planning:", err);
-      setError("Network error. Please check your connection and try again.");
+      // Network errors - show inline since no structured error
     } finally {
       setLoading(false);
       setActionType(null);
@@ -307,7 +322,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   const handleMarkReady = async () => {
     setLoading(true);
     setActionType("ready");
-    setError(null);
+    clearError();
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
@@ -322,7 +337,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
       }
     } catch (err) {
       console.error("Error marking ready:", err);
-      setError("Network error. Please check your connection and try again.");
+      // Network errors - show inline since no structured error
     } finally {
       setLoading(false);
       setActionType(null);
@@ -332,7 +347,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   const handleStartExecution = async () => {
     setLoading(true);
     setActionType("execute");
-    setError(null);
+    clearError();
     try {
       const res = await fetch(`/api/tasks/${task.id}/execute`, {
         method: "POST",
@@ -345,7 +360,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
       }
     } catch (err) {
       console.error("Error starting execution:", err);
-      setError("Network error. Please check your connection and try again.");
+      // Network errors - show inline since no structured error
     } finally {
       setLoading(false);
       setActionType(null);
@@ -409,15 +424,15 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
 
         {/* Content - Scrollable */}
         <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-6 space-y-6">
-          {/* Error Alert */}
-          {error && (
+          {/* Error Alert - inline display for simple errors */}
+          {apiError && !apiError.action && (
             <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20">
               <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-destructive font-medium">{error}</p>
-                {error.includes("API key") && (
+                <p className="text-sm text-destructive font-medium">{apiError.message}</p>
+                {isApiKeyError && (
                   <Link
-                    href="/settings/account"
+                    href="/settings/integrations"
                     className="inline-flex items-center gap-1.5 mt-2 text-sm text-primary hover:underline"
                   >
                     <Settings className="w-4 h-4" />
@@ -426,7 +441,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                 )}
               </div>
               <button
-                onClick={() => setError(null)}
+                onClick={clearError}
                 className="flex-shrink-0 p-1 -m-1 rounded text-destructive/60 hover:text-destructive transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -583,26 +598,23 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                   <FileText className="w-4 h-4 text-blue-500" />
                   <h3 className="text-sm font-medium">Sprint Plan</h3>
                 </div>
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200/50 dark:border-blue-800/30 space-y-4">
-                  {/* Sprint Goal */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200/50 dark:border-blue-800/30 space-y-2">
+                  {/* Sprint Goal - Expanded by default */}
                   {plan.sprintGoal && (
-                    <div className="p-3 bg-blue-100/50 dark:bg-blue-800/30 rounded-lg border border-blue-200/50 dark:border-blue-700/30">
-                      <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-1">🎯 Sprint Goal</h4>
+                    <CollapsibleSection title="Sprint Goal" emoji="🎯" iconColor="text-blue-700 dark:text-blue-300" defaultOpen>
                       <p className="text-sm font-medium leading-relaxed">{plan.sprintGoal}</p>
-                    </div>
+                    </CollapsibleSection>
                   )}
 
-                  {/* Overview */}
-                  <div>
-                    <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-1">Overview</h4>
+                  {/* Overview - Expanded by default */}
+                  <CollapsibleSection title="Overview" iconColor="text-blue-700 dark:text-blue-300" defaultOpen>
                     <p className="text-sm leading-relaxed">{plan.overview}</p>
-                  </div>
+                  </CollapsibleSection>
 
-                  {/* Steps/Tasks */}
+                  {/* Sprint Backlog - Collapsed by default */}
                   {plan.steps.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-2">Sprint Backlog</h4>
-                      <ol className="text-sm space-y-4">
+                    <CollapsibleSection title="Sprint Backlog" iconColor="text-blue-700 dark:text-blue-300">
+                      <ol className="text-sm space-y-4 pt-1">
                         {plan.steps.map((step, i) => (
                           <li key={step.id || i} className="flex gap-3 p-3 bg-white/50 dark:bg-slate-800/30 rounded-lg border border-blue-100 dark:border-blue-800/30">
                             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 text-xs font-medium flex items-center justify-center">
@@ -673,14 +685,13 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                           </li>
                         ))}
                       </ol>
-                    </div>
+                    </CollapsibleSection>
                   )}
 
-                  {/* Risks */}
+                  {/* Risks - Collapsed by default */}
                   {plan.risks && plan.risks.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-2">⚠️ Risks & Mitigations</h4>
-                      <ul className="text-sm space-y-2">
+                    <CollapsibleSection title="Risks & Mitigations" emoji="⚠️" iconColor="text-amber-700 dark:text-amber-300">
+                      <ul className="text-sm space-y-2 pt-1">
                         {plan.risks.map((risk, i) => (
                           <li key={i} className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200/50 dark:border-amber-800/30">
                             <p className="text-xs font-medium text-amber-800 dark:text-amber-200">{risk.description}</p>
@@ -690,14 +701,13 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                           </li>
                         ))}
                       </ul>
-                    </div>
+                    </CollapsibleSection>
                   )}
 
-                  {/* Definition of Done */}
+                  {/* Definition of Done - Collapsed by default */}
                   {plan.definitionOfDone && plan.definitionOfDone.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide mb-1">✅ Definition of Done</h4>
-                      <ul className="text-sm space-y-1">
+                    <CollapsibleSection title="Definition of Done" emoji="✅" iconColor="text-emerald-700 dark:text-emerald-300">
+                      <ul className="text-sm space-y-1 pt-1">
                         {plan.definitionOfDone.map((d, i) => (
                           <li key={i} className="flex items-start gap-2 text-muted-foreground">
                             <span className="text-emerald-500">□</span>
@@ -705,14 +715,13 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                           </li>
                         ))}
                       </ul>
-                    </div>
+                    </CollapsibleSection>
                   )}
 
-                  {/* Verification */}
+                  {/* Verification - Collapsed by default */}
                   {plan.verification && plan.verification.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-1">Verification Steps</h4>
-                      <ul className="text-sm space-y-1">
+                    <CollapsibleSection title="Verification Steps" iconColor="text-blue-700 dark:text-blue-300">
+                      <ul className="text-sm space-y-1 pt-1">
                         {plan.verification.map((v, i) => (
                           <li key={i} className="flex items-start gap-2">
                             <CheckCircle2 className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
@@ -720,7 +729,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                           </li>
                         ))}
                       </ul>
-                    </div>
+                    </CollapsibleSection>
                   )}
                 </div>
               </div>
@@ -849,6 +858,20 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
           isOpen={showBrainstormPanel}
           onClose={() => setShowBrainstormPanel(false)}
           onFinalize={handleBrainstormFinalize}
+          onSave={onUpdate}
+        />
+      )}
+
+      {/* Error Dialog - for errors with actions (rate limit, auth, etc.) */}
+      {apiError && apiError.action && (
+        <ErrorDialog
+          open={!!apiError}
+          onClose={clearError}
+          title={apiError.code === "RATE_LIMIT" ? "Rate Limited" : "Error"}
+          description={apiError.message}
+          isApiKeyError={isApiKeyError}
+          retryCountdown={retryCountdown}
+          errorAction={apiError.action}
         />
       )}
     </div>

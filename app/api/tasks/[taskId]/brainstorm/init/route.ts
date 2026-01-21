@@ -14,6 +14,7 @@ import {
 } from "@/lib/ai";
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
+import { handleError, Errors } from "@/lib/errors";
 
 function getProviderApiKey(
   user: User,
@@ -96,18 +97,12 @@ export async function POST(
   }
 
   if (!aiProvider) {
-    return NextResponse.json(
-      { error: "No AI provider configured. Please add an API key in Settings." },
-      { status: 400 }
-    );
+    return handleError(Errors.noProviderConfigured());
   }
 
   const encryptedKey = getProviderApiKey(user, aiProvider);
   if (!encryptedKey) {
-    return NextResponse.json(
-      { error: `API key not configured for ${aiProvider}` },
-      { status: 400 }
-    );
+    return handleError(Errors.authError(aiProvider));
   }
 
   try {
@@ -279,13 +274,6 @@ export async function POST(
     });
   } catch (error) {
     console.error("Brainstorm init error:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      {
-        error: "Failed to start brainstorming. Please try again.",
-        details: process.env.NODE_ENV === "development" ? errorMessage : undefined
-      },
-      { status: 500 }
-    );
+    return handleError(error);
   }
 }

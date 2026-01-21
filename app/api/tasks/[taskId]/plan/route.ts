@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { generatePlan, createAIClient, getDefaultModel } from "@/lib/ai";
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
+import { handleError, Errors } from "@/lib/errors";
 
 // Helper to get API key for a specific provider
 function getProviderApiKey(
@@ -97,26 +98,13 @@ export async function POST(
 
   const aiProvider = findConfiguredProvider();
   if (!aiProvider) {
-    return NextResponse.json(
-      {
-        error: "No AI provider configured. Please add an API key in Settings.",
-        code: "NO_PROVIDER_CONFIGURED",
-      },
-      { status: 400 }
-    );
+    return handleError(Errors.noProviderConfigured());
   }
 
   const preferredModel = getPreferredModel(user, aiProvider);
   const encryptedKey = getProviderApiKey(user, aiProvider);
   if (!encryptedKey) {
-    return NextResponse.json(
-      {
-        error: `API key not configured for ${aiProvider}`,
-        code: "API_KEY_NOT_CONFIGURED",
-        provider: aiProvider,
-      },
-      { status: 400 }
-    );
+    return handleError(Errors.authError(aiProvider));
   }
 
   try {
@@ -152,16 +140,11 @@ export async function POST(
 
     return NextResponse.json(updatedTask);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorStack = error instanceof Error ? error.stack : undefined;
-
-    // Enhanced error logging with full context
     console.error("Plan generation error:", {
       taskId,
       provider: aiProvider,
       model: preferredModel,
-      error: errorMessage,
-      stack: errorStack,
+      error,
       timestamp: new Date().toISOString(),
     });
 
@@ -171,32 +154,6 @@ export async function POST(
       .set({ status: "brainstorming", updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
 
-    // Check if error is related to API key
-    const isApiKeyError =
-      errorMessage.toLowerCase().includes("api key") ||
-      errorMessage.includes("API_KEY") ||
-      errorMessage.toLowerCase().includes("invalid api") ||
-      errorMessage.toLowerCase().includes("unauthorized") ||
-      errorMessage.toLowerCase().includes("authentication") ||
-      errorMessage.includes("401");
-
-    if (isApiKeyError) {
-      return NextResponse.json(
-        {
-          error: "Invalid or missing API key. Please check your API key in Settings > Integrations.",
-          details: process.env.NODE_ENV === "development" ? errorMessage : undefined,
-        },
-        { status: 401 }
-      );
-    }
-
-    // Return more informative error in development
-    return NextResponse.json(
-      {
-        error: "Failed to generate plan. Please try again.",
-        details: process.env.NODE_ENV === "development" ? errorMessage : undefined,
-      },
-      { status: 500 }
-    );
+    return handleError(error);
   }
 }

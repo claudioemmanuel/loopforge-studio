@@ -12,6 +12,9 @@ import {
   Code,
   FileText,
 } from "lucide-react";
+import type { Task } from "@/lib/db/schema";
+import { useAPIError } from "@/components/hooks/use-api-error";
+import { ErrorDialog } from "@/components/ui/error-dialog";
 
 // Simple markdown-like text renderer for **bold** syntax
 function renderFormattedText(text: string): React.ReactNode {
@@ -50,6 +53,7 @@ interface BrainstormPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onFinalize: () => void;
+  onSave?: (task: Task) => void;
 }
 
 export function BrainstormPanel({
@@ -58,6 +62,7 @@ export function BrainstormPanel({
   isOpen,
   onClose,
   onFinalize,
+  onSave,
 }: BrainstormPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -70,8 +75,18 @@ export function BrainstormPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Error handling
+  const {
+    error: apiError,
+    retryCountdown,
+    isApiKeyError,
+    clearError,
+    handleAPIResponse,
+  } = useAPIError();
+
   const initializeConversation = useCallback(async () => {
     setInitializing(true);
+    clearError();
     try {
       const res = await fetch(`/api/tasks/${taskId}/brainstorm/init`, {
         method: "POST",
@@ -134,16 +149,17 @@ export function BrainstormPanel({
           setRepoContext(data.repoContext);
         }
       } else {
-        const error = await res.json();
-        const errorMsg = error.details
-          ? `${error.error}\n\nDetails: ${error.details}`
-          : error.error || "Failed to start brainstorming. Please try again.";
-        setMessages([
-          {
-            role: "assistant",
-            content: errorMsg,
-          },
-        ]);
+        // Use standardized error handling
+        const hasError = await handleAPIResponse(res);
+        if (!hasError) {
+          // Fallback for non-standard errors
+          setMessages([
+            {
+              role: "assistant",
+              content: "Failed to start brainstorming. Please try again.",
+            },
+          ]);
+        }
       }
     } catch (error) {
       console.error("Init error:", error);
@@ -156,7 +172,7 @@ export function BrainstormPanel({
     } finally {
       setInitializing(false);
     }
-  }, [taskId]);
+  }, [taskId, clearError, handleAPIResponse]);
 
   // Initialize conversation when panel opens
   useEffect(() => {
@@ -181,6 +197,7 @@ export function BrainstormPanel({
     if (!content.trim() && !isChoice) return;
 
     setLoading(true);
+    clearError();
 
     // Add user message
     setMessages((prev) => [...prev, { role: "user", content }]);
@@ -209,14 +226,18 @@ export function BrainstormPanel({
           setCurrentPreview(data.brainstormPreview);
         }
       } else {
-        const error = await res.json();
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: error.error || "Something went wrong. Please try again.",
-          },
-        ]);
+        // Use standardized error handling
+        const hasError = await handleAPIResponse(res);
+        if (!hasError) {
+          // Fallback for non-standard errors
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: "Something went wrong. Please try again.",
+            },
+          ]);
+        }
       }
     } catch (error) {
       console.error("Chat error:", error);
@@ -272,9 +293,15 @@ export function BrainstormPanel({
     if (messages.length > 0) {
       setSaving(true);
       try {
-        await fetch(`/api/tasks/${taskId}/brainstorm/save`, {
+        const res = await fetch(`/api/tasks/${taskId}/brainstorm/save`, {
           method: "POST",
         });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.task && onSave) {
+            onSave(data.task);
+          }
+        }
       } catch (error) {
         console.error("Save error:", error);
         // Still close even if save fails
@@ -492,6 +519,19 @@ export function BrainstormPanel({
           </div>
         </div>
       </div>
+
+      {/* Error Dialog */}
+      {apiError && (
+        <ErrorDialog
+          open={!!apiError}
+          onClose={clearError}
+          title={apiError.code === "RATE_LIMIT" ? "Rate Limited" : "Error"}
+          description={apiError.message}
+          isApiKeyError={isApiKeyError}
+          retryCountdown={retryCountdown}
+          errorAction={apiError.action}
+        />
+      )}
     </>
   );
 }

@@ -104,6 +104,14 @@
   textarea {
     @apply transition-all duration-200 ease-out;
   }
+
+  /* Hide native details marker across browsers */
+  details > summary {
+    list-style: none;
+  }
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
 }
 
 /* View Transitions for smooth page navigation */
