@@ -1,0 +1,134 @@
+services:
+  # ===========================================
+  # PostgreSQL - Primary database
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: loopforge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: loopforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d loopforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loopforge-network
+
+  # ===========================================
+  # Redis - Job queue backend
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: loopforge-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loopforge-network
+
+  # ===========================================
+  # Next.js Web Application
+  # ===========================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: loopforge-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/loopforge
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - AUTH_TRUST_HOST=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - loopforge-network
+
+  # ===========================================
+  # BullMQ Execution Worker
+  # ===========================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: loopforge-worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/loopforge
+      - REDIS_URL=redis://redis:6379
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    volumes:
+      - repos-data:/app/repos
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - loopforge-network
+
+  # ===========================================
+  # Bull Board - Job queue dashboard (optional)
+  # ===========================================
+  bull-board:
+    image: deadly0/bull-board
+    container_name: loopforge-bull-board
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_USE_TLS=false
+      - BULL_PREFIX=bull
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - loopforge-network
+    profiles:
+      - monitoring
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  repos-data:
+    driver: local
+
+networks:
+  loopforge-network:
+    driver: bridge

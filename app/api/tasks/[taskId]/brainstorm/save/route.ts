@@ -1,0 +1,80 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { db, tasks } from "@/lib/db";
+import { eq } from "drizzle-orm";
+import { getConversation } from "@/lib/ai";
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ taskId: string }> }
+) {
+  const session = await auth();
+  const { taskId } = await params;
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Get task with repo to verify ownership
+  const task = await db.query.tasks.findFirst({
+    where: eq(tasks.id, taskId),
+    with: { repo: true },
+  });
+
+  if (!task || task.repo.userId !== session.user.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Get conversation from memory
+  const conversation = getConversation(taskId);
+
+  // If no conversation in memory, nothing to save
+  if (!conversation) {
+    return NextResponse.json({ success: true, saved: false });
+  }
+
+  try {
+    const updateData: {
+      brainstormResult?: string;
+      brainstormConversation?: string;
+      updatedAt: Date;
+    } = {
+      updatedAt: new Date(),
+    };
+
+    // Save brainstorm result if we have a preview
+    if (conversation.currentPreview) {
+      updateData.brainstormResult = JSON.stringify(conversation.currentPreview, null, 2);
+    }
+
+    // Save conversation messages
+    if (conversation.messages.length > 0) {
+      updateData.brainstormConversation = JSON.stringify(conversation.messages);
+    }
+
+    await db
+      .update(tasks)
+      .set(updateData)
+      .where(eq(tasks.id, taskId));
+
+    // Keep conversation in memory (don't delete)
+    // This allows continuing the conversation if user reopens
+
+    // Get updated task
+    const updatedTask = await db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+    });
+
+    return NextResponse.json({
+      success: true,
+      saved: true,
+      task: updatedTask
+    });
+  } catch (error) {
+    console.error("Brainstorm save error:", error);
+    return NextResponse.json(
+      { error: "Failed to save brainstorm progress." },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,62 @@
+# Development Docker Compose
+# Usage: docker compose -f docker-compose.dev.yml up
+
+services:
+  # ===========================================
+  # PostgreSQL - Primary database (dev)
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: loopforge-postgres-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: loopforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d loopforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # Redis - Job queue backend
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: loopforge-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-dev-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # Bull Board - Job queue dashboard
+  # ===========================================
+  bull-board:
+    image: deadly0/bull-board
+    container_name: loopforge-bull-board-dev
+    ports:
+      - "3001:3000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_USE_TLS=false
+      - BULL_PREFIX=bull
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-dev-data:
+    driver: local
+  redis-dev-data:
+    driver: local

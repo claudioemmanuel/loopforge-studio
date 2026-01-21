@@ -1,0 +1,36 @@
+# CODEOWNERS file for LoopForge
+# These owners will be requested for review when someone opens a pull request.
+# Order matters - later entries take precedence over earlier ones.
+
+# Default owners for everything in the repo
+* @vamo-app/loopforge-team
+
+# Frontend components
+/components/ @vamo-app/frontend-team
+/app/ @vamo-app/frontend-team
+
+# API routes require backend review
+/app/api/ @vamo-app/backend-team
+
+# Database schema changes require careful review
+/lib/db/ @vamo-app/backend-team
+/drizzle/ @vamo-app/backend-team
+
+# AI-related code
+/lib/ai/ @vamo-app/ai-team
+
+# Infrastructure and CI/CD
+/.github/ @vamo-app/platform-team
+/docker* @vamo-app/platform-team
+*.yml @vamo-app/platform-team
+*.yaml @vamo-app/platform-team
+
+# Configuration files
+package.json @vamo-app/loopforge-team
+tsconfig.json @vamo-app/loopforge-team
+next.config.* @vamo-app/loopforge-team
+
+# Tests
+/__tests__/ @vamo-app/loopforge-team
+*.test.ts @vamo-app/loopforge-team
+*.test.tsx @vamo-app/loopforge-team
