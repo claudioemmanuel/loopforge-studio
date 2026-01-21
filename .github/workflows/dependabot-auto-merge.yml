@@ -22,30 +22,53 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Wait for CI to pass
+      - name: Wait for CI to complete
+        id: wait-ci
         uses: lewagon/wait-on-check-action@v1.3.4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           check-name: "CI Success"
           wait-interval: 30
-          allowed-conclusions: success
+          allowed-conclusions: success,failure,cancelled,skipped
+
+      - name: Check CI result
+        id: ci-result
+        run: |
+          # Get the CI check conclusion
+          CONCLUSION=$(gh api repos/${{ github.repository }}/commits/${{ github.event.pull_request.head.sha }}/check-runs --jq '.check_runs[] | select(.name == "CI Success") | .conclusion')
+          echo "conclusion=$CONCLUSION" >> $GITHUB_OUTPUT
+          echo "CI conclusion: $CONCLUSION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Auto-merge minor and patch updates
-        if: steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        if: steps.ci-result.outputs.conclusion == 'success' && (steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch')
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add comment for major updates
-        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        if: steps.ci-result.outputs.conclusion == 'success' && steps.metadata.outputs.update-type == 'version-update:semver-major'
         run: |
           gh pr comment "$PR_URL" --body "⚠️ **Major version update detected**
 
           This PR contains a major version update and requires manual review before merging.
 
           Please review the changelog and ensure compatibility before merging."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Close PR on CI failure
+        if: steps.ci-result.outputs.conclusion == 'failure'
+        run: |
+          gh pr close "$PR_URL" --comment "🔴 **Automatically closed**
+
+          This Dependabot PR was closed because CI failed.
+
+          The dependency update introduces breaking changes or test failures. Dependabot will create a new PR when the next version is released."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
