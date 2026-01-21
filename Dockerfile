@@ -3,7 +3,7 @@
 # ============================================
 # Base stage - shared dependencies
 # ============================================
-FROM node:22-alpine AS base
+FROM node:25-alpine AS base
 
 # Install dependencies needed for native modules
 RUN apk add --no-cache libc6-compat python3 make g++
@@ -42,7 +42,7 @@ RUN npm run build
 # ============================================
 # Runner stage - production image
 # ============================================
-FROM node:22-alpine AS runner
+FROM node:25-alpine AS runner
 
 WORKDIR /app
 

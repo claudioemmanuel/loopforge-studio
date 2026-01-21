@@ -3,7 +3,7 @@
 # ============================================
 # Worker Dockerfile for BullMQ execution worker
 # ============================================
-FROM node:22-alpine
+FROM node:25-alpine
 
 # Install dependencies needed for native modules and git
 RUN apk add --no-cache libc6-compat python3 make g++ git
