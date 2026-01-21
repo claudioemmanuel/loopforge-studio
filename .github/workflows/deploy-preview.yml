@@ -16,8 +16,8 @@ jobs:
   deploy-preview:
     name: Deploy Preview
     runs-on: ubuntu-latest
-    # Only run if Vercel secrets are configured
-    if: ${{ vars.VERCEL_ENABLED == 'true' || github.event_name == 'pull_request' }}
+    # Only run if Vercel is explicitly enabled via repository variable
+    if: ${{ vars.VERCEL_ENABLED == 'true' }}
     environment:
       name: preview
       url: ${{ steps.deploy.outputs.url }}
