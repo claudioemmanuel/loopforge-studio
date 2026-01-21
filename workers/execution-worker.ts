@@ -1,7 +1,7 @@
 import { Job } from "bullmq";
 import { db, users, tasks, executions, executionEvents } from "../lib/db";
 import { eq } from "drizzle-orm";
-import { runLoop, type LoopContext } from "../lib/ralph";
+import { runLoop, type LoopContext, type ExecutionMode } from "../lib/ralph";
 import {
   createExecutionWorker,
   type ExecutionJobData,
@@ -14,6 +14,39 @@ import path from "path";
 import fs from "fs/promises";
 
 const REPOS_DIR = process.env.REPOS_DIR || "/app/repos";
+
+// Determine execution mode from environment or default to multi-agent
+const EXECUTION_MODE: ExecutionMode = (process.env.EXECUTION_MODE as ExecutionMode) || "multi-agent";
+
+// Database-compatible event types
+type DbEventType = "thinking" | "file_read" | "file_write" | "command_run" | "commit" | "error" | "complete" | "stuck";
+
+// Map extended event types to database-compatible types
+function mapEventTypeToDb(
+  eventType: string
+): DbEventType {
+  const mapping: Record<string, DbEventType> = {
+    // Direct mappings
+    thinking: "thinking",
+    file_read: "file_read",
+    file_write: "file_write",
+    command_run: "command_run",
+    commit: "commit",
+    error: "error",
+    complete: "complete",
+    stuck: "stuck",
+    // Map new event types to existing ones
+    agent_start: "thinking",
+    agent_complete: "thinking",
+    review_start: "thinking",
+    review_complete: "thinking",
+    task_start: "thinking",
+    task_complete: "complete",
+    task_failed: "error",
+  };
+
+  return mapping[eventType] || "thinking";
+}
 
 // Build authenticated clone URL with GitHub token
 function buildAuthenticatedCloneUrl(cloneUrl: string, token: string): string {
@@ -116,15 +149,7 @@ async function processExecution(
   );
   console.log(`Repository ready at: ${repoPath}`);
 
-  // Parse plan
-  let plan: { steps: Array<{ id: string; title: string; description: string }> };
-  try {
-    plan = JSON.parse(planContent);
-  } catch {
-    plan = { steps: [{ id: "1", title: "Execute task", description: planContent }] };
-  }
-
-  // Create loop context
+  // Create loop context with plan content for multi-agent mode
   const loopContext: LoopContext = {
     project: task.repo.name,
     changeId: task.id.slice(0, 8),
@@ -142,23 +167,40 @@ async function processExecution(
       "Don't make unrelated changes",
       "Don't skip verification",
     ],
+    // Include plan content for multi-agent mode
+    planContent,
   };
 
-  const commits: string[] = [];
+  // Determine which execution mode to use
+  const useMultiAgent = EXECUTION_MODE === "multi-agent" && planContent;
+
+  console.log(`Execution mode: ${useMultiAgent ? "multi-agent" : "classic"}`);
 
   try {
     const result = await runLoop(loopContext, {
       client: aiClient,
       maxIterations: 50,
       stuckThreshold: 3,
+      mode: useMultiAgent ? "multi-agent" : "classic",
+      parallelOptions: {
+        maxConcurrency: 3,
+        retryOnFailure: true,
+        stopOnCriticalFailure: true,
+        mandatoryReview: true,
+        maxRetries: 1,
+      },
       onEvent: async (event) => {
-        // Store event in database
+        // Store event in database (map event type to db-compatible type)
         await db.insert(executionEvents).values({
           id: crypto.randomUUID(),
           executionId,
-          eventType: event.type,
+          eventType: mapEventTypeToDb(event.type),
           content: event.content,
-          metadata: event.metadata || null, // JSONB handles native objects
+          metadata: {
+            ...event.metadata,
+            // Store the original event type in metadata for reference
+            originalEventType: event.type,
+          },
           createdAt: event.timestamp,
         });
 
@@ -166,6 +208,15 @@ async function processExecution(
         await job.updateProgress({
           iteration: event.metadata?.iteration || 0,
           lastEvent: event.type,
+          progressPercent: event.metadata?.progressPercent || 0,
+          agentId: event.metadata?.agentId,
+          taskId: event.metadata?.taskId,
+        });
+      },
+      onProgress: async (progress) => {
+        // Store progress updates
+        await job.updateProgress({
+          ...progress,
         });
       },
     });

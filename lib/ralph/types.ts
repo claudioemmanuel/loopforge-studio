@@ -35,10 +35,37 @@ export interface ExecutionEventMetadata {
   commitSha?: string;
   /** Error details (for 'error' events) */
   errorDetails?: string;
+  /** Agent ID (for multi-agent execution) */
+  agentId?: string;
+  /** Task ID (for multi-agent execution) */
+  taskId?: string;
+  /** Routing confidence (for multi-agent execution) */
+  routingConfidence?: number;
+  /** Review status (for multi-agent execution) */
+  reviewPassed?: boolean;
+  /** Progress percentage */
+  progressPercent?: number;
+  /** Original event type (when mapped to db-compatible type) */
+  originalEventType?: string;
 }
 
 export interface ExecutionEvent {
-  type: "thinking" | "file_read" | "file_write" | "command_run" | "commit" | "error" | "complete" | "stuck";
+  type:
+    | "thinking"
+    | "file_read"
+    | "file_write"
+    | "command_run"
+    | "commit"
+    | "error"
+    | "complete"
+    | "stuck"
+    | "agent_start"
+    | "agent_complete"
+    | "review_start"
+    | "review_complete"
+    | "task_start"
+    | "task_complete"
+    | "task_failed";
   content: string;
   metadata?: ExecutionEventMetadata;
   timestamp: Date;

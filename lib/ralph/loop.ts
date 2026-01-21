@@ -7,12 +7,22 @@ import {
 } from "./types";
 import { generatePrompt, type PromptContext } from "./prompt-generator";
 import type { AIClient } from "@/lib/ai/client";
+import type { ParallelExecutionOptions, ExecutionProgress } from "@/lib/agents/types";
+import { runParallelExecution, getExecutionSummary } from "./parallel-executor";
+
+export type ExecutionMode = "classic" | "multi-agent";
 
 export interface LoopOptions {
   client: AIClient;
   maxIterations: number;
   stuckThreshold: number;
   onEvent: (event: ExecutionEvent) => void | Promise<void>;
+  /** Execution mode: 'classic' for original single-agent, 'multi-agent' for parallel specialized agents */
+  mode?: ExecutionMode;
+  /** Options for multi-agent mode */
+  parallelOptions?: Partial<ParallelExecutionOptions>;
+  /** Callback for progress updates (multi-agent mode) */
+  onProgress?: (progress: ExecutionProgress) => void | Promise<void>;
 }
 
 export interface LoopContext {
@@ -24,6 +34,8 @@ export interface LoopContext {
   fullVerify: string;
   doConstraints: string[];
   dontConstraints: string[];
+  /** Plan content for multi-agent execution */
+  planContent?: string;
 }
 
 function checkCompletion(output: string): CompletionStatus {
@@ -42,6 +54,88 @@ function extractStuckReason(output: string): string | undefined {
 }
 
 export async function runLoop(
+  context: LoopContext,
+  options: LoopOptions
+): Promise<LoopResult> {
+  const { mode = "classic" } = options;
+
+  // Use multi-agent parallel execution if specified
+  if (mode === "multi-agent" && context.planContent) {
+    return runMultiAgentLoop(context, options);
+  }
+
+  // Classic single-agent execution
+  return runClassicLoop(context, options);
+}
+
+/**
+ * Multi-agent parallel execution mode
+ */
+async function runMultiAgentLoop(
+  context: LoopContext,
+  options: LoopOptions
+): Promise<LoopResult> {
+  const { client, onEvent, parallelOptions, onProgress } = options;
+
+  await onEvent({
+    type: "thinking",
+    content: `Starting multi-agent execution (using ${client.getProvider()}/${client.getModel()})`,
+    timestamp: new Date(),
+  });
+
+  try {
+    const result = await runParallelExecution(
+      {
+        workingDir: context.workingDir,
+        project: context.project,
+        changeId: context.changeId,
+        planContent: context.planContent!,
+      },
+      {
+        client,
+        options: parallelOptions,
+        onEvent,
+        onProgress,
+      }
+    );
+
+    // Log summary
+    const summary = getExecutionSummary(result);
+    await onEvent({
+      type: result.success ? "complete" : "stuck",
+      content: summary,
+      timestamp: new Date(),
+    });
+
+    // Map result to LoopResult format
+    return {
+      status: result.success ? "complete" : "stuck",
+      iterations: result.taskResults.size,
+      commits: result.commits,
+      error: result.error,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    await onEvent({
+      type: "error",
+      content: `Multi-agent execution failed: ${errorMessage}`,
+      timestamp: new Date(),
+    });
+
+    return {
+      status: "stuck",
+      iterations: 0,
+      commits: [],
+      error: errorMessage,
+    };
+  }
+}
+
+/**
+ * Classic single-agent execution mode (original behavior)
+ */
+async function runClassicLoop(
   context: LoopContext,
   options: LoopOptions
 ): Promise<LoopResult> {
