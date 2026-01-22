@@ -6,6 +6,7 @@ import type { TaskStatus } from "@/lib/db/schema";
 export interface WorkerEventData {
   taskId: string;
   taskTitle: string;
+  repoId: string;
   repoName: string;
   status: TaskStatus;
   progress: number;

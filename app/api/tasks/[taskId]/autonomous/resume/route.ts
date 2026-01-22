@@ -4,7 +4,7 @@ import { db, tasks, users, executions, userSubscriptions } from "@/lib/db";
 import { eq, and, gte } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
-import type { TaskStatus, AiProvider, User } from "@/lib/db/schema";
+import type { AiProvider, User } from "@/lib/db/schema";
 import { getDefaultModel } from "@/lib/ai/client";
 import { handleError, Errors } from "@/lib/errors";
 
@@ -48,30 +48,71 @@ function getPreferredModel(user: User, provider: AiProvider): string {
   }
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+// Helper to queue execution for a task
+async function queueTaskExecution(
+  task: {
+    id: string;
+    repoId: string;
+    planContent: string | null;
+    repo: { cloneUrl: string };
+  },
+  userId: string,
+  apiKey: string,
+  provider: AiProvider,
+  model: string
 ) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!task.planContent) {
+    throw new Error("Task must have a plan to execute");
   }
 
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
+  const executionId = crypto.randomUUID();
+  const branch = `loopforge/${task.id.slice(0, 8)}`;
+
+  // Create execution record
+  await db.insert(executions).values({
+    id: executionId,
+    taskId: task.id,
+    status: "queued",
+    iteration: 0,
+    createdAt: new Date(),
   });
 
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  // Update task status
+  await db
+    .update(tasks)
+    .set({
+      status: "executing",
+      branch,
+      updatedAt: new Date(),
+    })
+    .where(eq(tasks.id, task.id));
 
-  return NextResponse.json(task);
+  // Queue the execution job
+  const job = await queueExecution({
+    executionId,
+    taskId: task.id,
+    repoId: task.repoId,
+    userId,
+    apiKey,
+    aiProvider: provider,
+    preferredModel: model,
+    planContent: task.planContent,
+    branch,
+    cloneUrl: task.repo.cloneUrl,
+  });
+
+  return { executionId, jobId: job.id };
 }
 
-export async function PATCH(
+/**
+ * POST /api/tasks/[taskId]/autonomous/resume
+ *
+ * Enables autonomous mode and resumes from current stage.
+ * - If status === "ready": immediately queue execution
+ * - If status === "executing" or "done": return error (can't enable mid-execution)
+ * - Otherwise: just set the flag
+ */
+export async function POST(
   request: Request,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
@@ -92,32 +133,29 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await request.json();
-  const updates: Partial<{
-    title: string;
-    description: string;
-    status: TaskStatus;
-    priority: number;
-    brainstormResult: string;
-    planContent: string;
-    branch: string;
-    autonomousMode: boolean;
-  }> = {};
+  // Don't allow enabling autonomous mode during execution or after completion
+  if (task.status === "executing") {
+    return NextResponse.json(
+      { error: "Cannot enable autonomous mode while executing" },
+      { status: 400 }
+    );
+  }
 
-  if (body.title !== undefined) updates.title = body.title;
-  if (body.description !== undefined) updates.description = body.description;
-  if (body.status !== undefined) updates.status = body.status;
-  if (body.priority !== undefined) updates.priority = body.priority;
-  if (body.brainstormResult !== undefined) updates.brainstormResult = body.brainstormResult;
-  if (body.planContent !== undefined) updates.planContent = body.planContent;
-  if (body.branch !== undefined) updates.branch = body.branch;
-  if (body.autonomousMode !== undefined) updates.autonomousMode = body.autonomousMode;
+  if (task.status === "done") {
+    return NextResponse.json(
+      { error: "Cannot enable autonomous mode for completed tasks" },
+      { status: 400 }
+    );
+  }
 
-  // Check if status is changing to "executing" - auto-queue execution
-  const isMovingToExecuting = body.status === "executing" && task.status !== "executing";
+  // Enable autonomous mode
+  await db
+    .update(tasks)
+    .set({ autonomousMode: true, updatedAt: new Date() })
+    .where(eq(tasks.id, taskId));
 
-  if (isMovingToExecuting) {
-    // Validate task has a plan
+  // If task is "ready", immediately queue execution
+  if (task.status === "ready") {
     if (!task.planContent) {
       return NextResponse.json(
         { error: "Task must have a plan to execute" },
@@ -247,39 +285,13 @@ export async function PATCH(
     }
 
     try {
-      // Create execution record
-      const executionId = crypto.randomUUID();
-      const branch = `loopforge/${task.id.slice(0, 8)}`;
-
-      await db.insert(executions).values({
-        id: executionId,
-        taskId: task.id,
-        status: "queued",
-        iteration: 0,
-        createdAt: new Date(),
-      });
-
-      // Update task status with branch
-      updates.branch = branch;
-
-      await db
-        .update(tasks)
-        .set({ ...updates, updatedAt: new Date() })
-        .where(eq(tasks.id, taskId));
-
-      // Queue the execution job
-      const job = await queueExecution({
-        executionId,
-        taskId: task.id,
-        repoId: task.repoId,
-        userId: session.user.id,
+      const { executionId, jobId } = await queueTaskExecution(
+        task,
+        session.user.id,
         apiKey,
-        aiProvider: finalProvider,
-        preferredModel: finalModel,
-        planContent: task.planContent,
-        branch,
-        cloneUrl: task.repo.cloneUrl,
-      });
+        finalProvider,
+        finalModel
+      );
 
       const updatedTask = await db.query.tasks.findFirst({
         where: eq(tasks.id, taskId),
@@ -288,7 +300,8 @@ export async function PATCH(
       return NextResponse.json({
         ...updatedTask,
         executionId,
-        jobId: job.id,
+        jobId,
+        autoStarted: true,
       });
     } catch (error) {
       console.error("Execution error:", {
@@ -300,47 +313,20 @@ export async function PATCH(
       // Revert status on error
       await db
         .update(tasks)
-        .set({ status: task.status, updatedAt: new Date() })
+        .set({ status: "ready", updatedAt: new Date() })
         .where(eq(tasks.id, taskId));
 
       return handleError(error);
     }
   }
 
-  // Standard update (not moving to executing)
-  await db
-    .update(tasks)
-    .set({ ...updates, updatedAt: new Date() })
-    .where(eq(tasks.id, taskId));
-
+  // For other statuses, just return the updated task
   const updatedTask = await db.query.tasks.findFirst({
     where: eq(tasks.id, taskId),
   });
 
-  return NextResponse.json(updatedTask);
-}
-
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
+  return NextResponse.json({
+    ...updatedTask,
+    autoStarted: false,
   });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  await db.delete(tasks).where(eq(tasks.id, taskId));
-
-  return NextResponse.json({ success: true });
 }

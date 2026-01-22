@@ -30,6 +30,7 @@ import type { Task, TaskStatus } from "@/lib/db/schema";
 import { BrainstormPanel } from "@/components/brainstorm-panel";
 import { useAPIError } from "@/components/hooks/use-api-error";
 import { ErrorDialog } from "@/components/ui/error-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 // Helper to strip markdown code blocks
 function stripMarkdownCodeBlocks(text: string): string {
@@ -265,6 +266,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   const [autoStartTriggered, setAutoStartTriggered] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState(task.autonomousMode ?? false);
   const [togglingAutonomous, setTogglingAutonomous] = useState(false);
+  const [showAutonomousConfirm, setShowAutonomousConfirm] = useState(false);
 
   // Error handling
   const {
@@ -286,24 +288,67 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
     await handleAPIResponse(res);
   }, [handleAPIResponse]);
 
+  // Get status label for confirmation dialog
+  const getStatusLabel = (status: TaskStatus): string => {
+    const labels: Record<TaskStatus, string> = {
+      todo: "To Do",
+      brainstorming: "Brainstorming",
+      planning: "Planning",
+      ready: "Ready",
+      executing: "Executing",
+      done: "Done",
+      stuck: "Stuck",
+    };
+    return labels[status] || status;
+  };
+
   const handleToggleAutonomous = async () => {
+    // If enabling (not disabling) and not in "todo" status, show confirmation
+    if (!autonomousMode && task.status !== "todo") {
+      setShowAutonomousConfirm(true);
+      return;
+    }
+
+    // For "todo" status or disabling, proceed directly
+    await executeToggleAutonomous(false);
+  };
+
+  const executeToggleAutonomous = async (useResumeEndpoint: boolean) => {
     setTogglingAutonomous(true);
     try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autonomousMode: !autonomousMode }),
-      });
+      let res: Response;
+
+      if (useResumeEndpoint) {
+        // Use the resume endpoint which enables autonomous mode and may auto-start execution
+        res = await fetch(`/api/tasks/${task.id}/autonomous/resume`, {
+          method: "POST",
+        });
+      } else {
+        // Standard toggle via PATCH
+        res = await fetch(`/api/tasks/${task.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ autonomousMode: !autonomousMode }),
+        });
+      }
+
       if (res.ok) {
         const updatedTask = await res.json();
         setAutonomousMode(updatedTask.autonomousMode);
         onUpdate(updatedTask);
+      } else {
+        await handleApiError(res);
       }
     } catch (err) {
       console.error("Error toggling autonomous mode:", err);
     } finally {
       setTogglingAutonomous(false);
     }
+  };
+
+  const handleConfirmAutonomous = async () => {
+    setShowAutonomousConfirm(false);
+    await executeToggleAutonomous(true);
   };
 
   const handleBrainstorm = useCallback(async () => {
@@ -443,91 +488,93 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
       {/* Modal */}
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden bg-card rounded-2xl shadow-2xl border animate-in zoom-in-95 fade-in duration-200">
         {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b">
-          <div className="flex-1 min-w-0 pr-4">
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <h2 className="text-xl font-serif font-bold tracking-tight">
-                {task.title}
-              </h2>
-              {/* Autonomous Mode Toggle */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={handleToggleAutonomous}
-                  disabled={togglingAutonomous || task.status === "executing" || task.status === "done"}
-                  className={cn(
-                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                    "disabled:cursor-not-allowed disabled:opacity-50",
-                    autonomousMode ? "bg-amber-500" : "bg-muted"
-                  )}
-                  title="When enabled, this task will progress automatically through all stages without manual approval"
-                >
-                  <span
+        <div className="border-b">
+          <div className="flex items-start justify-between p-6 pb-4">
+            <div className="flex-1 min-w-0 pr-4">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <h2 className="text-xl font-serif font-bold tracking-tight">
+                  {task.title}
+                </h2>
+                {/* Autonomous Mode Toggle */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={handleToggleAutonomous}
+                    disabled={togglingAutonomous || task.status === "executing" || task.status === "done"}
                     className={cn(
-                      "inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow-sm transition-transform",
-                      autonomousMode ? "translate-x-5" : "translate-x-0.5"
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      "disabled:cursor-not-allowed disabled:opacity-50",
+                      autonomousMode ? "bg-amber-500" : "bg-muted"
                     )}
+                    title="When enabled, this task will progress automatically through all stages without manual approval"
                   >
-                    <Zap className={cn("w-3 h-3", autonomousMode ? "text-amber-500" : "text-muted-foreground")} />
-                  </span>
-                </button>
-                {autonomousMode && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
-                    <AlertTriangle className="w-3 h-3" />
-                    Autonomous
-                  </span>
+                    <span
+                      className={cn(
+                        "inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow-sm transition-transform",
+                        autonomousMode ? "translate-x-5" : "translate-x-0.5"
+                      )}
+                    >
+                      <Zap className={cn("w-3 h-3", autonomousMode ? "text-amber-500" : "text-muted-foreground")} />
+                    </span>
+                  </button>
+                  {autonomousMode && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                      <AlertTriangle className="w-3 h-3" />
+                      Autonomous
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Status badge */}
+                <div
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
+                    config.bgColor,
+                    config.color
+                  )}
+                >
+                  <StatusIcon className="w-3.5 h-3.5" />
+                  <span>{config.label}</span>
+                </div>
+
+                {/* Branch */}
+                {task.branch && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded-full text-xs font-mono text-muted-foreground">
+                    <GitBranch className="w-3 h-3" />
+                    <span className="truncate max-w-[150px]">{task.branch}</span>
+                  </div>
+                )}
+
+                {/* Timestamps */}
+                {task.createdAt && (
+                  <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Calendar className="w-3 h-3" />
+                    <span>Created {format(task.createdAt, "MMM d, yyyy")}</span>
+                  </div>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Status badge */}
-              <div
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
-                  config.bgColor,
-                  config.color
-                )}
-              >
-                <StatusIcon className="w-3.5 h-3.5" />
-                <span>{config.label}</span>
-              </div>
 
-              {/* Branch */}
-              {task.branch && (
-                <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded-full text-xs font-mono text-muted-foreground">
-                  <GitBranch className="w-3 h-3" />
-                  <span className="truncate max-w-[150px]">{task.branch}</span>
-                </div>
-              )}
-
-              {/* Timestamps */}
-              {task.createdAt && (
-                <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <Calendar className="w-3 h-3" />
-                  <span>Created {format(task.createdAt, "MMM d, yyyy")}</span>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={onClose}
+              className="flex-shrink-0 p-2 -m-2 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          <button
-            onClick={onClose}
-            className="flex-shrink-0 p-2 -m-2 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {/* Autonomous Mode Alert - inside header, above the border */}
+          {task.autonomousMode && (
+            <div className="mx-6 mb-4 flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <Zap className="w-4 h-4 text-amber-500 flex-shrink-0" />
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                <span className="font-medium">Autonomous Mode enabled.</span>{" "}
+                This task will progress automatically through all stages without manual approval.
+              </p>
+            </div>
+          )}
         </div>
-
-        {/* Autonomous Mode Alert */}
-        {task.autonomousMode && (
-          <div className="mx-6 mt-4 flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <Zap className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            <p className="text-sm text-amber-700 dark:text-amber-300">
-              <span className="font-medium">Autonomous Mode enabled.</span>{" "}
-              This task will progress automatically through all stages without manual approval.
-            </p>
-          </div>
-        )}
 
         {/* Content - Scrollable */}
         <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-6 space-y-6">
@@ -1108,6 +1155,17 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
           errorAction={apiError.action}
         />
       )}
+
+      {/* Autonomous Mode Confirmation Dialog */}
+      <ConfirmDialog
+        open={showAutonomousConfirm}
+        onOpenChange={setShowAutonomousConfirm}
+        title="Enable Autonomous Mode?"
+        description={`This task is at the "${getStatusLabel(task.status)}" stage. Enabling autonomous mode will automatically continue to the next stage${task.status === "ready" ? " and start execution immediately" : ""}.`}
+        confirmLabel="Enable & Continue"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmAutonomous}
+      />
     </div>
   );
 

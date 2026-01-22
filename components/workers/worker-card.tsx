@@ -30,6 +30,7 @@ export interface WorkerCardData {
   id: string;
   taskId: string;
   taskTitle: string;
+  repoId: string;
   repoName: string;
   repoFullName: string;
   status: WorkerCardStatus;
@@ -45,7 +46,7 @@ interface WorkerCardProps {
   worker: WorkerCardData;
   defaultExpanded?: boolean;
   onRetry?: (taskId: string) => void;
-  onViewDetails?: (taskId: string) => void;
+  onViewDetails?: (taskId: string, repoId: string) => void;
   onCancel?: (taskId: string) => void;
   className?: string;
 }
@@ -308,7 +309,7 @@ export function WorkerCard({
               variant="ghost"
               onClick={(e) => {
                 e.stopPropagation();
-                onViewDetails?.(worker.taskId);
+                onViewDetails?.(worker.taskId, worker.repoId);
               }}
               className="h-8 ml-auto"
             >

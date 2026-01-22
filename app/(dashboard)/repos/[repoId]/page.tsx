@@ -113,20 +113,48 @@ export default function RepoPage() {
   }, [tasks]);
 
   const handleTaskMove = async (taskId: string, newStatus: TaskStatus) => {
+    // Find the current task for potential revert
+    const currentTask = tasks.find((t) => t.id === taskId);
+    if (!currentTask) return;
+
     // Optimistic update
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
     );
 
     try {
-      await fetch(`/api/tasks/${taskId}`, {
+      const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
+
+      if (!res.ok) {
+        // Revert to original status
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: currentTask.status } : t))
+        );
+
+        const errorData = await res.json().catch(() => ({}));
+        setErrorDialog({
+          open: true,
+          title: newStatus === "executing" ? "Execution Failed" : "Move Failed",
+          description: errorData.error || `Failed to move task to ${newStatus}`,
+          isApiKeyError: errorData.error?.includes("API key") || errorData.code === "NO_PROVIDER_CONFIGURED",
+        });
+      } else {
+        // Update with server response (includes execution info when moving to executing)
+        const updatedTask = await res.json();
+        setTasks((prev) =>
+          prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+        );
+      }
     } catch (error) {
       console.error("Error updating task:", error);
-      fetchData(); // Revert on error
+      // Revert on error
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: currentTask.status } : t))
+      );
     }
   };
 

@@ -330,69 +330,74 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
           </div>
 
           {/* Action buttons for each phase - visible on mobile, hover on desktop */}
-          {task.status === "todo" && onStart && (
-            <Button
-              size="sm"
-              variant="default"
-              className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-              onClick={handleStart}
-              disabled={starting}
-            >
-              {starting ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Sparkles className="w-3 h-3" />
+          {/* Hide all action buttons during executing status */}
+          {task.status !== "executing" && task.status !== "done" && (
+            <>
+              {task.status === "todo" && onStart && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  onClick={handleStart}
+                  disabled={starting}
+                >
+                  {starting ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3 h-3" />
+                  )}
+                  {starting ? "Starting..." : "Start"}
+                </Button>
               )}
-              {starting ? "Starting..." : "Start"}
-            </Button>
-          )}
-          {task.status === "brainstorming" && (
-            <Button
-              size="sm"
-              variant="default"
-              className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-              onClick={(e) => handleAdvance(e, "plan")}
-              disabled={advancing}
-            >
-              {advancing ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <FileText className="w-3 h-3" />
+              {task.status === "brainstorming" && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => handleAdvance(e, "plan")}
+                  disabled={advancing}
+                >
+                  {advancing ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <FileText className="w-3 h-3" />
+                  )}
+                  {advancing ? "Planning..." : "Plan"}
+                </Button>
               )}
-              {advancing ? "Planning..." : "Plan"}
-            </Button>
-          )}
-          {task.status === "planning" && (
-            <Button
-              size="sm"
-              variant="default"
-              className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-              onClick={(e) => handleAdvance(e, "ready")}
-              disabled={advancing}
-            >
-              {advancing ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Zap className="w-3 h-3" />
+              {task.status === "planning" && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => handleAdvance(e, "ready")}
+                  disabled={advancing}
+                >
+                  {advancing ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Zap className="w-3 h-3" />
+                  )}
+                  {advancing ? "Setting..." : "Ready"}
+                </Button>
               )}
-              {advancing ? "Setting..." : "Ready"}
-            </Button>
-          )}
-          {task.status === "ready" && onAdvance && (
-            <Button
-              size="sm"
-              variant="default"
-              className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-              onClick={(e) => handleAdvance(e, "execute")}
-              disabled={advancing}
-            >
-              {advancing ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Play className="w-3 h-3" />
+              {task.status === "ready" && onAdvance && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => handleAdvance(e, "execute")}
+                  disabled={advancing}
+                >
+                  {advancing ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Play className="w-3 h-3" />
+                  )}
+                  {advancing ? "Starting..." : "Execute"}
+                </Button>
               )}
-              {advancing ? "Starting..." : "Execute"}
-            </Button>
+            </>
           )}
         </div>
 
