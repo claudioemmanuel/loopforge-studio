@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams } from "next/navigation";
 import { KanbanBoard } from "@/components/kanban";
 import { TaskModal } from "@/components/task-modal";
@@ -60,11 +60,18 @@ export default function RepoPage() {
     isApiKeyError: false,
   });
 
-  const fetchData = useCallback(async () => {
+  // Use ref to track if fetch is already in progress (prevents Strict Mode double fetch)
+  const fetchInProgress = useRef(false);
+
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
+    // Prevent duplicate fetches
+    if (fetchInProgress.current && !refreshing) return;
+    fetchInProgress.current = true;
+
     try {
       const [repoRes, tasksRes] = await Promise.all([
-        fetch(`/api/repos/${repoId}`),
-        fetch(`/api/repos/${repoId}/tasks`),
+        fetch(`/api/repos/${repoId}`, { signal }),
+        fetch(`/api/repos/${repoId}/tasks`, { signal }),
       ]);
 
       if (repoRes.ok) {
@@ -74,15 +81,23 @@ export default function RepoPage() {
         setTasks(await tasksRes.json());
       }
     } catch (error) {
+      // Ignore abort errors
+      if (error instanceof Error && error.name === "AbortError") return;
       console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
+      fetchInProgress.current = false;
     }
-  }, [repoId]);
+  }, [repoId, refreshing]);
 
   useEffect(() => {
-    fetchData();
+    const abortController = new AbortController();
+    fetchData(abortController.signal);
+
+    return () => {
+      abortController.abort();
+    };
   }, [fetchData]);
 
   // Calculate task stats
