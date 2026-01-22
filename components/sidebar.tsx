@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LoopforgeIcon } from "@/components/loopforge-logo";
+import { NotificationBellClient } from "@/components/workers";
 import {
   Tooltip,
   TooltipContent,
@@ -86,7 +87,7 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
           collapsed ? "w-16" : "w-64"
         )}
       >
-        <div className={cn("p-4 border-b", collapsed && "px-3")}>
+        <div className={cn("p-4 border-b flex items-center justify-between", collapsed && "px-3")}>
           <Link href="/dashboard" className="flex items-center gap-2">
             <LoopforgeIcon size={32} />
             {!collapsed && (
@@ -95,6 +96,7 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
               </span>
             )}
           </Link>
+          {!collapsed && <NotificationBellClient />}
         </div>
 
         <nav className={cn("flex-1 p-4 space-y-1 overflow-y-auto", collapsed && "px-2")}>

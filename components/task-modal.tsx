@@ -897,8 +897,12 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                     <div>
                       <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-1">Scope Summary</h4>
                       <p className="text-sm">
-                        <span className="font-semibold">{summary.stepCount}</span> step{summary.stepCount !== 1 ? "s" : ""} across{" "}
-                        <span className="font-semibold">{summary.fileCount}</span> file{summary.fileCount !== 1 ? "s" : ""}
+                        <span className="font-semibold">{summary.stepCount}</span> step{summary.stepCount !== 1 ? "s" : ""}
+                        {summary.fileCount > 0 ? (
+                          <> across <span className="font-semibold">{summary.fileCount}</span> file{summary.fileCount !== 1 ? "s" : ""}</>
+                        ) : (
+                          <span className="text-muted-foreground"> (files determined at execution)</span>
+                        )}
                       </p>
                     </div>
                   </div>
