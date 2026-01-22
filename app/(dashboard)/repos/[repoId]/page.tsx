@@ -158,6 +158,47 @@ export default function RepoPage() {
     }
   };
 
+  const handleTaskAdvance = async (taskId: string, action: "plan" | "ready" | "execute") => {
+    const endpoint = action === "plan"
+      ? `/api/tasks/${taskId}/plan`
+      : action === "ready"
+      ? `/api/tasks/${taskId}`
+      : `/api/tasks/${taskId}/execute`;
+
+    const method = action === "ready" ? "PATCH" : "POST";
+    const body = action === "ready" ? JSON.stringify({ status: "ready" }) : undefined;
+
+    try {
+      const res = await fetch(endpoint, {
+        method,
+        body,
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTasks((prev) =>
+          prev.map((t) => (t.id === updated.id ? updated : t))
+        );
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        setErrorDialog({
+          open: true,
+          title: "Action Failed",
+          description: errorData.error || `Failed to ${action} task`,
+          isApiKeyError: errorData.error?.includes("API key"),
+        });
+      }
+    } catch (error) {
+      console.error("Error advancing task:", error);
+      setErrorDialog({
+        open: true,
+        title: "Action Failed",
+        description: "An unexpected error occurred",
+        isApiKeyError: false,
+      });
+    }
+  };
+
   const handleRefresh = () => {
     setRefreshing(true);
     fetchData();
@@ -256,6 +297,7 @@ export default function RepoPage() {
           onTaskClick={handleTaskClick}
           onTaskDelete={handleTaskDelete}
           onTaskStart={handleTaskStart}
+          onTaskAdvance={handleTaskAdvance}
           onAddTask={() => setShowNewTask(true)}
         />
       </main>

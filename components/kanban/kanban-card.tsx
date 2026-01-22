@@ -19,7 +19,6 @@ import {
   Sparkles,
   Pencil,
   Trash2,
-  ArrowRight,
   Loader2,
 } from "lucide-react";
 import {
@@ -27,11 +26,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import { formatDistanceToNow } from "date-fns";
 
@@ -41,6 +38,7 @@ interface KanbanCardProps {
   onDelete?: (taskId: string) => void;
   onMove?: (taskId: string, newStatus: TaskStatus) => void;
   onStart?: (taskId: string) => Promise<void>;
+  onAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
   isDragOverlay?: boolean;
 }
 
@@ -75,7 +73,6 @@ const statusConfig: Record<
     borderColor: "border-violet-200/80 dark:border-violet-700/50",
     glowColor: "shadow-violet-500/20",
     label: "Brainstorming",
-    isActive: true,
   },
   planning: {
     icon: FileText,
@@ -85,7 +82,6 @@ const statusConfig: Record<
     borderColor: "border-blue-200/80 dark:border-blue-700/50",
     glowColor: "shadow-blue-500/20",
     label: "Planning",
-    isActive: true,
   },
   ready: {
     icon: Zap,
@@ -140,18 +136,15 @@ function getProgressPercentage(status: TaskStatus): number {
   return progressMap[status];
 }
 
-const allStatuses: { status: TaskStatus; label: string }[] = [
-  { status: "todo", label: "To Do" },
-  { status: "brainstorming", label: "Brainstorming" },
-  { status: "planning", label: "Planning" },
-  { status: "ready", label: "Ready" },
-  { status: "executing", label: "Executing" },
-  { status: "done", label: "Done" },
-  { status: "stuck", label: "Stuck" },
-];
+// Tasks in these statuses can be edited; others are locked
+const EDITABLE_STATUSES: TaskStatus[] = ["todo", "brainstorming", "planning", "ready"];
 
-export function KanbanCard({ task, onClick, onDelete, onMove, onStart, isDragOverlay }: KanbanCardProps) {
+export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance, isDragOverlay }: KanbanCardProps) {
   const [starting, setStarting] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const isEditable = EDITABLE_STATUSES.includes(task.status);
   const {
     attributes,
     listeners,
@@ -169,6 +162,17 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, isDragOve
       await onStart(task.id);
     } finally {
       setStarting(false);
+    }
+  };
+
+  const handleAdvance = async (e: React.MouseEvent, action: "plan" | "ready" | "execute") => {
+    e.stopPropagation();
+    if (!onAdvance || advancing) return;
+    setAdvancing(true);
+    try {
+      await onAdvance(task.id, action);
+    } finally {
+      setAdvancing(false);
     }
   };
 
@@ -247,40 +251,24 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, isDragOve
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onClick(); }}>
+              <DropdownMenuItem
+                disabled={!isEditable}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isEditable) onClick();
+                }}
+              >
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit Task
+                {!isEditable && <span className="ml-auto text-xs text-muted-foreground">Locked</span>}
               </DropdownMenuItem>
-              {onMove && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <ArrowRight className="w-4 h-4 mr-2" />
-                    Move to
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {allStatuses
-                      .filter((s) => s.status !== task.status)
-                      .map((s) => (
-                        <DropdownMenuItem
-                          key={s.status}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onMove(task.id, s.status);
-                          }}
-                        >
-                          {s.label}
-                        </DropdownMenuItem>
-                      ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
               <DropdownMenuSeparator />
               {onDelete && (
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onDelete(task.id);
+                    setShowDeleteConfirm(true);
                   }}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
@@ -329,7 +317,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, isDragOve
             )}
           </div>
 
-          {/* Start button for todo tasks */}
+          {/* Action buttons for each phase */}
           {task.status === "todo" && onStart && (
             <Button
               size="sm"
@@ -344,6 +332,54 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, isDragOve
                 <Sparkles className="w-3 h-3" />
               )}
               {starting ? "Starting..." : "Start"}
+            </Button>
+          )}
+          {task.status === "brainstorming" && (
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 px-3 text-xs gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => task.brainstormResult ? handleAdvance(e, "plan") : (e.stopPropagation(), onClick())}
+              disabled={advancing}
+            >
+              {advancing ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <FileText className="w-3 h-3" />
+              )}
+              {advancing ? "Planning..." : "Plan"}
+            </Button>
+          )}
+          {task.status === "planning" && (
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 px-3 text-xs gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => task.planContent ? handleAdvance(e, "ready") : (e.stopPropagation(), onClick())}
+              disabled={advancing}
+            >
+              {advancing ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Zap className="w-3 h-3" />
+              )}
+              {advancing ? "Setting..." : "Ready"}
+            </Button>
+          )}
+          {task.status === "ready" && onAdvance && (
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 px-3 text-xs gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => handleAdvance(e, "execute")}
+              disabled={advancing}
+            >
+              {advancing ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Play className="w-3 h-3" />
+              )}
+              {advancing ? "Starting..." : "Execute"}
             </Button>
           )}
         </div>
@@ -384,46 +420,28 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, isDragOve
         )}
       </div>
 
-      {/* Active task indicator - subtle pulsing dot */}
-      {config.isActive && (
-        <div className="absolute top-3 right-3">
+      {/* Active task indicator - subtle pulsing dot (only for executing) */}
+      {task.status === "executing" && (
+        <div className="absolute top-3 right-10">
           <span className="relative flex h-2 w-2">
-            <span
-              className={cn(
-                "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
-                task.status === "executing"
-                  ? "bg-primary"
-                  : task.status === "brainstorming"
-                  ? "bg-violet-400"
-                  : "bg-blue-400"
-              )}
-            />
-            <span
-              className={cn(
-                "relative inline-flex rounded-full h-2 w-2",
-                task.status === "executing"
-                  ? "bg-primary"
-                  : task.status === "brainstorming"
-                  ? "bg-violet-500"
-                  : "bg-blue-500"
-              )}
-            />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-primary" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
           </span>
         </div>
       )}
 
-      {/* AI indicator for brainstorming/planning tasks */}
-      {(task.status === "brainstorming" || task.status === "planning") && (
-        <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <div className={cn(
-            "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium",
-            config.bgColor,
-            config.textColor
-          )}>
-            <Sparkles className="w-2.5 h-2.5" />
-            <span>AI</span>
-          </div>
-        </div>
+      {/* Delete confirmation dialog */}
+      {onDelete && (
+        <ConfirmDialog
+          open={showDeleteConfirm}
+          onOpenChange={setShowDeleteConfirm}
+          title="Delete Task?"
+          description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onConfirm={() => onDelete(task.id)}
+          variant="destructive"
+        />
       )}
     </div>
   );
