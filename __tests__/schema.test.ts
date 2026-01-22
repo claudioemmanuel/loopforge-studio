@@ -102,6 +102,7 @@ describe("Database Schema", () => {
         brainstorm_conversation TEXT,
         plan_content TEXT,
         branch TEXT,
+        autonomous_mode BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );

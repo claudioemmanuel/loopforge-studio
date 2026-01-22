@@ -1030,11 +1030,12 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
           <p className="text-sm text-muted-foreground order-2 sm:order-1">{config.description}</p>
 
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto order-1 sm:order-2">
-            {/* Action buttons based on status */}
+            {/* Action buttons based on status - disabled (not hidden) when autonomous mode is active */}
             {task.status === "todo" && (
               <Button
                 onClick={handleBrainstorm}
-                disabled={loading}
+                disabled={loading || autonomousMode}
+                title={autonomousMode ? "Autonomous mode active" : undefined}
                 className="gap-2"
               >
                 {loading && actionType === "brainstorm" ? (
@@ -1051,13 +1052,19 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                 <Button
                   variant="outline"
                   onClick={handleRefine}
-                  disabled={loading}
+                  disabled={loading || autonomousMode}
+                  title={autonomousMode ? "Autonomous mode active" : undefined}
                   className="gap-2"
                 >
                   <Sparkles className="w-4 h-4" />
                   Refine
                 </Button>
-                <Button onClick={handlePlan} disabled={loading} className="gap-2">
+                <Button
+                  onClick={handlePlan}
+                  disabled={loading || autonomousMode}
+                  title={autonomousMode ? "Autonomous mode active" : undefined}
+                  className="gap-2"
+                >
                   {loading && actionType === "plan" ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
@@ -1071,7 +1078,8 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
             {task.status === "planning" && task.planContent && (
               <Button
                 onClick={handleMarkReady}
-                disabled={loading}
+                disabled={loading || autonomousMode}
+                title={autonomousMode ? "Autonomous mode active" : undefined}
                 className="gap-2"
               >
                 {loading && actionType === "ready" ? (
@@ -1086,7 +1094,8 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
             {task.status === "ready" && (
               <Button
                 onClick={handleStartExecution}
-                disabled={loading}
+                disabled={loading || autonomousMode}
+                title={autonomousMode ? "Autonomous mode active" : undefined}
                 className="gap-2"
               >
                 {loading && actionType === "execute" ? (
@@ -1116,7 +1125,8 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
               <Button
                 variant="outline"
                 onClick={handleBrainstorm}
-                disabled={loading}
+                disabled={loading || autonomousMode}
+                title={autonomousMode ? "Autonomous mode active" : undefined}
                 className="gap-2"
               >
                 {loading && actionType === "brainstorm" ? (
