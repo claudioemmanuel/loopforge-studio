@@ -129,7 +129,7 @@ async function processAutonomousFlow(
     const client = await createAIClient(aiProvider, apiKey, model);
 
     // Get task
-    let task = await db.query.tasks.findFirst({
+    const task = await db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),
       with: { repo: true },
     });

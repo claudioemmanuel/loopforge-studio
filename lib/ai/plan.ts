@@ -129,7 +129,7 @@ Respond ONLY with valid JSON, no markdown or additional text.`;
         return JSON.parse(jsonMatch[0]);
       } catch {
         // Try to fix common JSON issues: trailing commas, unescaped quotes
-        let fixedJson = jsonMatch[0]
+        const fixedJson = jsonMatch[0]
           // Remove trailing commas before } or ]
           .replace(/,(\s*[}\]])/g, "$1")
           // Fix unescaped newlines in strings (common issue)
