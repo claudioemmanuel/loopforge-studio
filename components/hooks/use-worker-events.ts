@@ -49,9 +49,16 @@ export function useWorkerEvents(
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
+  const isConnecting = useRef(false);
 
   const connect = useCallback(() => {
     if (!enabled) return;
+
+    // Prevent duplicate connections (Strict Mode protection)
+    if (isConnecting.current || (eventSourceRef.current?.readyState === EventSource.OPEN)) {
+      return;
+    }
+    isConnecting.current = true;
 
     // Clean up existing connection
     if (eventSourceRef.current) {
@@ -62,6 +69,7 @@ export function useWorkerEvents(
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
+      isConnecting.current = false;
       setIsConnected(true);
       setError(null);
       reconnectAttempts.current = 0;
@@ -118,6 +126,7 @@ export function useWorkerEvents(
     };
 
     eventSource.onerror = () => {
+      isConnecting.current = false;
       setIsConnected(false);
       eventSource.close();
 
@@ -143,8 +152,10 @@ export function useWorkerEvents(
     connect();
 
     return () => {
+      isConnecting.current = false;
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
