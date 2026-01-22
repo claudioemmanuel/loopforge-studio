@@ -18,7 +18,6 @@ import {
   PanelLeftClose,
   PanelLeft,
   Zap,
-  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -212,7 +211,6 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
           >
             <Zap className="w-4 h-4" />
             Workers
-            <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
           </Link>
         )}
 
