@@ -519,7 +519,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                   </button>
                   {autonomousMode && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
-                      <AlertTriangle className="w-3 h-3" />
+                      <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                       Autonomous
                     </span>
                   )}

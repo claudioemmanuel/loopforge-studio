@@ -447,18 +447,20 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
         </div>
       )}
 
-      {/* Delete confirmation dialog */}
+      {/* Delete confirmation dialog - wrapped to prevent click propagation to card */}
       {onDelete && (
-        <ConfirmDialog
-          open={showDeleteConfirm}
-          onOpenChange={setShowDeleteConfirm}
-          title="Delete Task?"
-          description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
-          confirmLabel="Delete"
-          cancelLabel="Cancel"
-          onConfirm={() => onDelete(task.id)}
-          variant="destructive"
-        />
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmDialog
+            open={showDeleteConfirm}
+            onOpenChange={setShowDeleteConfirm}
+            title="Delete Task?"
+            description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
+            confirmLabel="Delete"
+            cancelLabel="Cancel"
+            onConfirm={() => onDelete(task.id)}
+            variant="destructive"
+          />
+        </div>
       )}
     </div>
   );
