@@ -17,7 +17,6 @@ import {
   MoreHorizontal,
   GripVertical,
   Sparkles,
-  Pencil,
   Trash2,
   Loader2,
   Bot,
@@ -26,7 +25,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -137,15 +135,11 @@ function getProgressPercentage(status: TaskStatus): number {
   return progressMap[status];
 }
 
-// Tasks in these statuses can be edited; others are locked
-const EDITABLE_STATUSES: TaskStatus[] = ["todo", "brainstorming", "planning", "ready"];
-
 export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance, isDragOverlay }: KanbanCardProps) {
   const [starting, setStarting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const isEditable = EDITABLE_STATUSES.includes(task.status);
   const {
     attributes,
     listeners,
@@ -252,18 +246,6 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem
-                disabled={!isEditable}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (isEditable) onClick();
-                }}
-              >
-                <Pencil className="w-4 h-4 mr-2" />
-                Edit Task
-                {!isEditable && <span className="ml-auto text-xs text-muted-foreground">Locked</span>}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               {onDelete && (
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
