@@ -7,3 +7,10 @@ export {
   type ExecutionJobData,
   type ExecutionJobResult,
 } from "./execution-queue";
+export {
+  autonomousFlowQueue,
+  queueAutonomousFlow,
+  createAutonomousFlowWorker,
+  type AutonomousFlowJobData,
+  type AutonomousFlowJobResult,
+} from "./autonomous-flow";

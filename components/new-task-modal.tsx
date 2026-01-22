@@ -11,6 +11,8 @@ import {
   Loader2,
   AlertCircle,
   Lightbulb,
+  Zap,
+  AlertTriangle,
 } from "lucide-react";
 import type { Task } from "@/lib/db/schema";
 
@@ -32,6 +34,7 @@ const taskExamples = [
 export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [autonomousMode, setAutonomousMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +49,7 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
       const res = await fetch(`/api/repos/${repoId}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description }),
+        body: JSON.stringify({ title, description, autonomousMode }),
       });
 
       if (!res.ok) {
@@ -161,6 +164,49 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
                   "resize-none transition-colors"
                 )}
               />
+            </div>
+
+            {/* Autonomous Mode Toggle */}
+            <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200/50 dark:border-amber-800/30">
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-amber-500" />
+                    <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                      Autonomous Mode
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAutonomousMode(!autonomousMode)}
+                    disabled={loading}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      "disabled:cursor-not-allowed disabled:opacity-50",
+                      autonomousMode ? "bg-amber-500" : "bg-muted"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow-sm transition-transform",
+                        autonomousMode ? "translate-x-5" : "translate-x-0.5"
+                      )}
+                    >
+                      <Zap className={cn("w-3 h-3", autonomousMode ? "text-amber-500" : "text-muted-foreground")} />
+                    </span>
+                  </button>
+                </div>
+                <p className="text-xs text-amber-600/80 dark:text-amber-400/80 mt-2">
+                  When enabled, this task will progress automatically through all stages (brainstorm → plan → execute) without manual approval.
+                </p>
+                {autonomousMode && (
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    <AlertTriangle className="w-3 h-3" />
+                    <span>AI will run end-to-end without human interaction</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* AI hint */}

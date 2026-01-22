@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { PageTransition } from "@/components/page-transition";
 import { WelcomeTutorialWrapper } from "@/components/welcome-tutorial-wrapper";
+import { NotificationBellClient } from "@/components/workers";
 import {
   SidebarProvider,
   MobileHeader,
@@ -47,7 +48,11 @@ export function DashboardLayoutClient({
         <MobileSidebar user={user} repos={repos} />
 
         {/* Main content with top padding on mobile for fixed header */}
-        <main className="flex-1 overflow-auto pt-14 md:pt-0">
+        <main className="flex-1 overflow-auto pt-14 md:pt-0 relative">
+          {/* Desktop notification bell - fixed in top-right */}
+          <div className="hidden md:block fixed top-4 right-6 z-30">
+            <NotificationBellClient />
+          </div>
           <PageTransition className="h-full">{children}</PageTransition>
         </main>
 

@@ -21,6 +21,9 @@ import {
   Calendar,
   AlertCircle,
   Settings,
+  Target,
+  Layers,
+  Gauge,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import type { Task, TaskStatus } from "@/lib/db/schema";
@@ -125,6 +128,44 @@ function parsePlanContent(content: string | null): PlanResult | null {
   }
 }
 
+// Helper to calculate plan summary for Ready Confirmation section
+function calculatePlanSummary(plan: PlanResult | null): {
+  stepCount: number;
+  fileCount: number;
+  complexity: number;
+  criticalSteps: PlanStep[];
+} {
+  if (!plan) {
+    return { stepCount: 0, fileCount: 0, complexity: 0, criticalSteps: [] };
+  }
+
+  const files = new Set<string>();
+  let complexity = 0;
+  const criticalSteps: PlanStep[] = [];
+
+  for (const step of plan.steps) {
+    // Count unique files
+    if (step.files) {
+      step.files.forEach(f => files.add(f));
+    }
+    // Calculate complexity (S=1, M=2, L=3)
+    if (step.estimatedEffort === "small") complexity += 1;
+    else if (step.estimatedEffort === "medium") complexity += 2;
+    else if (step.estimatedEffort === "large") complexity += 3;
+    // Collect critical steps
+    if (step.priority === "critical") {
+      criticalSteps.push(step);
+    }
+  }
+
+  return {
+    stepCount: plan.steps.length,
+    fileCount: files.size,
+    complexity,
+    criticalSteps,
+  };
+}
+
 interface TaskModalProps {
   task: Task;
   onClose: () => void;
@@ -222,6 +263,8 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   const [showBrainstormPanel, setShowBrainstormPanel] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [autoStartTriggered, setAutoStartTriggered] = useState(false);
+  const [autonomousMode, setAutonomousMode] = useState(task.autonomousMode ?? false);
+  const [togglingAutonomous, setTogglingAutonomous] = useState(false);
 
   // Error handling
   const {
@@ -242,6 +285,26 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   const handleApiError = useCallback(async (res: Response) => {
     await handleAPIResponse(res);
   }, [handleAPIResponse]);
+
+  const handleToggleAutonomous = async () => {
+    setTogglingAutonomous(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autonomousMode: !autonomousMode }),
+      });
+      if (res.ok) {
+        const updatedTask = await res.json();
+        setAutonomousMode(updatedTask.autonomousMode);
+        onUpdate(updatedTask);
+      }
+    } catch (err) {
+      console.error("Error toggling autonomous mode:", err);
+    } finally {
+      setTogglingAutonomous(false);
+    }
+  };
 
   const handleBrainstorm = useCallback(async () => {
     // Call API to generate initial brainstorm result
@@ -382,9 +445,40 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b">
           <div className="flex-1 min-w-0 pr-4">
-            <h2 className="text-xl font-serif font-bold tracking-tight mb-2">
-              {task.title}
-            </h2>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h2 className="text-xl font-serif font-bold tracking-tight">
+                {task.title}
+              </h2>
+              {/* Autonomous Mode Toggle */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={handleToggleAutonomous}
+                  disabled={togglingAutonomous || task.status === "executing" || task.status === "done"}
+                  className={cn(
+                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "disabled:cursor-not-allowed disabled:opacity-50",
+                    autonomousMode ? "bg-amber-500" : "bg-muted"
+                  )}
+                  title="When enabled, this task will progress automatically through all stages without manual approval"
+                >
+                  <span
+                    className={cn(
+                      "inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow-sm transition-transform",
+                      autonomousMode ? "translate-x-5" : "translate-x-0.5"
+                    )}
+                  >
+                    <Zap className={cn("w-3 h-3", autonomousMode ? "text-amber-500" : "text-muted-foreground")} />
+                  </span>
+                </button>
+                {autonomousMode && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                    <AlertTriangle className="w-3 h-3" />
+                    Autonomous
+                  </span>
+                )}
+              </div>
+            </div>
             <div className="flex items-center gap-3 flex-wrap">
               {/* Status badge */}
               <div
@@ -767,6 +861,93 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+                </div>
+              </details>
+            );
+          })()}
+
+          {/* Ready Confirmation Section - shown when task is ready or later */}
+          {(task.status === "ready" || task.status === "executing" || task.status === "done") && task.planContent && (() => {
+            const plan = parsePlanContent(task.planContent);
+            const summary = calculatePlanSummary(plan);
+            return (
+              <details className="group" open={task.status === "ready"}>
+                <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="w-4 h-4 text-amber-500 transition-transform duration-200 group-open:rotate-90" />
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <h3 className="text-sm font-medium">Ready for Execution</h3>
+                </summary>
+                <div className="mt-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200/50 dark:border-amber-800/30 space-y-4">
+                  {/* Sprint Goal */}
+                  {plan?.sprintGoal && (
+                    <div className="flex items-start gap-3">
+                      <Target className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-1">Sprint Goal</h4>
+                        <p className="text-sm font-medium">{plan.sprintGoal}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scope Summary */}
+                  <div className="flex items-start gap-3">
+                    <Layers className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-1">Scope Summary</h4>
+                      <p className="text-sm">
+                        <span className="font-semibold">{summary.stepCount}</span> step{summary.stepCount !== 1 ? "s" : ""} across{" "}
+                        <span className="font-semibold">{summary.fileCount}</span> file{summary.fileCount !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Estimated Complexity */}
+                  <div className="flex items-start gap-3">
+                    <Gauge className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-1">Estimated Complexity</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">{summary.complexity} points</span>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-xs font-medium",
+                          summary.complexity <= 5 && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+                          summary.complexity > 5 && summary.complexity <= 10 && "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+                          summary.complexity > 10 && "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                        )}>
+                          {summary.complexity <= 5 ? "Low" : summary.complexity <= 10 ? "Medium" : "High"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Critical Steps */}
+                  {summary.criticalSteps.length > 0 && (
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wide mb-1">Critical Steps</h4>
+                        <ul className="text-sm space-y-1">
+                          {summary.criticalSteps.map((step, i) => (
+                            <li key={step.id || i} className="flex items-start gap-2">
+                              <span className="text-red-500">•</span>
+                              <span>{step.title}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Branch */}
+                  {task.branch && (
+                    <div className="flex items-start gap-3">
+                      <GitBranch className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-1">Target Branch</h4>
+                        <code className="text-sm font-mono bg-amber-100 dark:bg-amber-800/40 px-2 py-0.5 rounded">{task.branch}</code>
+                      </div>
                     </div>
                   )}
                 </div>

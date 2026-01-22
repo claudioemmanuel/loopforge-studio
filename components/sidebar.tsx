@@ -17,6 +17,8 @@ import {
   AlertTriangle,
   PanelLeftClose,
   PanelLeft,
+  Zap,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -72,6 +74,7 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
   };
 
   const isDashboardActive = pathname === "/dashboard";
+  const isWorkersActive = pathname === "/workers";
   const isAnalyticsActive = pathname === "/analytics";
   const isSettingsActive = pathname.startsWith("/settings");
 
@@ -176,6 +179,40 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
             </>
           )}
         </div>
+
+        {/* Workers */}
+        {collapsed ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href="/workers"
+                className={cn(
+                  "flex items-center justify-center p-2 rounded-lg transition-colors",
+                  isWorkersActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Zap className="w-5 h-5" />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">Workers</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Link
+            href="/workers"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+              isWorkersActive
+                ? "bg-primary/10 text-primary font-medium"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Zap className="w-4 h-4" />
+            Workers
+            <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+          </Link>
+        )}
 
         {/* Settings with cascade */}
         <div>

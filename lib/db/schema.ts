@@ -104,6 +104,7 @@ export const tasks = pgTable("tasks", {
   brainstormConversation: text("brainstorm_conversation"), // JSON array of chat messages
   planContent: text("plan_content"),
   branch: text("branch"),
+  autonomousMode: boolean("autonomous_mode").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

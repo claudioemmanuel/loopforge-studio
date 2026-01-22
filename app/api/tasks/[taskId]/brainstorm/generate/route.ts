@@ -11,6 +11,7 @@ import {
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
 import { handleError, Errors } from "@/lib/errors";
+import { queueAutonomousFlow } from "@/lib/queue";
 
 function getProviderApiKey(
   user: User,
@@ -74,6 +75,30 @@ export async function POST(
 
   if (!task || task.repo.userId !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Check if autonomous mode is enabled
+  if (task.autonomousMode) {
+    console.log("[brainstorm/generate] Autonomous mode enabled, queueing autonomous flow");
+
+    // Queue the autonomous flow job
+    await queueAutonomousFlow({
+      taskId,
+      userId: session.user.id,
+      repoId: task.repo.id,
+    });
+
+    // Update task status to brainstorming immediately
+    const [updatedTask] = await db
+      .update(tasks)
+      .set({
+        status: "brainstorming",
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId))
+      .returning();
+
+    return NextResponse.json(updatedTask);
   }
 
   // Get user
