@@ -190,8 +190,10 @@ export function NotificationBell({
   const hasStuck = stuckWorkers.length > 0;
   const activeCount = activeWorkers.length;
 
-  // Sort workers: active first, then stuck, then completed (most recent first)
+  // Filter out completed workers (they don't need attention)
+  // Sort remaining: active first, then stuck (most recent first)
   const sortedWorkers = [...workers]
+    .filter((w) => w.status !== "done")
     .sort((a, b) => {
       const statusOrder: Record<WorkerStatus, number> = {
         executing: 0,
