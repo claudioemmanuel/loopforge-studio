@@ -246,6 +246,75 @@ export interface ExistingBrainstormContext {
   suggestedApproach: string;
 }
 
+// Generate initial brainstorm result without chat interaction
+// Used for the "Start Brainstorming" button - generates result directly
+export async function generateInitialBrainstorm(
+  client: AIClient,
+  taskTitle: string,
+  taskDescription: string | null,
+  repoContext: RepoContext
+): Promise<BrainstormChatResponse["brainstormPreview"]> {
+  const prompt = `You are an expert Scrum Master analyzing a task for sprint planning.
+
+TASK: "${taskTitle}"
+${taskDescription ? `DESCRIPTION: ${taskDescription}` : ""}
+
+REPOSITORY CONTEXT:
+- Tech Stack: ${repoContext.techStack.join(", ") || "Unknown"}
+- File Structure: ${repoContext.fileStructure.join(", ")}
+
+Generate a comprehensive initial brainstorm analysis. Provide:
+1. A clear summary of what needs to be done
+2. Key requirements and acceptance criteria (3-5 items)
+3. Technical considerations, risks, or edge cases (2-4 items)
+4. A suggested implementation approach
+
+RESPOND WITH JSON ONLY:
+{
+  "summary": "Clear, actionable summary of the task",
+  "requirements": ["Requirement 1", "Requirement 2", "..."],
+  "considerations": ["Consideration 1", "Consideration 2", "..."],
+  "suggestedApproach": "High-level approach to implement this task"
+}`;
+
+  const messages: ChatMessage[] = [
+    { role: "user", content: prompt },
+  ];
+
+  const response = await client.chat(messages, { maxTokens: 2048 });
+
+  // Strip markdown code blocks
+  let cleanedResponse = response.trim();
+  const jsonMatch = cleanedResponse.match(/^```json\s*([\s\S]*?)\s*```$/);
+  if (jsonMatch) {
+    cleanedResponse = jsonMatch[1].trim();
+  } else if (cleanedResponse.startsWith("```")) {
+    cleanedResponse = cleanedResponse.slice(3);
+    if (cleanedResponse.endsWith("```")) {
+      cleanedResponse = cleanedResponse.slice(0, -3);
+    }
+    cleanedResponse = cleanedResponse.trim();
+  }
+
+  try {
+    const parsed = JSON.parse(cleanedResponse);
+    return {
+      summary: parsed.summary || `Analysis of: ${taskTitle}`,
+      requirements: parsed.requirements || [],
+      considerations: parsed.considerations || [],
+      suggestedApproach: parsed.suggestedApproach || "Further refinement needed",
+    };
+  } catch {
+    // Return a basic structure if parsing fails
+    return {
+      summary: `Initial analysis of: ${taskTitle}`,
+      requirements: ["Define detailed requirements through refinement"],
+      considerations: ["Technical approach needs discussion"],
+      suggestedApproach: "Use the Refine button to interactively clarify this task",
+    };
+  }
+}
+
 export async function initializeBrainstorm(
   client: AIClient,
   taskTitle: string,
