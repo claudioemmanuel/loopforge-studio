@@ -98,8 +98,8 @@ export async function PATCH(
     description: string;
     status: TaskStatus;
     priority: number;
-    brainstormResult: string;
-    planContent: string;
+    brainstormResult: string | null;
+    planContent: string | null;
     branch: string;
     autonomousMode: boolean;
   }> = {};
@@ -112,6 +112,22 @@ export async function PATCH(
   if (body.planContent !== undefined) updates.planContent = body.planContent;
   if (body.branch !== undefined) updates.branch = body.branch;
   if (body.autonomousMode !== undefined) updates.autonomousMode = body.autonomousMode;
+
+  // Handle backward movement with resetPhases option
+  // When moving backward and resetPhases is true, clear data based on target status
+  if (body.resetPhases === true && body.status !== undefined) {
+    const targetStatus = body.status as TaskStatus;
+
+    // Reset logic based on target status:
+    // - Moving to "todo": clear brainstormResult and planContent
+    // - Moving to "brainstorming": clear planContent
+    if (targetStatus === "todo") {
+      updates.brainstormResult = null;
+      updates.planContent = null;
+    } else if (targetStatus === "brainstorming") {
+      updates.planContent = null;
+    }
+  }
 
   // Check if status is changing to "executing" - auto-queue execution
   const isMovingToExecuting = body.status === "executing" && task.status !== "executing";

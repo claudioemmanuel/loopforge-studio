@@ -65,6 +65,9 @@ const config: Config = {
         serif: ["var(--font-serif)", "'Playfair Display'", "Georgia", "serif"],
         mono: ["var(--font-mono)", "monospace"],
       },
+      animation: {
+        "gradient-rotate": "gradient-rotate 3s linear infinite",
+      },
     },
   },
   plugins: [],

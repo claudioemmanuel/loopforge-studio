@@ -7,6 +7,10 @@ import { TaskModal } from "@/components/task-modal";
 import { NewTaskModal } from "@/components/new-task-modal";
 import { Button } from "@/components/ui/button";
 import { ErrorDialog } from "@/components/ui/error-dialog";
+import {
+  BackwardMoveDialog,
+  isBackwardMove,
+} from "@/components/ui/backward-move-dialog";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -58,6 +62,21 @@ export default function RepoPage() {
     title: "",
     description: "",
     isApiKeyError: false,
+  });
+
+  // Backward move dialog state
+  const [backwardMoveDialog, setBackwardMoveDialog] = useState<{
+    open: boolean;
+    taskId: string;
+    taskTitle: string;
+    fromStatus: TaskStatus;
+    toStatus: TaskStatus;
+  }>({
+    open: false,
+    taskId: "",
+    taskTitle: "",
+    fromStatus: "todo",
+    toStatus: "todo",
   });
 
   const fetchData = useCallback(async (signal: AbortSignal) => {
@@ -123,8 +142,12 @@ export default function RepoPage() {
     return { total, inProgress, completed, stuck };
   }, [tasks]);
 
-  const handleTaskMove = async (taskId: string, newStatus: TaskStatus) => {
-    // Find the current task for potential revert
+  // Core function to perform the task move API call
+  const performTaskMove = async (
+    taskId: string,
+    newStatus: TaskStatus,
+    resetPhases: boolean = false
+  ) => {
     const currentTask = tasks.find((t) => t.id === taskId);
     if (!currentTask) return;
 
@@ -137,7 +160,7 @@ export default function RepoPage() {
       const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, resetPhases }),
       });
 
       if (!res.ok) {
@@ -167,6 +190,40 @@ export default function RepoPage() {
         prev.map((t) => (t.id === taskId ? { ...t, status: currentTask.status } : t))
       );
     }
+  };
+
+  const handleTaskMove = async (taskId: string, newStatus: TaskStatus) => {
+    // Find the current task for potential revert
+    const currentTask = tasks.find((t) => t.id === taskId);
+    if (!currentTask) return;
+
+    // Check if this is a backward move
+    if (isBackwardMove(currentTask.status, newStatus)) {
+      // Show confirmation dialog instead of moving immediately
+      setBackwardMoveDialog({
+        open: true,
+        taskId,
+        taskTitle: currentTask.title,
+        fromStatus: currentTask.status,
+        toStatus: newStatus,
+      });
+      return;
+    }
+
+    // Forward move - proceed immediately
+    await performTaskMove(taskId, newStatus);
+  };
+
+  // Handler for backward move with data preserved
+  const handleBackwardMoveKeepData = async () => {
+    const { taskId, toStatus } = backwardMoveDialog;
+    await performTaskMove(taskId, toStatus, false);
+  };
+
+  // Handler for backward move with data reset
+  const handleBackwardMoveReset = async () => {
+    const { taskId, toStatus } = backwardMoveDialog;
+    await performTaskMove(taskId, toStatus, true);
   };
 
   const handleTaskClick = (task: Task) => {
@@ -385,6 +442,19 @@ export default function RepoPage() {
         title={errorDialog.title}
         description={errorDialog.description}
         isApiKeyError={errorDialog.isApiKeyError}
+      />
+
+      {/* Backward Move Confirmation Dialog */}
+      <BackwardMoveDialog
+        open={backwardMoveDialog.open}
+        onOpenChange={(open) =>
+          setBackwardMoveDialog((prev) => ({ ...prev, open }))
+        }
+        fromStatus={backwardMoveDialog.fromStatus}
+        toStatus={backwardMoveDialog.toStatus}
+        taskTitle={backwardMoveDialog.taskTitle}
+        onKeepData={handleBackwardMoveKeepData}
+        onReset={handleBackwardMoveReset}
       />
     </div>
   );
