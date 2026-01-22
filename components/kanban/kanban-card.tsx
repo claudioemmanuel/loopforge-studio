@@ -20,6 +20,7 @@ import {
   Pencil,
   Trash2,
   Loader2,
+  Bot,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -308,6 +309,17 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
               <span>{config.label}</span>
             </div>
 
+            {/* Autonomous mode indicator */}
+            {task.autonomousMode && (
+              <div
+                className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100/80 dark:bg-amber-900/40 rounded-full text-xs text-amber-700 dark:text-amber-300 font-medium"
+                title="Autonomous mode enabled"
+              >
+                <Bot className="w-3 h-3" />
+                <span>Auto</span>
+              </div>
+            )}
+
             {/* Branch name */}
             {task.branch && (
               <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/70 rounded-full text-xs text-muted-foreground font-mono">
@@ -339,7 +351,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
               size="sm"
               variant="default"
               className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-              onClick={(e) => task.brainstormResult ? handleAdvance(e, "plan") : (e.stopPropagation(), onClick())}
+              onClick={(e) => handleAdvance(e, "plan")}
               disabled={advancing}
             >
               {advancing ? (
@@ -355,7 +367,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
               size="sm"
               variant="default"
               className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-              onClick={(e) => task.planContent ? handleAdvance(e, "ready") : (e.stopPropagation(), onClick())}
+              onClick={(e) => handleAdvance(e, "ready")}
               disabled={advancing}
             >
               {advancing ? (

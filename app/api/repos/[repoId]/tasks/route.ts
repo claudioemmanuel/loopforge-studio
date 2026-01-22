@@ -52,7 +52,7 @@ export async function POST(
   }
 
   const body = await request.json();
-  const { title, description } = body;
+  const { title, description, autonomousMode } = body;
 
   if (!title) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -67,8 +67,10 @@ export async function POST(
     status: "todo" as const,
     priority: 0,
     brainstormResult: null,
+    brainstormConversation: null,
     planContent: null,
     branch: null,
+    autonomousMode: autonomousMode || false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

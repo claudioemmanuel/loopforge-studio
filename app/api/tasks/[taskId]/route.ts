@@ -57,6 +57,7 @@ export async function PATCH(
     brainstormResult: string;
     planContent: string;
     branch: string;
+    autonomousMode: boolean;
   }> = {};
 
   if (body.title !== undefined) updates.title = body.title;
@@ -66,6 +67,7 @@ export async function PATCH(
   if (body.brainstormResult !== undefined) updates.brainstormResult = body.brainstormResult;
   if (body.planContent !== undefined) updates.planContent = body.planContent;
   if (body.branch !== undefined) updates.branch = body.branch;
+  if (body.autonomousMode !== undefined) updates.autonomousMode = body.autonomousMode;
 
   await db
     .update(tasks)

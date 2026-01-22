@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { runLoop, type LoopContext, type ExecutionMode } from "../lib/ralph";
 import {
   createExecutionWorker,
+  createAutonomousFlowWorker,
   type ExecutionJobData,
   type ExecutionJobResult,
 } from "../lib/queue";
@@ -274,7 +275,7 @@ async function processExecution(
   }
 }
 
-// Create and start the worker
+// Create and start the execution worker
 const worker = createExecutionWorker(processExecution);
 
 worker.on("completed", (job, result) => {
@@ -291,4 +292,26 @@ worker.on("error", (err) => {
 
 console.log("Execution worker started");
 
+// Create and start the autonomous flow worker
+const autonomousWorker = createAutonomousFlowWorker();
+
+autonomousWorker.on("completed", (job, result) => {
+  console.log(
+    `Autonomous flow ${job.id} completed:`,
+    result.success ? "success" : "failed",
+    `(task status: ${result.finalStatus})`
+  );
+});
+
+autonomousWorker.on("failed", (job, err) => {
+  console.error(`Autonomous flow ${job?.id} failed:`, err.message);
+});
+
+autonomousWorker.on("error", (err) => {
+  console.error("Autonomous flow worker error:", err);
+});
+
+console.log("Autonomous flow worker started");
+
+export { worker, autonomousWorker };
 export default worker;
