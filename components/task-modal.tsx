@@ -518,6 +518,17 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
           </button>
         </div>
 
+        {/* Autonomous Mode Alert */}
+        {task.autonomousMode && (
+          <div className="mx-6 mt-4 flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <Zap className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              <span className="font-medium">Autonomous Mode enabled.</span>{" "}
+              This task will progress automatically through all stages without manual approval.
+            </p>
+          </div>
+        )}
+
         {/* Content - Scrollable */}
         <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-6 space-y-6">
           {/* Error Alert - inline display for simple errors */}
