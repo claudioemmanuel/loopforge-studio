@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, repos, executions } from "@/lib/db";
+import type { TaskStatus } from "@/lib/db/schema";
 import { eq, and, inArray, desc } from "drizzle-orm";
 
 export async function GET(request: Request) {
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
   const repoMap = new Map(userRepos.map((r) => [r.id, r]));
 
   // Build status filter
-  let statusFilter: string[] = [];
+  let statusFilter: TaskStatus[] = [];
   switch (filter) {
     case "active":
       statusFilter = ["brainstorming", "planning", "ready", "executing"];
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
     where: and(
       inArray(tasks.repoId, repoIds),
       eq(tasks.autonomousMode, true),
-      inArray(tasks.status, statusFilter as any)
+      inArray(tasks.status, statusFilter)
     ),
     orderBy: [desc(tasks.updatedAt)],
     limit: 50,

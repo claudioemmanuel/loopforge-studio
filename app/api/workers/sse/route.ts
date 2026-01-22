@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { db, tasks, repos, executions } from "@/lib/db";
+import type { TaskStatus } from "@/lib/db/schema";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
 import Redis from "ioredis";
@@ -24,7 +25,7 @@ async function getInitialWorkers(userId: string) {
     where: and(
       inArray(tasks.repoId, repoIds),
       eq(tasks.autonomousMode, true),
-      inArray(tasks.status, ["brainstorming", "planning", "ready", "executing", "done", "stuck"] as any)
+      inArray(tasks.status, ["brainstorming", "planning", "ready", "executing", "done", "stuck"] as TaskStatus[])
     ),
     orderBy: [desc(tasks.updatedAt)],
     limit: 20,

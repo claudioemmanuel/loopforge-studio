@@ -272,7 +272,7 @@ export default function WorkersPage() {
           <p className="text-sm text-muted-foreground">
             To start an autonomous worker, create a task with{" "}
             <span className="font-medium text-primary">Autonomous Mode</span>{" "}
-            enabled and click "Start Brainstorming".
+            enabled and click &quot;Start Brainstorming&quot;.
           </p>
           <Link href="/dashboard">
             <Button variant="outline" className="mt-4">
