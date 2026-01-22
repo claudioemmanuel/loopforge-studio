@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -132,30 +132,6 @@ interface TaskModalProps {
   autoStartBrainstorm?: boolean;
 }
 
-// Collapsible section component using native HTML5 details/summary
-interface CollapsibleSectionProps {
-  title: string;
-  emoji?: string;
-  iconColor?: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}
-
-function CollapsibleSection({ title, emoji, iconColor, defaultOpen, children }: CollapsibleSectionProps) {
-  return (
-    <details className="group/section" open={defaultOpen}>
-      <summary className="flex items-center gap-2 cursor-pointer select-none list-none py-1.5 text-xs font-semibold uppercase tracking-wide hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
-        <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200 group-open/section:rotate-90", iconColor)} />
-        {emoji && <span>{emoji}</span>}
-        <span className={iconColor}>{title}</span>
-      </summary>
-      <div className="pl-5 pb-2">
-        {children}
-      </div>
-    </details>
-  );
-}
-
 // Simple markdown-like text renderer
 function renderFormattedText(text: string): React.ReactNode {
   // Split by **bold** patterns
@@ -243,8 +219,9 @@ const workflowSteps: TaskStatus[] = [
 export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false }: TaskModalProps) {
   const [loading, setLoading] = useState(false);
   const [actionType, setActionType] = useState<string | null>(null);
-  const [showBrainstormPanel, setShowBrainstormPanel] = useState(autoStartBrainstorm);
+  const [showBrainstormPanel, setShowBrainstormPanel] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [autoStartTriggered, setAutoStartTriggered] = useState(false);
 
   // Error handling
   const {
@@ -255,18 +232,6 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
     handleAPIResponse,
   } = useAPIError();
 
-  // Track mount state for portal
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Sync showBrainstormPanel when autoStartBrainstorm prop changes
-  useEffect(() => {
-    if (autoStartBrainstorm) {
-      setShowBrainstormPanel(true);
-    }
-  }, [autoStartBrainstorm]);
-
   const config = statusConfig[task.status];
   const StatusIcon = config.icon;
 
@@ -274,14 +239,51 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   const currentStepIndex = workflowSteps.indexOf(task.status);
   const isStuck = task.status === "stuck";
 
-  const handleApiError = async (res: Response) => {
+  const handleApiError = useCallback(async (res: Response) => {
     await handleAPIResponse(res);
-  };
+  }, [handleAPIResponse]);
 
-  const handleBrainstorm = () => {
-    // Open interactive brainstorm panel instead of calling API directly
+  const handleBrainstorm = useCallback(async () => {
+    // Call API to generate initial brainstorm result
+    setLoading(true);
+    setActionType("brainstorm");
+    clearError();
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/brainstorm/generate`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const updatedTask = await res.json();
+        onUpdate(updatedTask);
+        // Don't open panel - result is shown in modal
+      } else {
+        await handleApiError(res);
+      }
+    } catch (err) {
+      console.error("Error brainstorming:", err);
+    } finally {
+      setLoading(false);
+      setActionType(null);
+    }
+  }, [task.id, clearError, onUpdate, handleApiError]);
+
+  const handleRefine = () => {
+    // Open interactive brainstorm panel for refinement
     setShowBrainstormPanel(true);
   };
+
+  // Track mount state for portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Auto-start brainstorm when requested (calls API, doesn't open panel)
+  useEffect(() => {
+    if (autoStartBrainstorm && !autoStartTriggered && task.status === "todo") {
+      setAutoStartTriggered(true);
+      handleBrainstorm();
+    }
+  }, [autoStartBrainstorm, autoStartTriggered, task.status, handleBrainstorm]);
 
   const handleBrainstormFinalize = async () => {
     // Refresh task data after brainstorm finishes
@@ -505,26 +507,28 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
             if (!brainstorm) {
               // Fallback to raw display if parsing fails
               return (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                <details className="group" open>
+                  <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
+                    <ChevronRight className="w-4 h-4 text-violet-500 transition-transform duration-200 group-open:rotate-90" />
                     <Lightbulb className="w-4 h-4 text-violet-500" />
                     <h3 className="text-sm font-medium">Brainstorm Result</h3>
-                  </div>
-                  <div className="p-4 bg-violet-50 dark:bg-violet-900/20 rounded-xl border border-violet-200/50 dark:border-violet-800/30">
+                  </summary>
+                  <div className="mt-3 p-4 bg-violet-50 dark:bg-violet-900/20 rounded-xl border border-violet-200/50 dark:border-violet-800/30">
                     <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">
                       {task.brainstormResult}
                     </pre>
                   </div>
-                </div>
+                </details>
               );
             }
             return (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
+              <details className="group" open>
+                <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="w-4 h-4 text-violet-500 transition-transform duration-200 group-open:rotate-90" />
                   <Lightbulb className="w-4 h-4 text-violet-500" />
                   <h3 className="text-sm font-medium">Brainstorm Result</h3>
-                </div>
-                <div className="p-4 bg-violet-50 dark:bg-violet-900/20 rounded-xl border border-violet-200/50 dark:border-violet-800/30 space-y-4">
+                </summary>
+                <div className="mt-3 p-4 bg-violet-50 dark:bg-violet-900/20 rounded-xl border border-violet-200/50 dark:border-violet-800/30 space-y-4">
                   {/* Summary */}
                   <div>
                     <h4 className="text-xs font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wide mb-1">Summary</h4>
@@ -569,7 +573,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                     </div>
                   )}
                 </div>
-              </div>
+              </details>
             );
           })()}
 
@@ -579,42 +583,73 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
             if (!plan) {
               // Fallback to raw display if parsing fails
               return (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                <details className="group" open>
+                  <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
+                    <ChevronRight className="w-4 h-4 text-blue-500 transition-transform duration-200 group-open:rotate-90" />
                     <FileText className="w-4 h-4 text-blue-500" />
                     <h3 className="text-sm font-medium">Execution Plan</h3>
-                  </div>
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200/50 dark:border-blue-800/30">
+                  </summary>
+                  <div className="mt-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200/50 dark:border-blue-800/30">
                     <pre className="text-sm whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
                       {task.planContent}
                     </pre>
                   </div>
-                </div>
+                </details>
               );
             }
             return (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
+              <details className="group" open>
+                <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="w-4 h-4 text-blue-500 transition-transform duration-200 group-open:rotate-90" />
                   <FileText className="w-4 h-4 text-blue-500" />
                   <h3 className="text-sm font-medium">Sprint Plan</h3>
-                </div>
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200/50 dark:border-blue-800/30 space-y-2">
-                  {/* Sprint Goal - Expanded by default */}
+                </summary>
+                <div className="mt-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200/50 dark:border-blue-800/30 space-y-4">
+                  {/* Sprint Goal */}
                   {plan.sprintGoal && (
-                    <CollapsibleSection title="Sprint Goal" emoji="🎯" iconColor="text-blue-700 dark:text-blue-300" defaultOpen>
+                    <div>
+                      <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-1">🎯 Sprint Goal</h4>
                       <p className="text-sm font-medium leading-relaxed">{plan.sprintGoal}</p>
-                    </CollapsibleSection>
+                    </div>
                   )}
 
-                  {/* Overview - Expanded by default */}
-                  <CollapsibleSection title="Overview" iconColor="text-blue-700 dark:text-blue-300" defaultOpen>
-                    <p className="text-sm leading-relaxed">{plan.overview}</p>
-                  </CollapsibleSection>
+                  {/* Overview */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-1">Overview</h4>
+                    {plan.overview.includes("Failed to parse") || plan.overview.includes("could not be parsed") ? (
+                      <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200/50 dark:border-amber-800/30">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-amber-700 dark:text-amber-300 font-medium text-sm">Plan parsing issue</p>
+                          <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
+                            The AI response couldn&apos;t be fully parsed. Regenerate to get a properly structured plan.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handlePlan}
+                            disabled={loading}
+                            className="mt-3 gap-2 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                          >
+                            {loading && actionType === "plan" ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <FileText className="w-3.5 h-3.5" />
+                            )}
+                            Regenerate Plan
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm leading-relaxed">{plan.overview}</p>
+                    )}
+                  </div>
 
-                  {/* Sprint Backlog - Collapsed by default */}
+                  {/* Sprint Backlog */}
                   {plan.steps.length > 0 && (
-                    <CollapsibleSection title="Sprint Backlog" iconColor="text-blue-700 dark:text-blue-300">
-                      <ol className="text-sm space-y-4 pt-1">
+                    <div>
+                      <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-2">Sprint Backlog</h4>
+                      <ol className="text-sm space-y-4">
                         {plan.steps.map((step, i) => (
                           <li key={step.id || i} className="flex gap-3 p-3 bg-white/50 dark:bg-slate-800/30 rounded-lg border border-blue-100 dark:border-blue-800/30">
                             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 text-xs font-medium flex items-center justify-center">
@@ -685,13 +720,14 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                           </li>
                         ))}
                       </ol>
-                    </CollapsibleSection>
+                    </div>
                   )}
 
-                  {/* Risks - Collapsed by default */}
+                  {/* Risks & Mitigations */}
                   {plan.risks && plan.risks.length > 0 && (
-                    <CollapsibleSection title="Risks & Mitigations" emoji="⚠️" iconColor="text-amber-700 dark:text-amber-300">
-                      <ul className="text-sm space-y-2 pt-1">
+                    <div>
+                      <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-2">⚠️ Risks & Mitigations</h4>
+                      <ul className="text-sm space-y-2">
                         {plan.risks.map((risk, i) => (
                           <li key={i} className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200/50 dark:border-amber-800/30">
                             <p className="text-xs font-medium text-amber-800 dark:text-amber-200">{risk.description}</p>
@@ -701,13 +737,14 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                           </li>
                         ))}
                       </ul>
-                    </CollapsibleSection>
+                    </div>
                   )}
 
-                  {/* Definition of Done - Collapsed by default */}
+                  {/* Definition of Done */}
                   {plan.definitionOfDone && plan.definitionOfDone.length > 0 && (
-                    <CollapsibleSection title="Definition of Done" emoji="✅" iconColor="text-emerald-700 dark:text-emerald-300">
-                      <ul className="text-sm space-y-1 pt-1">
+                    <div>
+                      <h4 className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide mb-1">✅ Definition of Done</h4>
+                      <ul className="text-sm space-y-1">
                         {plan.definitionOfDone.map((d, i) => (
                           <li key={i} className="flex items-start gap-2 text-muted-foreground">
                             <span className="text-emerald-500">□</span>
@@ -715,13 +752,14 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                           </li>
                         ))}
                       </ul>
-                    </CollapsibleSection>
+                    </div>
                   )}
 
-                  {/* Verification - Collapsed by default */}
+                  {/* Verification Steps */}
                   {plan.verification && plan.verification.length > 0 && (
-                    <CollapsibleSection title="Verification Steps" iconColor="text-blue-700 dark:text-blue-300">
-                      <ul className="text-sm space-y-1 pt-1">
+                    <div>
+                      <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-1">Verification Steps</h4>
+                      <ul className="text-sm space-y-1">
                         {plan.verification.map((v, i) => (
                           <li key={i} className="flex items-start gap-2">
                             <CheckCircle2 className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
@@ -729,10 +767,10 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
                           </li>
                         ))}
                       </ul>
-                    </CollapsibleSection>
+                    </div>
                   )}
                 </div>
-              </div>
+              </details>
             );
           })()}
 
@@ -769,7 +807,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
               <>
                 <Button
                   variant="outline"
-                  onClick={handleBrainstorm}
+                  onClick={handleRefine}
                   disabled={loading}
                   className="gap-2"
                 >

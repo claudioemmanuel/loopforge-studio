@@ -72,6 +72,15 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // This endpoint is for refinement only - task must already have a brainstorm result
+  // Initial brainstorming should use /brainstorm/generate instead
+  if (!task.brainstormResult) {
+    return NextResponse.json(
+      { error: "No brainstorm result found. Use /brainstorm/generate first." },
+      { status: 400 }
+    );
+  }
+
   // Get user
   const user = await db.query.users.findFirst({
     where: eq(users.id, session.user.id),
@@ -197,13 +206,8 @@ export async function POST(
           }
         }
 
-        // Update task status if not already brainstorming
-        if (task.status !== "brainstorming") {
-          await db
-            .update(tasks)
-            .set({ status: "brainstorming", updatedAt: new Date() })
-            .where(eq(tasks.id, taskId));
-        }
+        // Note: Status is already "brainstorming" from /generate endpoint
+        // No status change needed here - this is refinement only
 
         return NextResponse.json({
           message: "Welcome back! Continuing your conversation...",
@@ -222,21 +226,20 @@ export async function POST(
       }
     }
 
-    // Parse existing brainstorm result if present (for refinement)
+    // Parse existing brainstorm result for refinement
+    // Note: task.brainstormResult is guaranteed to exist due to guard at top of function
     let existingBrainstorm: ExistingBrainstormContext | undefined;
-    if (task.brainstormResult) {
-      console.log("[brainstorm/init] Parsing existing brainstorm result");
-      try {
-        existingBrainstorm = JSON.parse(task.brainstormResult);
-        console.log("[brainstorm/init] Existing brainstorm parsed:", !!existingBrainstorm);
-      } catch (parseError) {
-        console.log("[brainstorm/init] Failed to parse existing brainstorm:", parseError);
-        // If parsing fails, treat as no existing brainstorm
-      }
+    console.log("[brainstorm/init] Parsing existing brainstorm result for refinement");
+    try {
+      existingBrainstorm = JSON.parse(task.brainstormResult);
+      console.log("[brainstorm/init] Existing brainstorm parsed successfully");
+    } catch (parseError) {
+      console.log("[brainstorm/init] Failed to parse existing brainstorm:", parseError);
+      // If parsing fails, still allow refinement but without context
     }
 
-    // Initialize new conversation with AI
-    console.log("[brainstorm/init] Calling initializeBrainstorm");
+    // Initialize refinement conversation with AI
+    console.log("[brainstorm/init] Starting refinement session");
     const initialResponse = await initializeBrainstorm(
       client,
       task.title,
@@ -256,11 +259,8 @@ export async function POST(
       currentPreview: initialResponse.brainstormPreview,
     });
 
-    // Update task status
-    await db
-      .update(tasks)
-      .set({ status: "brainstorming", updatedAt: new Date() })
-      .where(eq(tasks.id, taskId));
+    // Note: Status is already "brainstorming" from /generate endpoint
+    // No status change needed here - this is refinement only
 
     return NextResponse.json({
       message: initialResponse.message,
