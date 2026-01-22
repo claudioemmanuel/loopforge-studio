@@ -95,21 +95,21 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-serif font-bold tracking-tight">Analytics</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">Analytics</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
             Track your <em className="font-serif">AI-powered</em> development metrics
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex border rounded-lg overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="flex border rounded-lg overflow-hidden overflow-x-auto">
             {(["today", "week", "month", "year"] as DateRange[]).map((r) => (
               <button
                 key={r}
                 onClick={() => setRange(r)}
-                className={`px-3 py-1.5 text-sm capitalize transition-all duration-200 ${
+                className={`px-2 sm:px-3 py-1.5 text-sm capitalize transition-all duration-200 whitespace-nowrap ${
                   range === r
                     ? "bg-primary text-primary-foreground"
                     : "bg-background hover:bg-muted/50"
@@ -119,7 +119,7 @@ export default function AnalyticsPage() {
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm" onClick={handleExport}>
+          <Button variant="outline" size="sm" onClick={handleExport} className="w-full sm:w-auto">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>

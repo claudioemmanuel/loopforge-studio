@@ -216,12 +216,12 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
         ]
       )}
     >
-      {/* Drag handle - appears on hover */}
+      {/* Drag handle - visible on mobile, appears on hover on desktop */}
       <div
         {...listeners}
         className={cn(
           "absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center",
-          "opacity-0 group-hover:opacity-100 transition-opacity duration-150",
+          "sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150",
           "cursor-grab active:cursor-grabbing",
           "rounded-l-xl hover:bg-muted/50"
         )}
@@ -241,7 +241,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
               <button
                 className={cn(
                   "flex-shrink-0 p-1.5 -m-1 rounded-lg",
-                  "opacity-0 group-hover:opacity-100",
+                  "sm:opacity-0 sm:group-hover:opacity-100",
                   "hover:bg-muted/50 text-muted-foreground hover:text-foreground",
                   "transition-all duration-150"
                 )}
@@ -317,12 +317,12 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
             )}
           </div>
 
-          {/* Action buttons for each phase */}
+          {/* Action buttons for each phase - visible on mobile, hover on desktop */}
           {task.status === "todo" && onStart && (
             <Button
               size="sm"
               variant="default"
-              className="h-7 px-3 text-xs gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
               onClick={handleStart}
               disabled={starting}
             >
@@ -338,7 +338,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
             <Button
               size="sm"
               variant="default"
-              className="h-7 px-3 text-xs gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
               onClick={(e) => task.brainstormResult ? handleAdvance(e, "plan") : (e.stopPropagation(), onClick())}
               disabled={advancing}
             >
@@ -354,7 +354,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
             <Button
               size="sm"
               variant="default"
-              className="h-7 px-3 text-xs gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
               onClick={(e) => task.planContent ? handleAdvance(e, "ready") : (e.stopPropagation(), onClick())}
               disabled={advancing}
             >
@@ -370,7 +370,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
             <Button
               size="sm"
               variant="default"
-              className="h-7 px-3 text-xs gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
               onClick={(e) => handleAdvance(e, "execute")}
               disabled={advancing}
             >

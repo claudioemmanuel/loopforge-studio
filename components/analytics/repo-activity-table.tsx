@@ -20,9 +20,28 @@ export function RepoActivityTable({ data }: RepoActivityTableProps) {
   }
 
   return (
-    <div className="p-6 rounded-xl border bg-card">
+    <div className="p-4 sm:p-6 rounded-xl border bg-card">
       <h3 className="text-sm font-medium text-muted-foreground mb-4">Repository Activity</h3>
-      <div className="overflow-x-auto">
+
+      {/* Mobile card layout */}
+      <div className="space-y-3 md:hidden">
+        {data.map((repo) => (
+          <div key={repo.repoId} className="p-3 rounded-lg bg-muted/30 border">
+            <div className="font-medium mb-2 truncate">{repo.repoName}</div>
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Commits</span>
+              <span className="font-medium text-foreground">{repo.commits}</span>
+            </div>
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Tasks</span>
+              <span className="font-medium text-foreground">{repo.tasksCompleted}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table layout */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b">

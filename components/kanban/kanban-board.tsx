@@ -150,9 +150,13 @@ export function KanbanBoard({
       onDragCancel={handleDragCancel}
     >
       {/* Board Container */}
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col relative">
+        {/* Mobile scroll fade hints */}
+        <div className="absolute left-0 top-0 bottom-4 w-4 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none md:hidden" />
+        <div className="absolute right-0 top-0 bottom-4 w-4 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none md:hidden" />
+
         {/* Horizontal Scrollable Board */}
-        <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
+        <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 scrollbar-hide">
           <div className="flex gap-4 min-w-max h-full px-1 pt-1">
             {columns.map((column) => (
               <KanbanColumn
