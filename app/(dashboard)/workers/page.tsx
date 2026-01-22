@@ -55,6 +55,7 @@ function toWorkerCardData(worker: WorkerEventData): WorkerCardData {
     id: worker.taskId,
     taskId: worker.taskId,
     taskTitle: worker.taskTitle,
+    repoId: worker.repoId,
     repoName: worker.repoName,
     repoFullName: worker.repoName,
     status,
@@ -115,9 +116,9 @@ export default function WorkersPage() {
     }
   };
 
-  const handleViewDetails = (taskId: string) => {
-    // Navigate to task or open modal
-    window.location.href = `/repos?task=${taskId}`;
+  const handleViewDetails = (taskId: string, repoId: string) => {
+    // Navigate to task in repo page
+    window.location.href = `/repos/${repoId}?task=${taskId}`;
   };
 
   return (

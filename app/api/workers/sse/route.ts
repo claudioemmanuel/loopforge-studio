@@ -81,6 +81,7 @@ async function getInitialWorkers(userId: string) {
     return {
       taskId: task.id,
       taskTitle: task.title,
+      repoId: task.repoId,
       repoName: repo?.name || "Unknown",
       status: task.status,
       progress,
