@@ -10,6 +10,7 @@ import {
 } from "../lib/queue";
 import { decryptGithubToken } from "../lib/crypto";
 import { createAIClient } from "../lib/ai/client";
+import { publishWorkerEvent, createWorkerUpdateEvent } from "../lib/workers/events";
 import simpleGit from "simple-git";
 import path from "path";
 import fs from "fs/promises";
@@ -47,6 +48,62 @@ function mapEventTypeToDb(
   };
 
   return mapping[eventType] || "thinking";
+}
+
+// Format event type for display in SSE stream
+function formatEventAction(eventType: string, content?: string): string {
+  const actionMap: Record<string, string> = {
+    thinking: "Analyzing...",
+    file_read: "Reading file",
+    file_write: "Writing file",
+    command_run: "Running command",
+    commit: "Committing changes",
+    error: "Error encountered",
+    complete: "Completed",
+    stuck: "Stuck",
+    agent_start: "Starting agent",
+    agent_complete: "Agent finished",
+    review_start: "Starting review",
+    review_complete: "Review finished",
+    task_start: "Starting task",
+    task_complete: "Task completed",
+    task_failed: "Task failed",
+  };
+
+  const action = actionMap[eventType] || "Processing...";
+
+  // Add content snippet if available (truncate for display)
+  if (content && content.length > 0) {
+    const snippet = content.slice(0, 50).replace(/\n/g, " ");
+    return `${action}: ${snippet}${content.length > 50 ? "..." : ""}`;
+  }
+
+  return action;
+}
+
+// Calculate execution progress based on iteration and event type
+function calculateExecutionProgress(
+  iteration: number,
+  maxIterations: number,
+  eventType: string
+): number {
+  // Base progress: 60% (previous phases) + up to 40% for execution
+  const baseProgress = 60;
+  const executionRange = 40;
+
+  // Complete events get 100%
+  if (eventType === "complete" || eventType === "task_complete") {
+    return 100;
+  }
+
+  // Error/stuck events stay at current progress
+  if (eventType === "error" || eventType === "stuck" || eventType === "task_failed") {
+    return baseProgress + (iteration / maxIterations) * executionRange * 0.9;
+  }
+
+  // Calculate progress within execution phase (60% to 95%)
+  const iterationProgress = Math.min(iteration / maxIterations, 1);
+  return Math.min(baseProgress + iterationProgress * executionRange * 0.9, 95);
 }
 
 // Build authenticated clone URL with GitHub token
@@ -206,13 +263,35 @@ async function processExecution(
         });
 
         // Update job progress
+        const iteration = event.metadata?.iteration || 0;
         await job.updateProgress({
-          iteration: event.metadata?.iteration || 0,
+          iteration,
           lastEvent: event.type,
           progressPercent: event.metadata?.progressPercent || 0,
           agentId: event.metadata?.agentId,
           taskId: event.metadata?.taskId,
         });
+
+        // Publish to Redis for SSE streaming to Workers page
+        const progress = calculateExecutionProgress(iteration, 50, event.type);
+        const currentStep = event.metadata?.taskId
+          ? `Step ${event.metadata.taskId}`
+          : `Iteration ${iteration}`;
+
+        const workerEvent = createWorkerUpdateEvent(
+          taskId,
+          task.title,
+          task.repo.name,
+          "executing",
+          {
+            currentStep,
+            currentAction: formatEventAction(event.type, event.content),
+          }
+        );
+        // Override the calculated progress with our execution-specific calculation
+        workerEvent.data.progress = progress;
+
+        await publishWorkerEvent(userId, workerEvent);
       },
       onProgress: async (progress) => {
         // Store progress updates
@@ -242,6 +321,20 @@ async function processExecution(
       .set({ status: taskStatus, updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
 
+    // Publish completion/stuck event to Redis for SSE
+    const completionEvent = createWorkerUpdateEvent(
+      taskId,
+      task.title,
+      task.repo.name,
+      taskStatus,
+      {
+        currentAction: taskStatus === "done" ? "Execution complete" : "Execution stuck",
+        error: result.error,
+        completedAt: new Date(),
+      }
+    );
+    await publishWorkerEvent(userId, completionEvent);
+
     return {
       success: result.status === "complete",
       commits: result.commits,
@@ -266,6 +359,20 @@ async function processExecution(
       .update(tasks)
       .set({ status: "stuck", updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
+
+    // Publish error event to Redis for SSE
+    const errorEvent = createWorkerUpdateEvent(
+      taskId,
+      task.title,
+      task.repo.name,
+      "stuck",
+      {
+        currentAction: "Execution failed",
+        error: errorMessage,
+        completedAt: new Date(),
+      }
+    );
+    await publishWorkerEvent(userId, errorEvent);
 
     return {
       success: false,

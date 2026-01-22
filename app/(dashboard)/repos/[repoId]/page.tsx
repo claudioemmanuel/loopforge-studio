@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { KanbanBoard } from "@/components/kanban";
 import { TaskModal } from "@/components/task-modal";
 import { NewTaskModal } from "@/components/new-task-modal";
@@ -41,7 +41,9 @@ const statConfig = {
 
 export default function RepoPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const repoId = params.repoId as string;
+  const taskIdFromUrl = searchParams.get("task");
 
   const [repo, setRepo] = useState<RepoData | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -79,15 +81,16 @@ export default function RepoPage() {
     toStatus: "todo",
   });
 
-  const fetchData = useCallback(async (signal: AbortSignal) => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     try {
+      const fetchOptions = signal ? { signal } : {};
       const [repoRes, tasksRes] = await Promise.all([
-        fetch(`/api/repos/${repoId}`, { signal }),
-        fetch(`/api/repos/${repoId}/tasks`, { signal }),
+        fetch(`/api/repos/${repoId}`, fetchOptions),
+        fetch(`/api/repos/${repoId}/tasks`, fetchOptions),
       ]);
 
       // Check if aborted before processing results
-      if (signal.aborted) return;
+      if (signal?.aborted) return;
 
       if (repoRes.ok) {
         setRepo(await repoRes.json());
@@ -101,7 +104,7 @@ export default function RepoPage() {
       console.error("Error fetching data:", error);
     } finally {
       // Only update loading state if not aborted
-      if (!signal.aborted) {
+      if (!signal?.aborted) {
         setLoading(false);
         setRefreshing(false);
       }
@@ -129,6 +132,20 @@ export default function RepoPage() {
       };
     }
   }, [refreshing, fetchData]);
+
+  // Auto-open task modal from URL query parameter (e.g., from Workers page "View details")
+  useEffect(() => {
+    if (taskIdFromUrl && tasks.length > 0 && !selectedTask) {
+      const task = tasks.find(t => t.id === taskIdFromUrl);
+      if (task) {
+        setSelectedTask(task);
+        // Auto-open brainstorm panel for tasks in brainstorming status
+        setAutoStartBrainstorm(task.status === "brainstorming");
+        // Clear the URL param to avoid re-opening on refresh
+        window.history.replaceState({}, "", `/repos/${repoId}`);
+      }
+    }
+  }, [taskIdFromUrl, tasks, selectedTask, repoId]);
 
   // Calculate task stats
   const taskStats = useMemo(() => {

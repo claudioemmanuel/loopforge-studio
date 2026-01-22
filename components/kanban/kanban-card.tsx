@@ -311,7 +311,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
           </div>
 
           {/* Action buttons for each phase - visible on mobile, hover on desktop */}
-          {/* Hide all action buttons during executing status */}
+          {/* Disable (not hide) buttons when autonomous mode is active */}
           {task.status !== "executing" && task.status !== "done" && (
             <>
               {task.status === "todo" && onStart && (
@@ -320,7 +320,8 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   variant="default"
                   className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={handleStart}
-                  disabled={starting}
+                  disabled={starting || task.autonomousMode}
+                  title={task.autonomousMode ? "Autonomous mode active" : undefined}
                 >
                   {starting ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -336,7 +337,8 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   variant="default"
                   className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => handleAdvance(e, "plan")}
-                  disabled={advancing}
+                  disabled={advancing || task.autonomousMode}
+                  title={task.autonomousMode ? "Autonomous mode active" : undefined}
                 >
                   {advancing ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -352,7 +354,8 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   variant="default"
                   className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => handleAdvance(e, "ready")}
-                  disabled={advancing}
+                  disabled={advancing || task.autonomousMode}
+                  title={task.autonomousMode ? "Autonomous mode active" : undefined}
                 >
                   {advancing ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -368,7 +371,8 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   variant="default"
                   className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => handleAdvance(e, "execute")}
-                  disabled={advancing}
+                  disabled={advancing || task.autonomousMode}
+                  title={task.autonomousMode ? "Autonomous mode active" : undefined}
                 >
                   {advancing ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
