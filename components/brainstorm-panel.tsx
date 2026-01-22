@@ -156,7 +156,7 @@ export function BrainstormPanel({
           setMessages([
             {
               role: "assistant",
-              content: "Failed to start brainstorming. Please try again.",
+              content: "Failed to start refinement session. Please try again.",
             },
           ]);
         }
@@ -344,7 +344,7 @@ export function BrainstormPanel({
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="w-5 h-5 text-violet-500 flex-shrink-0" />
-            <h2 className="font-semibold truncate">Brainstorm: {taskTitle}</h2>
+            <h2 className="font-semibold truncate">Refine: {taskTitle}</h2>
           </div>
           <button
             onClick={handleClose}
@@ -437,7 +437,7 @@ export function BrainstormPanel({
                       ) : (
                         <CheckCircle2 className="w-4 h-4" />
                       )}
-                      Yes, Generate Plan
+                      Save & Continue
                     </Button>
                     <Button
                       size="sm"
@@ -497,7 +497,7 @@ export function BrainstormPanel({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Or type your own answer..."
+              placeholder="Type to refine your brainstorm..."
               disabled={loading || initializing}
               className={cn(
                 "flex-1 px-3 py-2 rounded-lg border bg-background text-sm",

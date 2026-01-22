@@ -13,4 +13,5 @@ export {
   scanRepository,
   chatWithAI,
   initializeBrainstorm,
+  generateInitialBrainstorm,
 } from "./brainstorm-chat";
