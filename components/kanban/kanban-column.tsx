@@ -30,6 +30,7 @@ interface KanbanColumnProps {
   onTaskDelete?: (taskId: string) => void;
   onTaskMove?: (taskId: string, newStatus: TaskStatus) => void;
   onTaskStart?: (taskId: string) => Promise<void>;
+  onTaskAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
   onAddTask?: () => void;
 }
 
@@ -143,6 +144,7 @@ export function KanbanColumn({
   onTaskDelete,
   onTaskMove,
   onTaskStart,
+  onTaskAdvance,
   onAddTask,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver, active } = useDroppable({ id });
@@ -295,6 +297,7 @@ export function KanbanColumn({
                   onDelete={onTaskDelete}
                   onMove={onTaskMove}
                   onStart={onTaskStart}
+                  onAdvance={onTaskAdvance}
                 />
               ))}
 

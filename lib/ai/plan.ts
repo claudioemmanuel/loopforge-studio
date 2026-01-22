@@ -128,23 +128,87 @@ Respond ONLY with valid JSON, no markdown or additional text.`;
       try {
         return JSON.parse(jsonMatch[0]);
       } catch {
-        // Fall through to fallback
+        // Try to fix common JSON issues: trailing commas, unescaped quotes
+        let fixedJson = jsonMatch[0]
+          // Remove trailing commas before } or ]
+          .replace(/,(\s*[}\]])/g, "$1")
+          // Fix unescaped newlines in strings (common issue)
+          .replace(/:\s*"([^"]*)\n([^"]*)"/g, ': "$1\\n$2"');
+
+        try {
+          return JSON.parse(fixedJson);
+        } catch {
+          // Fall through to fallback
+        }
       }
     }
 
-    // If JSON parsing fails, create a structured response from the text
-    const overviewText = cleanedText.startsWith("{")
-      ? "Failed to parse AI response. Please try again."
-      : cleanedText.substring(0, 500);
+    // Try to extract meaningful content from the response
+    // Look for key fields even if full JSON is broken
+    const sprintGoalMatch = cleanedText.match(/"sprintGoal"\s*:\s*"([^"]+)"/);
+    const overviewMatch = cleanedText.match(/"overview"\s*:\s*"([^"]+)"/);
+
+    // If we found some structured content, use it
+    if (sprintGoalMatch || overviewMatch) {
+      // Extract steps if possible
+      const stepsMatch = cleanedText.match(/"steps"\s*:\s*\[([\s\S]*?)\]/);
+      let steps: PlanStep[] = [];
+
+      if (stepsMatch) {
+        // Try to extract individual step objects
+        const stepMatches = stepsMatch[1].matchAll(/"title"\s*:\s*"([^"]+)"/g);
+        let stepIndex = 1;
+        for (const match of stepMatches) {
+          steps.push({
+            id: String(stepIndex++),
+            title: match[1],
+            description: "See full plan for details",
+            acceptanceCriteria: ["Task completed as specified"],
+            estimatedEffort: "medium",
+            priority: "high",
+          });
+        }
+      }
+
+      if (steps.length === 0) {
+        steps = [{
+          id: "1",
+          title: "Review and implement the plan",
+          description: "The plan structure could not be fully parsed. Review the original requirements and implement accordingly.",
+          acceptanceCriteria: ["Task is implemented as specified"],
+          estimatedEffort: "medium",
+          priority: "high",
+        }];
+      }
+
+      return {
+        sprintGoal: sprintGoalMatch?.[1] || "Complete the requested task",
+        overview: overviewMatch?.[1] || "Plan generated - some details may need manual review.",
+        steps,
+        definitionOfDone: [
+          "All acceptance criteria met",
+          "Code compiles without errors",
+          "Basic testing completed",
+        ],
+        risks: [],
+        verification: ["Verify the implementation works"],
+      };
+    }
+
+    // Last resort: create a minimal structured response
+    // Use the raw text as the overview if it's not JSON-like
+    const isJsonLike = cleanedText.trim().startsWith("{");
     return {
       sprintGoal: "Complete the requested task",
-      overview: overviewText,
+      overview: isJsonLike
+        ? "The AI response could not be parsed. Please regenerate the plan."
+        : cleanedText.substring(0, 1000),
       steps: [
         {
           id: "1",
           title: "Implement the task",
-          description: cleanedText.startsWith("{")
-            ? "The AI response was not properly formatted. Please retry the planning step."
+          description: isJsonLike
+            ? "Please retry the planning step to get a properly structured plan."
             : cleanedText,
           acceptanceCriteria: ["Task is implemented as specified"],
           estimatedEffort: "medium" as const,
@@ -156,12 +220,7 @@ Respond ONLY with valid JSON, no markdown or additional text.`;
         "Code compiles without errors",
         "Basic testing completed",
       ],
-      risks: [
-        {
-          description: "AI response parsing failed",
-          mitigation: "Retry the planning step or manually define the plan",
-        },
-      ],
+      risks: [],
       verification: ["Verify the implementation works"],
     };
   }

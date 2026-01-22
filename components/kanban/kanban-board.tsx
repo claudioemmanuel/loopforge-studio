@@ -24,6 +24,7 @@ interface KanbanBoardProps {
   onTaskClick: (task: Task) => void;
   onTaskDelete?: (taskId: string) => void;
   onTaskStart?: (taskId: string) => Promise<void>;
+  onTaskAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
   onAddTask?: () => void;
 }
 
@@ -51,6 +52,7 @@ export function KanbanBoard({
   onTaskClick,
   onTaskDelete,
   onTaskStart,
+  onTaskAdvance,
   onAddTask,
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -162,6 +164,7 @@ export function KanbanBoard({
                 onTaskDelete={onTaskDelete}
                 onTaskMove={onTaskMove}
                 onTaskStart={onTaskStart}
+                onTaskAdvance={onTaskAdvance}
                 onAddTask={column.id === "todo" ? onAddTask : undefined}
               />
             ))}
