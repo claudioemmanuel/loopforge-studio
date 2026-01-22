@@ -131,6 +131,16 @@
   }
 }
 
+/* Live card indicator - rotating gradient border for executing tasks */
+@keyframes gradient-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* View Transitions for smooth page navigation */
 @layer utilities {
   /* Default page transition - fade and subtle slide */

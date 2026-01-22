@@ -181,44 +181,43 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
   const progress = getProgressPercentage(task.status);
   const showProgress = !["stuck", "done", "todo"].includes(task.status);
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      onClick={onClick}
-      className={cn(
-        // Base layout
-        "group relative flex flex-col",
-        // Card styling - clean, minimal approach
-        "bg-card rounded-xl border",
-        "transition-all duration-200 ease-out",
-        // Default state
-        "border-border/60 shadow-sm",
-        // Hover effects - subtle lift
-        "hover:shadow-md hover:border-border hover:-translate-y-0.5",
-        // Cursor
-        "cursor-pointer select-none",
-        // Active task glow effect
-        config.isActive && config.glowColor && "shadow-lg",
-        // Dragging states
-        isDragging && "opacity-50 scale-[0.98] shadow-none",
-        // Drag overlay - floating appearance
-        isDragOverlay && [
-          "shadow-2xl scale-105 -rotate-1",
-          "ring-2 ring-primary/20 ring-offset-2 ring-offset-background",
-          "border-primary/30",
-        ]
-      )}
-    >
-      {/* Drag handle - visible on mobile, appears on hover on desktop */}
+  // Show gradient border for executing tasks (but not during drag overlay)
+  const showGradientBorder = task.status === "executing" && !isDragOverlay;
+
+  // Card classes (shared between wrapped and unwrapped versions)
+  const cardClasses = cn(
+    // Base layout
+    "group relative flex flex-col",
+    // Card styling - clean, minimal approach
+    "bg-card border",
+    "transition-all duration-200 ease-out",
+    // Default state
+    "border-border/60 shadow-sm",
+    // Hover effects - subtle lift
+    "hover:shadow-md hover:border-border hover:-translate-y-0.5",
+    // Cursor - grab cursor for entire card
+    "cursor-grab active:cursor-grabbing select-none",
+    // Dragging states
+    isDragging && "opacity-50 scale-[0.98] shadow-none cursor-grabbing",
+    // Drag overlay - floating appearance
+    isDragOverlay && [
+      "shadow-2xl scale-105 -rotate-1",
+      "ring-2 ring-primary/20 ring-offset-2 ring-offset-background",
+      "border-primary/30",
+    ],
+    // Rounded corners - slightly smaller when wrapped to fit inside gradient border
+    showGradientBorder ? "rounded-[10px]" : "rounded-xl"
+  );
+
+  // Card content (shared between both render paths)
+  const cardContent = (
+    <>
+      {/* Drag handle indicator - visible on mobile, appears on hover on desktop */}
       <div
-        {...listeners}
         className={cn(
           "absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center",
           "sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150",
-          "cursor-grab active:cursor-grabbing",
-          "rounded-l-xl hover:bg-muted/50"
+          "rounded-l-xl hover:bg-muted/50 pointer-events-none"
         )}
       >
         <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60" />
@@ -419,16 +418,6 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
         )}
       </div>
 
-      {/* Active task indicator - subtle pulsing dot (only for executing) */}
-      {task.status === "executing" && (
-        <div className="absolute top-3 right-10">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-primary" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-          </span>
-        </div>
-      )}
-
       {/* Delete confirmation dialog - wrapped to prevent click propagation to card */}
       {onDelete && (
         <div onClick={(e) => e.stopPropagation()}>
@@ -444,6 +433,52 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
           />
         </div>
       )}
+    </>
+  );
+
+  // Render with gradient border wrapper for executing tasks
+  if (showGradientBorder) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className={cn(
+          "relative p-[2px] rounded-xl",
+          "cursor-grab active:cursor-grabbing select-none",
+          isDragging && "opacity-50 scale-[0.98]"
+        )}
+      >
+        {/* Rotating gradient background */}
+        <div className="absolute inset-0 rounded-xl overflow-hidden">
+          <div
+            className="absolute inset-[-100%] animate-gradient-rotate"
+            style={{
+              background: "conic-gradient(from 0deg, #22c55e, #14b8a6, #06b6d4, #22c55e)",
+            }}
+          />
+        </div>
+
+        {/* Card content */}
+        <div onClick={onClick} className={cn(cardClasses, "relative")}>
+          {cardContent}
+        </div>
+      </div>
+    );
+  }
+
+  // Standard render for non-executing tasks
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={onClick}
+      className={cardClasses}
+    >
+      {cardContent}
     </div>
   );
 }
