@@ -159,8 +159,8 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        // Base layout
-        "flex flex-col w-[300px] min-w-[300px] rounded-2xl",
+        // Base layout - fixed widths for horizontal scrolling
+        "flex flex-col w-[280px] min-w-[280px] md:w-[300px] md:min-w-[300px] rounded-2xl",
         // Background - clean, subtle
         config.bgColor,
         // Border

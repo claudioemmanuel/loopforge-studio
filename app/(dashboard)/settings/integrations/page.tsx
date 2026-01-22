@@ -629,7 +629,7 @@ export default function IntegrationsPage() {
 
         {/* Default Provider Selector */}
         <div className="mb-6 p-4 rounded-lg bg-muted/30 border">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h4 className="font-medium text-sm">Default AI Provider</h4>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -638,7 +638,7 @@ export default function IntegrationsPage() {
             </div>
             <div className="flex items-center gap-2">
               {savingProvider && <Loader2 className="w-4 h-4 animate-spin" />}
-              <div className="flex rounded-lg border overflow-hidden">
+              <div className="flex rounded-lg border overflow-hidden overflow-x-auto scrollbar-hide">
                 {providers.map((provider) => {
                   const IconComponent = provider.icon;
                   const isSelected = localPreferredProvider === provider.id;
@@ -651,7 +651,7 @@ export default function IntegrationsPage() {
                       disabled={savingProvider || !hasKey}
                       title={!hasKey ? `Configure ${provider.name} API key first` : `Use ${provider.name}`}
                       className={cn(
-                        "px-3 py-2 flex items-center gap-2 transition-all duration-200 border-r last:border-r-0",
+                        "px-2 sm:px-3 py-2 flex items-center gap-1.5 sm:gap-2 transition-all duration-200 border-r last:border-r-0 whitespace-nowrap",
                         isSelected
                           ? "bg-primary text-primary-foreground shadow-sm font-medium"
                           : hasKey
@@ -660,7 +660,7 @@ export default function IntegrationsPage() {
                       )}
                     >
                       <IconComponent size={16} className={isSelected ? "" : provider.color} />
-                      <span className="text-xs font-medium hidden sm:inline">{provider.name}</span>
+                      <span className="text-xs font-medium">{provider.name}</span>
                     </button>
                   );
                 })}

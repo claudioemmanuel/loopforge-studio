@@ -114,6 +114,23 @@
   }
 }
 
+/* Responsive utilities */
+@layer utilities {
+  /* Touch-friendly: show on touch devices */
+  @media (hover: none) {
+    .touch\:opacity-100 { opacity: 1 !important; }
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* View Transitions for smooth page navigation */
 @layer utilities {
   /* Default page transition - fade and subtle slide */

@@ -1,9 +1,6 @@
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 import { auth } from "@/lib/auth";
-import { Sidebar } from "@/components/sidebar";
-import { PageTransition } from "@/components/page-transition";
-import { WelcomeTutorialWrapper } from "@/components/welcome-tutorial-wrapper";
+import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
 import { db } from "@/lib/db";
 import { repos, tasks } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
@@ -34,18 +31,8 @@ export default async function DashboardLayout({
     .orderBy(repos.name);
 
   return (
-    <div className="flex h-screen bg-background">
-      <div className="sidebar-static">
-        <Sidebar user={session.user} repos={userRepos} />
-      </div>
-      <main className="flex-1 overflow-auto">
-        <PageTransition className="h-full">
-          {children}
-        </PageTransition>
-      </main>
-      <Suspense fallback={null}>
-        <WelcomeTutorialWrapper />
-      </Suspense>
-    </div>
+    <DashboardLayoutClient user={session.user} repos={userRepos}>
+      {children}
+    </DashboardLayoutClient>
   );
 }

@@ -179,19 +179,20 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 p-6 border-t bg-muted/30">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 p-4 sm:p-6 border-t bg-muted/30">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
               disabled={loading}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={!title.trim() || loading}
-              className="gap-2 min-w-[120px]"
+              className="gap-2 min-w-[120px] w-full sm:w-auto"
             >
               {loading ? (
                 <>

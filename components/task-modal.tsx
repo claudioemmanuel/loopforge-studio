@@ -783,10 +783,10 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
         </div>
 
         {/* Footer with Actions */}
-        <div className="flex items-center justify-between gap-4 p-6 border-t bg-muted/30">
-          <p className="text-sm text-muted-foreground">{config.description}</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 sm:p-6 border-t bg-muted/30">
+          <p className="text-sm text-muted-foreground order-2 sm:order-1">{config.description}</p>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto order-1 sm:order-2">
             {/* Action buttons based on status */}
             {task.status === "todo" && (
               <Button
