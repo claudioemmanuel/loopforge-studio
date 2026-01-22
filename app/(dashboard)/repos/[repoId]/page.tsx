@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { KanbanBoard } from "@/components/kanban";
 import { TaskModal } from "@/components/task-modal";
@@ -60,19 +60,15 @@ export default function RepoPage() {
     isApiKeyError: false,
   });
 
-  // Use ref to track if fetch is already in progress (prevents Strict Mode double fetch)
-  const fetchInProgress = useRef(false);
-
-  const fetchData = useCallback(async (signal?: AbortSignal) => {
-    // Prevent duplicate fetches
-    if (fetchInProgress.current && !refreshing) return;
-    fetchInProgress.current = true;
-
+  const fetchData = useCallback(async (signal: AbortSignal) => {
     try {
       const [repoRes, tasksRes] = await Promise.all([
         fetch(`/api/repos/${repoId}`, { signal }),
         fetch(`/api/repos/${repoId}/tasks`, { signal }),
       ]);
+
+      // Check if aborted before processing results
+      if (signal.aborted) return;
 
       if (repoRes.ok) {
         setRepo(await repoRes.json());
@@ -85,20 +81,35 @@ export default function RepoPage() {
       if (error instanceof Error && error.name === "AbortError") return;
       console.error("Error fetching data:", error);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
-      fetchInProgress.current = false;
+      // Only update loading state if not aborted
+      if (!signal.aborted) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [repoId, refreshing]);
+  }, [repoId]);
 
+  // Fetch data on mount and when repoId changes
   useEffect(() => {
     const abortController = new AbortController();
+    setLoading(true);
     fetchData(abortController.signal);
 
     return () => {
       abortController.abort();
     };
   }, [fetchData]);
+
+  // Handle manual refresh
+  useEffect(() => {
+    if (refreshing) {
+      const abortController = new AbortController();
+      fetchData(abortController.signal);
+      return () => {
+        abortController.abort();
+      };
+    }
+  }, [refreshing, fetchData]);
 
   // Calculate task stats
   const taskStats = useMemo(() => {
