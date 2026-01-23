@@ -28,16 +28,25 @@ Loopforge is an AI-powered autonomous development platform that connects AI codi
 ```
 app/
 ├── (auth)/           # Authentication pages (login, onboarding, setup)
-├── (dashboard)/      # Main app (analytics, repos, settings)
-└── api/              # API routes (tasks, repos, github, analytics, stripe)
+├── (dashboard)/      # Main app (analytics, repos, settings, workers)
+└── api/              # API routes (tasks, repos, github, analytics, stripe, workers)
 
 lib/
-├── ai/               # AI client implementations (anthropic, openai, gemini)
+├── api/              # Shared API utilities
+│   ├── helpers.ts            # AI provider helpers (getProviderApiKey, getPreferredModel, etc.)
+│   ├── middleware.ts         # Route middleware (withAuth, withTask)
+│   └── index.ts              # Barrel exports
+├── ai/               # AI client implementations
 │   ├── brainstorm-chat.ts    # Conversational brainstorming logic
 │   ├── client.ts             # AI client factory
 │   └── clients/              # Provider-specific implementations
 ├── crypto/           # Token encryption (AES-256-GCM)
 ├── db/               # Drizzle ORM schema and migrations
+├── errors/           # Standardized error handling
+│   ├── api-error.ts          # APIError class and Errors factory
+│   ├── provider-errors.ts    # AI provider error parsers
+│   ├── response.ts           # Response utilities (handleError, errorResponse)
+│   └── types.ts              # Error types and codes
 ├── github/           # GitHub API client and operations
 │   ├── index.ts              # Main GitHub client
 │   └── repo-scanner.ts       # Repository analysis
@@ -56,12 +65,30 @@ workers/
 └── execution-worker.ts   # Background worker process
 
 components/
+├── brainstorm/       # Brainstorming UI components
+├── layout/           # Dashboard layout components
+├── modals/           # Modal dialogs (TaskModal, NewTaskModal)
+├── onboarding/       # Onboarding and tutorial components
+├── providers/        # Provider components and icons
+├── sidebar/          # Sidebar components (desktop and mobile)
 ├── kanban/           # Drag-and-drop Kanban board
 │   ├── kanban-board.tsx      # Main board component
 │   ├── kanban-card.tsx       # Task cards
 │   ├── kanban-column.tsx     # Columns (Todo, Brainstorming, etc.)
 │   └── processing-popover.tsx # Real-time AI activity indicator
+├── analytics/        # Analytics dashboard components
+├── dashboard/        # Main dashboard components
+├── settings/         # Settings page components
+├── workers/          # Worker status components
+├── hooks/            # Custom React hooks
 └── ui/               # shadcn/ui components
+
+__tests__/
+├── setup/            # Shared test infrastructure
+│   ├── global-setup.ts       # Creates test database (runs once)
+│   ├── setup.ts              # Per-file setup (schema, truncation)
+│   └── test-db.ts            # Shared pool and utilities
+└── ...               # Test files
 ```
 
 ## Database Schema (lib/db/schema.ts)
@@ -97,6 +124,70 @@ All GitHub tokens and AI provider API keys are encrypted at rest using AES-256-G
 
 ### API Route Protection
 All API routes in `app/api/` require authentication via NextAuth.js session.
+
+## API Route Patterns
+
+### Authentication Middleware
+
+Use `withAuth` for routes that only need authenticated user:
+```typescript
+import { withAuth } from "@/lib/api";
+
+export const GET = withAuth(async (request, { user, session }) => {
+  // user and session are guaranteed to exist
+  return NextResponse.json({ userId: user.id });
+});
+```
+
+Use `withTask` for routes that need task with ownership verification:
+```typescript
+import { withTask, getAIClientConfig } from "@/lib/api";
+import { handleError, Errors } from "@/lib/errors";
+
+export const POST = withTask(async (request, { user, task, taskId }) => {
+  // task is guaranteed to exist and belong to user
+  const config = getAIClientConfig(user);
+  if (!config) {
+    return handleError(Errors.noProviderConfigured());
+  }
+
+  // Use config.provider, config.model, config.apiKey
+});
+```
+
+### AI Client Configuration
+
+```typescript
+import { getAIClientConfig, createUserAIClient } from "@/lib/api";
+
+// Option 1: Get config manually
+const config = getAIClientConfig(user);
+// config = { provider, model, apiKey } or null
+
+// Option 2: Create client directly
+const client = await createUserAIClient(user);
+// client = AIClient instance or null
+```
+
+### Error Handling
+
+Use standardized error handling from `lib/errors`:
+```typescript
+import { handleError, Errors, parseProviderError } from "@/lib/errors";
+
+// Factory methods for common errors
+return handleError(Errors.noProviderConfigured());
+return handleError(Errors.taskNotFound(taskId));
+return handleError(Errors.unauthorized());
+
+// Parse AI provider-specific errors
+try {
+  await aiClient.chat(messages);
+} catch (error) {
+  const apiError = parseProviderError(error, "anthropic");
+  return handleError(apiError);
+}
+```
 
 ## AI Integration
 
@@ -389,6 +480,6 @@ psql $DATABASE_URL
 
 ---
 
-**Last Updated**: 2026-01-22
+**Last Updated**: 2026-01-23
 **Project Version**: 0.1.0
 **Maintained By**: Loopforge Team
