@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, repos } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
 
 interface GitHubRepo {
   id: number;
@@ -34,40 +33,41 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create repo records (skip duplicates)
+    // Create repo records using atomic upsert to prevent race condition duplicates
     const repoIds: string[] = [];
     const addedRepos: string[] = [];
     const skippedRepos: string[] = [];
 
     for (const repoData of reposToAdd) {
-      // Check if repo already exists for this user
-      const existingRepo = await db.query.repos.findFirst({
-        where: and(
-          eq(repos.userId, session.user.id),
-          eq(repos.githubRepoId, String(repoData.id))
-        ),
-      });
-
-      if (existingRepo) {
-        // Repo already exists, skip
-        skippedRepos.push(repoData.full_name);
-        continue;
-      }
-
       const repoId = crypto.randomUUID();
-      repoIds.push(repoId);
-      addedRepos.push(repoData.full_name);
 
-      await db.insert(repos).values({
-        id: repoId,
-        userId: session.user.id,
-        githubRepoId: String(repoData.id),
-        name: repoData.name,
-        fullName: repoData.full_name,
-        defaultBranch: repoData.default_branch,
-        cloneUrl: repoData.clone_url,
-        isPrivate: repoData.private,
-      });
+      // Use atomic insert with ON CONFLICT DO NOTHING to prevent duplicates
+      // The unique constraint on (userId, githubRepoId) ensures atomicity
+      const result = await db
+        .insert(repos)
+        .values({
+          id: repoId,
+          userId: session.user.id,
+          githubRepoId: String(repoData.id),
+          name: repoData.name,
+          fullName: repoData.full_name,
+          defaultBranch: repoData.default_branch,
+          cloneUrl: repoData.clone_url,
+          isPrivate: repoData.private,
+        })
+        .onConflictDoNothing({
+          target: [repos.userId, repos.githubRepoId],
+        })
+        .returning({ id: repos.id });
+
+      if (result.length > 0) {
+        // New repo was inserted
+        repoIds.push(result[0].id);
+        addedRepos.push(repoData.full_name);
+      } else {
+        // Conflict - repo already exists, skip
+        skippedRepos.push(repoData.full_name);
+      }
     }
 
     return NextResponse.json({

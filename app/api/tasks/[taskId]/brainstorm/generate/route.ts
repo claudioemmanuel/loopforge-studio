@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import {
   createAIClient,
   getDefaultModel,
@@ -82,24 +82,65 @@ export async function POST(
   if (task.autonomousMode) {
     console.log("[brainstorm/generate] Autonomous mode enabled, queueing autonomous flow");
 
-    // Queue the autonomous flow job
-    await queueAutonomousFlow({
-      taskId,
-      userId: session.user.id,
-      repoId: task.repo.id,
-    });
-
-    // Update task status to brainstorming immediately
-    const [updatedTask] = await db
+    // ATOMIC: Claim the processing slot first to prevent race conditions
+    // This UPDATE only succeeds if processingPhase is NULL (not already processing)
+    const claimResult = await db
       .update(tasks)
       .set({
         status: "brainstorming",
+        processingPhase: "brainstorming",
+        processingStatusText: "Starting autonomous flow...",
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId))
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          isNull(tasks.processingPhase) // Only claim if not already processing
+        )
+      )
       .returning();
 
-    return NextResponse.json(updatedTask);
+    // If no rows were updated, another request already claimed the slot
+    if (claimResult.length === 0) {
+      return NextResponse.json(
+        { error: "Task is already processing", phase: task.processingPhase || "unknown" },
+        { status: 409 }
+      );
+    }
+
+    try {
+      // Queue the autonomous flow job (we have exclusive processing rights)
+      const job = await queueAutonomousFlow({
+        taskId,
+        userId: session.user.id,
+        repoId: task.repo.id,
+      });
+
+      // Update with job ID
+      await db
+        .update(tasks)
+        .set({ processingJobId: job.id })
+        .where(eq(tasks.id, taskId));
+
+      return NextResponse.json(claimResult[0]);
+    } catch (error) {
+      // If queuing failed after claiming, reset the processing state
+      await db
+        .update(tasks)
+        .set({
+          status: task.status, // Restore original status
+          processingPhase: null,
+          processingJobId: null,
+          processingStatusText: null,
+        })
+        .where(eq(tasks.id, taskId));
+
+      console.error("[brainstorm/generate] Failed to queue autonomous flow:", error);
+      return NextResponse.json(
+        { error: "Failed to start autonomous flow" },
+        { status: 500 }
+      );
+    }
   }
 
   // Get user
@@ -201,6 +242,32 @@ export async function POST(
       };
     }
 
+    // ATOMIC: Claim the processing slot first to prevent concurrent brainstorms
+    // This UPDATE only succeeds if processingPhase is NULL (not already processing)
+    const claimResult = await db
+      .update(tasks)
+      .set({
+        status: "brainstorming",
+        processingPhase: "brainstorming",
+        processingStatusText: "Generating initial brainstorm...",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          isNull(tasks.processingPhase) // Only claim if not already processing
+        )
+      )
+      .returning();
+
+    // If no rows were updated, another request already claimed the slot
+    if (claimResult.length === 0) {
+      return NextResponse.json(
+        { error: "Task is already processing", phase: task.processingPhase || "unknown" },
+        { status: 409 }
+      );
+    }
+
     // Generate the initial brainstorm
     // Append test coverage context to description for test-related tasks
     const enrichedDescription = testCoverageContext
@@ -216,12 +283,14 @@ export async function POST(
     );
     console.log("[brainstorm/generate] Brainstorm generated successfully");
 
-    // Update task with result and status
+    // Update task with result and clear processing state
     const [updatedTask] = await db
       .update(tasks)
       .set({
         brainstormResult: JSON.stringify(brainstormResult),
         status: "brainstorming",
+        processingPhase: null, // Clear processing state
+        processingStatusText: null,
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, taskId))
@@ -232,6 +301,18 @@ export async function POST(
     return NextResponse.json(updatedTask);
   } catch (error) {
     console.error("Brainstorm generate error:", error);
+
+    // Clear processing state on error to allow retry
+    await db
+      .update(tasks)
+      .set({
+        status: task.status, // Restore original status
+        processingPhase: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId));
+
     return handleError(error);
   }
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, users, repos } from "@/lib/db";
 import { encryptApiKey } from "@/lib/crypto";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { BillingMode } from "@/lib/db/schema";
 
 interface GitHubRepo {
@@ -84,36 +84,43 @@ export async function POST(request: Request) {
         .where(eq(users.id, session.user.id));
     }
 
-    // Create repo records (skip duplicates)
+    // Create repo records using atomic upsert to prevent race condition duplicates
     const repoIds: string[] = [];
     for (const repoData of reposToAdd) {
-      // Check if repo already exists for this user
-      const existingRepo = await db.query.repos.findFirst({
-        where: and(
-          eq(repos.userId, session.user.id),
-          eq(repos.githubRepoId, String(repoData.id))
-        ),
-      });
-
-      if (existingRepo) {
-        // Repo already exists, use existing ID
-        repoIds.push(existingRepo.id);
-        continue;
-      }
-
       const repoId = crypto.randomUUID();
-      repoIds.push(repoId);
 
-      await db.insert(repos).values({
-        id: repoId,
-        userId: session.user.id,
-        githubRepoId: String(repoData.id),
-        name: repoData.name,
-        fullName: repoData.full_name,
-        defaultBranch: repoData.default_branch,
-        cloneUrl: repoData.clone_url,
-        isPrivate: repoData.private,
-      });
+      // Use atomic insert with ON CONFLICT to handle duplicates atomically
+      // Returns the inserted row if new, otherwise returns nothing on conflict
+      const result = await db
+        .insert(repos)
+        .values({
+          id: repoId,
+          userId: session.user.id,
+          githubRepoId: String(repoData.id),
+          name: repoData.name,
+          fullName: repoData.full_name,
+          defaultBranch: repoData.default_branch,
+          cloneUrl: repoData.clone_url,
+          isPrivate: repoData.private,
+        })
+        .onConflictDoNothing({
+          target: [repos.userId, repos.githubRepoId],
+        })
+        .returning({ id: repos.id });
+
+      if (result.length > 0) {
+        // New repo was inserted
+        repoIds.push(result[0].id);
+      } else {
+        // Conflict - repo already exists, fetch existing ID
+        const existingRepo = await db.query.repos.findFirst({
+          where: eq(repos.githubRepoId, String(repoData.id)),
+          columns: { id: true },
+        });
+        if (existingRepo) {
+          repoIds.push(existingRepo.id);
+        }
+      }
     }
 
     // Return the first repo ID for redirect

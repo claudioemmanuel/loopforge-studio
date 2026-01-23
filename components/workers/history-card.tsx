@@ -36,18 +36,18 @@ const eventIcons: Record<string, React.ComponentType<{ className?: string }>> = 
   complete: CheckCircle2,
 };
 
-// Event colors
+// Event colors - using app's muted palette
 const eventColors: Record<string, string> = {
   thinking: "text-muted-foreground",
-  action: "text-purple-500",
-  file_read: "text-amber-500",
-  file_write: "text-blue-500",
-  api_call: "text-cyan-500",
-  error: "text-red-500",
-  complete: "text-green-500",
+  action: "text-primary",
+  file_read: "text-muted-foreground",
+  file_write: "text-primary",
+  api_call: "text-muted-foreground",
+  error: "text-destructive",
+  complete: "text-primary",
 };
 
-// Phase badge configuration
+// Phase badge configuration - using app's muted palette
 const phaseBadgeConfig: Record<WorkerJobPhase, {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -57,20 +57,20 @@ const phaseBadgeConfig: Record<WorkerJobPhase, {
   brainstorming: {
     label: "Brainstorm",
     icon: Lightbulb,
-    bgColor: "bg-violet-100 dark:bg-violet-900/40",
-    textColor: "text-violet-700 dark:text-violet-300",
+    bgColor: "bg-secondary",
+    textColor: "text-secondary-foreground",
   },
   planning: {
     label: "Planning",
     icon: FileText,
-    bgColor: "bg-blue-100 dark:bg-blue-900/40",
-    textColor: "text-blue-700 dark:text-blue-300",
+    bgColor: "bg-secondary",
+    textColor: "text-secondary-foreground",
   },
   executing: {
     label: "Execution",
     icon: Play,
-    bgColor: "bg-emerald-100 dark:bg-emerald-900/40",
-    textColor: "text-emerald-700 dark:text-emerald-300",
+    bgColor: "bg-primary/10",
+    textColor: "text-primary",
   },
 };
 
@@ -173,20 +173,20 @@ function formatEventContent(event: {
 }
 
 /**
- * Status badge configuration
+ * Status badge configuration - using app's muted palette
  */
 const statusConfig = {
   completed: {
     label: "Completed",
     icon: CheckCircle2,
-    bgColor: "bg-emerald-100 dark:bg-emerald-900/40",
-    textColor: "text-emerald-700 dark:text-emerald-300",
+    bgColor: "bg-primary/10",
+    textColor: "text-primary",
   },
   failed: {
     label: "Failed",
     icon: AlertTriangle,
-    bgColor: "bg-red-100 dark:bg-red-900/40",
-    textColor: "text-red-700 dark:text-red-300",
+    bgColor: "bg-destructive/10",
+    textColor: "text-destructive",
   },
 };
 
@@ -214,7 +214,7 @@ export function HistoryCard({
     <Card
       className={cn(
         "overflow-hidden transition-all duration-200",
-        item.status === "failed" && "border-red-500/30",
+        item.status === "failed" && "border-destructive/30",
         className
       )}
     >
@@ -299,9 +299,9 @@ export function HistoryCard({
 
           {/* Error message preview for failed - only when collapsed */}
           {!expanded && item.error && (
-            <div className="flex items-start gap-2 p-2 rounded-lg bg-red-500/10 text-xs">
-              <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
-              <span className="text-red-700 dark:text-red-400 line-clamp-1">
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-destructive/10 text-xs">
+              <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
+              <span className="text-destructive line-clamp-1">
                 {item.error}
               </span>
             </div>
@@ -311,68 +311,67 @@ export function HistoryCard({
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-border/50 bg-muted/20">
+        <div className="border-t border-border/50">
           <div className="px-4 py-4 space-y-4">
-            {/* Job summary */}
-            <div className="grid grid-cols-3 gap-4 p-4 rounded-lg bg-background border border-border">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Phase</p>
-                <p className="text-sm font-semibold capitalize">{item.phase}</p>
+            {/* Job summary - flat row with dividers */}
+            <div className="flex divide-x divide-border">
+              <div className="flex-1 pr-4">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">Phase</p>
+                <p className="text-sm font-medium capitalize">{item.phase}</p>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Duration</p>
-                <p className="text-sm font-semibold">
+              <div className="flex-1 px-4">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">Duration</p>
+                <p className="text-sm font-medium">
                   {item.duration ? formatDuration(item.duration) : "-"}
                 </p>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Result</p>
-                <p className="text-sm font-semibold">
+              <div className="flex-1 pl-4">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">Result</p>
+                <p className="text-sm font-medium">
                   {item.resultSummary || "-"}
                 </p>
               </div>
             </div>
 
-            {/* Worker Events Log */}
+            {/* Activity Log - timeline style */}
             {item.events && item.events.length > 0 && (
-              <div className="p-4 rounded-lg bg-background border border-border">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <div>
+                <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5" />
-                  Activity Log ({item.events.length} recent events)
+                  Activity Log ({item.events.length} events)
                 </p>
-                <div className="space-y-2 border-l-2 border-primary/30 pl-3">
+                <div className="border-l border-border ml-1 pl-4 space-y-2">
                   {item.events.slice(0, 8).map((event) => {
                     const EventIcon = eventIcons[event.eventType] || Brain;
                     const colorClass = eventColors[event.eventType] || "text-muted-foreground";
                     const displayContent = formatEventContent(event);
 
                     return (
-                      <div key={event.id} className="flex items-start gap-2 py-1">
+                      <div key={event.id} className="relative flex items-start gap-2.5">
+                        <div className="absolute -left-[18px] top-1.5 w-1.5 h-1.5 rounded-full bg-border" />
                         <EventIcon className={cn("w-4 h-4 shrink-0 mt-0.5", colorClass)} />
-                        <span className="text-sm text-foreground/80">
-                          {displayContent}
-                        </span>
+                        <span className="text-sm text-foreground/80">{displayContent}</span>
                       </div>
                     );
                   })}
-                  {item.events.length > 8 && (
-                    <p className="text-xs text-muted-foreground pl-6 pt-1">
-                      +{item.events.length - 8} more events
-                    </p>
-                  )}
                 </div>
+                {item.events.length > 8 && (
+                  <p className="text-xs text-muted-foreground mt-2 ml-6">
+                    +{item.events.length - 8} more events
+                  </p>
+                )}
               </div>
             )}
 
             {/* Error message for failed */}
             {item.error && (
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-red-500/10 border border-red-500/30">
-                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10">
+                <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+                  <p className="text-sm font-semibold text-destructive">
                     Job failed
                   </p>
-                  <p className="text-sm text-red-600 dark:text-red-500 mt-1">
+                  <p className="text-sm text-destructive/80 mt-1">
                     {item.error}
                   </p>
                 </div>
@@ -380,7 +379,7 @@ export function HistoryCard({
             )}
 
             {/* Action buttons */}
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-3">
               {item.status === "failed" && onRetry && (
                 <Button
                   size="sm"

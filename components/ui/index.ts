@@ -16,6 +16,12 @@ export {
 // Dialogs
 export { BackwardMoveDialog, isBackwardMove } from "./backward-move-dialog";
 export type { BackwardMoveDialogProps } from "./backward-move-dialog";
+export {
+  ConfirmActionDialog,
+  requiresActionConfirmation,
+  ACTION_COLUMNS,
+} from "./confirm-action-dialog";
+export type { ConfirmActionDialogProps } from "./confirm-action-dialog";
 export { ConfirmDialog } from "./confirm-dialog";
 export type { ConfirmDialogProps } from "./confirm-dialog";
 export { ErrorDialog } from "./error-dialog";
@@ -64,3 +70,15 @@ export {
 } from "./toast";
 export { Toaster } from "./toaster";
 export { useToast, toast } from "./use-toast";
+
+// Timeline
+export {
+  Timeline,
+  TimelineItem,
+  TimelineDot,
+  TimelineContent,
+  TimelineHeader,
+  TimelineTitle,
+  TimelineTime,
+  TimelineDescription,
+} from "./timeline";

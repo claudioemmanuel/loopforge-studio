@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, uuid, text, integer, boolean, timestamp, jsonb, varchar } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, uuid, text, integer, boolean, timestamp, jsonb, varchar, uniqueIndex, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import type { ExecutionEventMetadata } from "@/lib/ralph/types";
 
@@ -120,7 +120,10 @@ export const repos = pgTable("repos", {
   isPrivate: boolean("is_private").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  // Prevent duplicate repos for same user via race conditions
+  unique("repos_user_github_unique").on(table.userId, table.githubRepoId),
+]);
 
 // Tasks table
 export const tasks = pgTable("tasks", {
@@ -141,6 +144,7 @@ export const tasks = pgTable("tasks", {
   processingStartedAt: timestamp("processing_started_at"),
   processingStatusText: text("processing_status_text"),
   processingProgress: integer("processing_progress").default(0),
+  statusHistory: jsonb("status_history").$type<StatusHistoryEntry[]>().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -245,7 +249,10 @@ export const userSubscriptions = pgTable("user_subscriptions", {
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  // Prevent duplicate subscriptions from webhook retries (partial index for non-null values)
+  uniqueIndex("user_subscriptions_stripe_id_unique").on(table.stripeSubscriptionId),
+]);
 
 // Usage records table
 export const usageRecords = pgTable("usage_records", {
@@ -362,6 +369,15 @@ export const taskStatuses = [
 ] as const;
 
 export type TaskStatus = (typeof taskStatuses)[number];
+
+// Status history entry for tracking task status changes
+export type StatusHistoryEntry = {
+  from: TaskStatus | null;
+  to: TaskStatus;
+  timestamp: string; // ISO date
+  triggeredBy: "user" | "autonomous" | "worker";
+  userId?: string;
+};
 
 // Billing mode values
 export const billingModes = ["byok", "managed"] as const;

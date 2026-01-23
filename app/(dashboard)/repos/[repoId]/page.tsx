@@ -11,6 +11,10 @@ import {
   isBackwardMove,
 } from "@/components/ui/backward-move-dialog";
 import {
+  ConfirmActionDialog,
+  requiresActionConfirmation,
+} from "@/components/ui/confirm-action-dialog";
+import {
   useCardProcessing,
   useSlideAnimation,
 } from "@/components/hooks/use-card-processing";
@@ -82,6 +86,23 @@ export default function RepoPage() {
     taskTitle: "",
     fromStatus: "todo",
     toStatus: "todo",
+  });
+
+  // Action confirmation dialog state (for forward moves to action columns)
+  const [actionDialog, setActionDialog] = useState<{
+    open: boolean;
+    taskId: string;
+    taskTitle: string;
+    fromStatus: TaskStatus;
+    toStatus: TaskStatus;
+    loading: boolean;
+  }>({
+    open: false,
+    taskId: "",
+    taskTitle: "",
+    fromStatus: "todo",
+    toStatus: "todo",
+    loading: false,
   });
 
   // Track previous task statuses to detect lane changes
@@ -284,7 +305,20 @@ export default function RepoPage() {
       return;
     }
 
-    // Forward move - proceed immediately
+    // Check if forward move requires action confirmation
+    if (requiresActionConfirmation(newStatus)) {
+      setActionDialog({
+        open: true,
+        taskId,
+        taskTitle: currentTask.title,
+        fromStatus: currentTask.status,
+        toStatus: newStatus,
+        loading: false,
+      });
+      return;
+    }
+
+    // Simple status update (ready, done, stuck) - proceed immediately
     await performTaskMove(taskId, newStatus);
   };
 
@@ -298,6 +332,30 @@ export default function RepoPage() {
   const handleBackwardMoveReset = async () => {
     const { taskId, toStatus } = backwardMoveDialog;
     await performTaskMove(taskId, toStatus, true);
+  };
+
+  // Handler for action dialog confirmation
+  const handleActionConfirm = async () => {
+    const { taskId, toStatus } = actionDialog;
+
+    setActionDialog((prev) => ({ ...prev, loading: true }));
+
+    try {
+      if (toStatus === "brainstorming") {
+        await executeStartAction(taskId);
+      } else if (toStatus === "planning") {
+        await executeAdvanceAction(taskId, "plan");
+      } else if (toStatus === "executing") {
+        await executeAdvanceAction(taskId, "execute");
+      }
+    } finally {
+      setActionDialog((prev) => ({ ...prev, open: false, loading: false }));
+    }
+  };
+
+  // Handler for action dialog cancel
+  const handleActionCancel = () => {
+    setActionDialog((prev) => ({ ...prev, open: false, loading: false }));
   };
 
   const handleTaskClick = (task: Task) => {
@@ -334,49 +392,40 @@ export default function RepoPage() {
     }
   };
 
-  const handleTaskStart = async (taskId: string) => {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
+  // Internal execution functions (no confirmation, called after user confirms)
+  const executeStartAction = async (taskId: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/brainstorm/start`, {
+        method: "POST",
+      });
 
-    // For todo tasks, start async brainstorming (card locks immediately)
-    if (task.status === "todo") {
-      try {
-        const res = await fetch(`/api/tasks/${taskId}/brainstorm/start`, {
-          method: "POST",
-        });
-
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          setErrorDialog({
-            open: true,
-            title: "Failed to Start",
-            description: errorData.error || "Failed to start brainstorming",
-            isApiKeyError: errorData.error?.includes("API key") || errorData.code === "NO_PROVIDER_CONFIGURED",
-          });
-          return;
-        }
-
-        // Optimistically update task status
-        setTasks((prev) =>
-          prev.map((t) => (t.id === taskId ? { ...t, status: "brainstorming" as TaskStatus } : t))
-        );
-      } catch (error) {
-        console.error("Error starting brainstorm:", error);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
         setErrorDialog({
           open: true,
           title: "Failed to Start",
-          description: "An unexpected error occurred",
-          isApiKeyError: false,
+          description: errorData.error || "Failed to start brainstorming",
+          isApiKeyError: errorData.error?.includes("API key") || errorData.code === "NO_PROVIDER_CONFIGURED",
         });
+        return;
       }
-    } else {
-      // For other statuses, open the modal
-      setSelectedTask(task);
-      setAutoStartBrainstorm(task.status === "brainstorming");
+
+      // Optimistically update task status
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: "brainstorming" as TaskStatus } : t))
+      );
+    } catch (error) {
+      console.error("Error starting brainstorm:", error);
+      setErrorDialog({
+        open: true,
+        title: "Failed to Start",
+        description: "An unexpected error occurred",
+        isApiKeyError: false,
+      });
     }
   };
 
-  const handleTaskAdvance = async (taskId: string, action: "plan" | "ready" | "execute") => {
+  const executeAdvanceAction = async (taskId: string, action: "plan" | "ready" | "execute") => {
     // For plan action, use async endpoint (card locks immediately)
     if (action === "plan") {
       try {
@@ -449,6 +498,51 @@ export default function RepoPage() {
         isApiKeyError: false,
       });
     }
+  };
+
+  // Public handlers that show confirmation before executing actions
+  const handleTaskStart = async (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    // For non-todo tasks, just open the modal
+    if (task.status !== "todo") {
+      setSelectedTask(task);
+      setAutoStartBrainstorm(task.status === "brainstorming");
+      return;
+    }
+
+    // Show confirmation dialog for starting brainstorming
+    setActionDialog({
+      open: true,
+      taskId,
+      taskTitle: task.title,
+      fromStatus: task.status,
+      toStatus: "brainstorming",
+      loading: false,
+    });
+  };
+
+  const handleTaskAdvance = async (taskId: string, action: "plan" | "ready" | "execute") => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    // "ready" doesn't need confirmation - it's not an AI action
+    if (action === "ready") {
+      await executeAdvanceAction(taskId, action);
+      return;
+    }
+
+    // Show confirmation for "plan" and "execute"
+    const targetStatus: TaskStatus = action === "plan" ? "planning" : "executing";
+    setActionDialog({
+      open: true,
+      taskId,
+      taskTitle: task.title,
+      fromStatus: task.status,
+      toStatus: targetStatus,
+      loading: false,
+    });
   };
 
   const handleRefresh = () => {
@@ -600,6 +694,20 @@ export default function RepoPage() {
         taskTitle={backwardMoveDialog.taskTitle}
         onKeepData={handleBackwardMoveKeepData}
         onReset={handleBackwardMoveReset}
+      />
+
+      {/* Action Confirmation Dialog (for forward moves to action columns) */}
+      <ConfirmActionDialog
+        open={actionDialog.open}
+        onOpenChange={(open) =>
+          setActionDialog((prev) => ({ ...prev, open }))
+        }
+        taskTitle={actionDialog.taskTitle}
+        fromStatus={actionDialog.fromStatus}
+        toStatus={actionDialog.toStatus}
+        onConfirm={handleActionConfirm}
+        onCancel={handleActionCancel}
+        loading={actionDialog.loading}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { generatePlan, createAIClient } from "@/lib/ai";
 import { handleError, Errors } from "@/lib/errors";
 import { withTask, getAIClientConfig } from "@/lib/api";
@@ -14,11 +14,31 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   try {
     const client = await createAIClient(config.provider, config.apiKey, config.model);
 
-    // Update status to planning
-    await db
+    // ATOMIC: Claim the processing slot to prevent concurrent plans
+    // This UPDATE only succeeds if processingPhase is NULL (not already processing)
+    const claimResult = await db
       .update(tasks)
-      .set({ status: "planning", updatedAt: new Date() })
-      .where(eq(tasks.id, taskId));
+      .set({
+        status: "planning",
+        processingPhase: "planning",
+        processingStatusText: "Generating execution plan...",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          isNull(tasks.processingPhase) // Only claim if not already processing
+        )
+      )
+      .returning();
+
+    // If no rows were updated, another request already claimed the slot
+    if (claimResult.length === 0) {
+      return NextResponse.json(
+        { error: "Task is already processing", phase: task.processingPhase || "unknown" },
+        { status: 409 }
+      );
+    }
 
     // Generate plan with repo context
     const result = await generatePlan(
@@ -33,18 +53,17 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       }
     );
 
-    // Update task with result
-    await db
+    // Update task with result and clear processing state
+    const [updatedTask] = await db
       .update(tasks)
       .set({
         planContent: JSON.stringify(result, null, 2),
+        processingPhase: null, // Clear processing state
+        processingStatusText: null,
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
-
-    const updatedTask = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-    });
+      .where(eq(tasks.id, taskId))
+      .returning();
 
     return NextResponse.json(updatedTask);
   } catch (error) {
@@ -56,10 +75,15 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       timestamp: new Date().toISOString(),
     });
 
-    // Revert status on error
+    // Revert status and clear processing state on error
     await db
       .update(tasks)
-      .set({ status: "brainstorming", updatedAt: new Date() })
+      .set({
+        status: "brainstorming",
+        processingPhase: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+      })
       .where(eq(tasks.id, taskId));
 
     return handleError(error);

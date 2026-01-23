@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users, executions, userSubscriptions } from "@/lib/db";
-import { eq, and, gte, count } from "drizzle-orm";
+import { eq, and, gte, count, ne } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
-import type { TaskStatus, AiProvider, User } from "@/lib/db/schema";
+import type { TaskStatus, AiProvider, User, StatusHistoryEntry } from "@/lib/db/schema";
 import { getDefaultModel } from "@/lib/ai/client";
 import { handleError, Errors } from "@/lib/errors";
 
@@ -102,6 +102,7 @@ export async function PATCH(
     planContent: string | null;
     branch: string;
     autonomousMode: boolean;
+    statusHistory: StatusHistoryEntry[];
   }> = {};
 
   if (body.title !== undefined) updates.title = body.title;
@@ -112,6 +113,18 @@ export async function PATCH(
   if (body.planContent !== undefined) updates.planContent = body.planContent;
   if (body.branch !== undefined) updates.branch = body.branch;
   if (body.autonomousMode !== undefined) updates.autonomousMode = body.autonomousMode;
+
+  // Record status change in history
+  if (body.status !== undefined && body.status !== task.status) {
+    const historyEntry: StatusHistoryEntry = {
+      from: task.status,
+      to: body.status as TaskStatus,
+      timestamp: new Date().toISOString(),
+      triggeredBy: "user",
+      userId: session.user.id,
+    };
+    updates.statusHistory = [...(task.statusHistory || []), historyEntry];
+  }
 
   // Handle backward movement with resetPhases option
   // When moving backward and resetPhases is true, clear data based on target status
@@ -263,10 +276,32 @@ export async function PATCH(
     }
 
     try {
-      // Create execution record
-      const executionId = crypto.randomUUID();
       const branch = `loopforge/${task.id.slice(0, 8)}`;
+      updates.branch = branch;
 
+      // ATOMIC: Claim the execution slot first to prevent race conditions
+      // This UPDATE only succeeds if status is NOT 'executing' (not already running)
+      const claimResult = await db
+        .update(tasks)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(
+          and(
+            eq(tasks.id, taskId),
+            ne(tasks.status, "executing") // Only claim if not already executing
+          )
+        )
+        .returning({ id: tasks.id });
+
+      // If no rows were updated, another request already started execution
+      if (claimResult.length === 0) {
+        return NextResponse.json(
+          { error: "Task is already executing" },
+          { status: 409 }
+        );
+      }
+
+      // Now create execution record (we have exclusive execution rights)
+      const executionId = crypto.randomUUID();
       await db.insert(executions).values({
         id: executionId,
         taskId: task.id,
@@ -274,14 +309,6 @@ export async function PATCH(
         iteration: 0,
         createdAt: new Date(),
       });
-
-      // Update task status with branch
-      updates.branch = branch;
-
-      await db
-        .update(tasks)
-        .set({ ...updates, updatedAt: new Date() })
-        .where(eq(tasks.id, taskId));
 
       // Queue the execution job
       const job = await queueExecution({
@@ -313,11 +340,16 @@ export async function PATCH(
         timestamp: new Date().toISOString(),
       });
 
-      // Revert status on error
+      // Revert status on error (only if we set it to executing)
       await db
         .update(tasks)
-        .set({ status: task.status, updatedAt: new Date() })
-        .where(eq(tasks.id, taskId));
+        .set({ status: task.status, branch: null, updatedAt: new Date() })
+        .where(
+          and(
+            eq(tasks.id, taskId),
+            eq(tasks.status, "executing") // Only revert if we set it
+          )
+        );
 
       return handleError(error);
     }

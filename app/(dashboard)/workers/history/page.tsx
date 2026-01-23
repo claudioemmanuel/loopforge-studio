@@ -214,22 +214,22 @@ export default function WorkersHistoryPage() {
             <p className="text-xs text-muted-foreground">Total Jobs</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+          <CheckCircle2 className="w-5 h-5 text-primary" />
           <div>
             <p className="text-2xl font-bold">{stats.completed}</p>
             <p className="text-xs text-muted-foreground">Completed</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
-          <AlertTriangle className="w-5 h-5 text-amber-500" />
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-destructive/5 border border-destructive/20">
+          <AlertTriangle className="w-5 h-5 text-destructive" />
           <div>
             <p className="text-2xl font-bold">{stats.failed}</p>
             <p className="text-xs text-muted-foreground">Failed</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
-          <Timer className="w-5 h-5 text-primary" />
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50 border">
+          <Timer className="w-5 h-5 text-muted-foreground" />
           <div>
             <p className="text-2xl font-bold">
               {avgDuration > 0 ? formatAvgDuration(avgDuration) : "-"}
@@ -238,22 +238,22 @@ export default function WorkersHistoryPage() {
           </div>
         </div>
         {/* Phase breakdown */}
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
-          <Lightbulb className="w-5 h-5 text-violet-500" />
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-secondary border">
+          <Lightbulb className="w-5 h-5 text-secondary-foreground" />
           <div>
             <p className="text-2xl font-bold">{stats.brainstorming}</p>
             <p className="text-xs text-muted-foreground">Brainstorm</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
-          <FileText className="w-5 h-5 text-blue-500" />
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-secondary border">
+          <FileText className="w-5 h-5 text-secondary-foreground" />
           <div>
             <p className="text-2xl font-bold">{stats.planning}</p>
             <p className="text-xs text-muted-foreground">Planning</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-          <Play className="w-5 h-5 text-emerald-500" />
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+          <Play className="w-5 h-5 text-primary" />
           <div>
             <p className="text-2xl font-bold">{stats.executing}</p>
             <p className="text-xs text-muted-foreground">Execution</p>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { brainstormTask, createAIClient } from "@/lib/ai";
 import { handleError, Errors } from "@/lib/errors";
 import { withTask, getAIClientConfig } from "@/lib/api";
@@ -14,29 +14,62 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   try {
     const client = await createAIClient(config.provider, config.apiKey, config.model);
 
-    // Update status to brainstorming
-    await db
+    // ATOMIC: Claim the processing slot to prevent concurrent brainstorms
+    // This UPDATE only succeeds if processingPhase is NULL (not already processing)
+    const claimResult = await db
       .update(tasks)
-      .set({ status: "brainstorming", updatedAt: new Date() })
-      .where(eq(tasks.id, taskId));
+      .set({
+        status: "brainstorming",
+        processingPhase: "brainstorming",
+        processingStatusText: "Analyzing task requirements...",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          isNull(tasks.processingPhase) // Only claim if not already processing
+        )
+      )
+      .returning();
+
+    // If no rows were updated, another request already claimed the slot
+    if (claimResult.length === 0) {
+      return NextResponse.json(
+        { error: "Task is already processing", phase: task.processingPhase || "unknown" },
+        { status: 409 }
+      );
+    }
 
     // Run brainstorm
     const result = await brainstormTask(client, task.title, task.description);
 
-    // Update task with result
-    await db
+    // Verify task is still in expected state before saving result
+    // This prevents overwriting user's manual changes during long AI operations
+    const updateResult = await db
       .update(tasks)
       .set({
         brainstormResult: JSON.stringify(result, null, 2),
+        processingPhase: null, // Clear processing state
+        processingStatusText: null,
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          eq(tasks.status, "brainstorming") // Only update if still brainstorming
+        )
+      )
+      .returning();
 
-    const updatedTask = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-    });
+    if (updateResult.length === 0) {
+      console.log("[brainstorm] Task state changed during processing, discarding result");
+      return NextResponse.json(
+        { error: "Task state changed during processing" },
+        { status: 409 }
+      );
+    }
 
-    return NextResponse.json(updatedTask);
+    return NextResponse.json(updateResult[0]);
   } catch (error) {
     console.error("Brainstorm error:", {
       taskId,
@@ -47,10 +80,15 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       timestamp: new Date().toISOString(),
     });
 
-    // Revert status on error
+    // Revert status and clear processing state on error
     await db
       .update(tasks)
-      .set({ status: "todo", updatedAt: new Date() })
+      .set({
+        status: "todo",
+        processingPhase: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+      })
       .where(eq(tasks.id, taskId));
 
     return handleError(error);

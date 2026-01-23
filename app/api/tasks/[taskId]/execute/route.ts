@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users, executions, userSubscriptions } from "@/lib/db";
-import { eq, and, gte, count } from "drizzle-orm";
+import { eq, and, gte, count, ne } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
@@ -209,7 +209,34 @@ export async function POST(
   }
 
   try {
-    // Create execution record
+    const branch = `loopforge/${task.id.slice(0, 8)}`;
+
+    // ATOMIC: Claim the execution slot first to prevent race conditions
+    // This UPDATE only succeeds if status = 'ready' (not already executing)
+    const claimResult = await db
+      .update(tasks)
+      .set({
+        status: "executing",
+        branch,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          eq(tasks.status, "ready") // Only claim if still ready
+        )
+      )
+      .returning({ id: tasks.id });
+
+    // If no rows were updated, another request already started execution
+    if (claimResult.length === 0) {
+      return NextResponse.json(
+        { error: "Task is already executing or not in ready status" },
+        { status: 409 }
+      );
+    }
+
+    // Now create execution record (we have exclusive execution rights)
     const executionId = crypto.randomUUID();
     await db.insert(executions).values({
       id: executionId,
@@ -218,16 +245,6 @@ export async function POST(
       iteration: 0,
       createdAt: new Date(),
     });
-
-    // Update task status
-    await db
-      .update(tasks)
-      .set({
-        status: "executing",
-        branch: `loopforge/${task.id.slice(0, 8)}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
 
     // Queue the execution job
     const job = await queueExecution({
@@ -239,7 +256,7 @@ export async function POST(
       aiProvider: finalProvider,
       preferredModel: finalModel,
       planContent: task.planContent,
-      branch: `loopforge/${task.id.slice(0, 8)}`,
+      branch,
       cloneUrl: task.repo.cloneUrl,
     });
 
@@ -259,11 +276,16 @@ export async function POST(
       timestamp: new Date().toISOString(),
     });
 
-    // Revert status on error
+    // Revert status on error (only if we claimed it)
     await db
       .update(tasks)
-      .set({ status: "ready", updatedAt: new Date() })
-      .where(eq(tasks.id, taskId));
+      .set({ status: "ready", branch: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          eq(tasks.status, "executing") // Only revert if we set it
+        )
+      );
 
     return handleError(error);
   }

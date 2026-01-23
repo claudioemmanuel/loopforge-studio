@@ -49,10 +49,11 @@ const phaseIcons: Record<WorkerJobPhase, React.ComponentType<{ className?: strin
   executing: Play,
 };
 
+// Using app's muted palette - icons use muted-foreground when not selected
 const phaseColors: Record<WorkerJobPhase, string> = {
-  brainstorming: "text-violet-500",
-  planning: "text-blue-500",
-  executing: "text-emerald-500",
+  brainstorming: "text-muted-foreground",
+  planning: "text-muted-foreground",
+  executing: "text-primary",
 };
 
 /**
