@@ -89,7 +89,7 @@ export default async function DashboardPage({
         </p>
       </div>
 
-      {showWelcome && userRepos.length > 0 && (
+      {userRepos.length > 0 && (
         <WelcomeBanner repoCount={userRepos.length} />
       )}
 
