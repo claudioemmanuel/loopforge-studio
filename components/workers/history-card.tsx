@@ -311,99 +311,100 @@ export function HistoryCard({
 
       {/* Expanded content */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-4">
-          {/* Job summary */}
-          <div className="ml-7 grid grid-cols-3 gap-3 p-3 rounded-lg bg-muted/30">
-            <div>
-              <p className="text-xs text-muted-foreground">Phase</p>
-              <p className="text-sm font-medium capitalize">{item.phase}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Duration</p>
-              <p className="text-sm font-medium">
-                {item.duration ? formatDuration(item.duration) : "-"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Result</p>
-              <p className="text-sm font-medium">
-                {item.resultSummary || "-"}
-              </p>
-            </div>
-          </div>
-
-          {/* Worker Events Log */}
-          {item.events && item.events.length > 0 && (
-            <div className="ml-7">
-              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5" />
-                Activity Log ({item.events.length} recent events)
-              </p>
-              <div className="space-y-1 border-l-2 border-border/50 pl-3">
-                {item.events.slice(0, 8).map((event) => {
-                  const EventIcon = eventIcons[event.eventType] || Brain;
-                  const colorClass = eventColors[event.eventType] || "text-muted-foreground";
-                  const displayContent = formatEventContent(event);
-
-                  return (
-                    <div key={event.id} className="flex items-start gap-2 py-0.5">
-                      <EventIcon className={cn("w-3.5 h-3.5 shrink-0 mt-0.5", colorClass)} />
-                      <span className="text-xs text-muted-foreground truncate">
-                        {displayContent}
-                      </span>
-                    </div>
-                  );
-                })}
-                {item.events.length > 8 && (
-                  <p className="text-xs text-muted-foreground/70 pl-5">
-                    +{item.events.length - 8} more events
-                  </p>
-                )}
+        <div className="border-t border-border/50 bg-muted/20">
+          <div className="px-4 py-4 space-y-4">
+            {/* Job summary */}
+            <div className="grid grid-cols-3 gap-4 p-4 rounded-lg bg-background border border-border">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Phase</p>
+                <p className="text-sm font-semibold capitalize">{item.phase}</p>
               </div>
-            </div>
-          )}
-
-          {/* Error message for failed */}
-          {item.error && (
-            <div className="ml-7 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-red-700 dark:text-red-400">
-                  Job failed
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Duration</p>
+                <p className="text-sm font-semibold">
+                  {item.duration ? formatDuration(item.duration) : "-"}
                 </p>
-                <p className="text-xs text-red-600 dark:text-red-500 mt-1">
-                  {item.error}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Result</p>
+                <p className="text-sm font-semibold">
+                  {item.resultSummary || "-"}
                 </p>
               </div>
             </div>
-          )}
 
-          {/* Action buttons */}
-          <div className="ml-7 flex items-center gap-2">
-            {item.status === "failed" && onRetry && (
-              <Button
-                size="sm"
-                variant="default"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRetry(item.taskId);
-                }}
-                className="h-8"
-              >
-                Retry
-              </Button>
+            {/* Worker Events Log */}
+            {item.events && item.events.length > 0 && (
+              <div className="p-4 rounded-lg bg-background border border-border">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5" />
+                  Activity Log ({item.events.length} recent events)
+                </p>
+                <div className="space-y-2 border-l-2 border-primary/30 pl-3">
+                  {item.events.slice(0, 8).map((event) => {
+                    const EventIcon = eventIcons[event.eventType] || Brain;
+                    const colorClass = eventColors[event.eventType] || "text-muted-foreground";
+                    const displayContent = formatEventContent(event);
+
+                    return (
+                      <div key={event.id} className="flex items-start gap-2 py-1">
+                        <EventIcon className={cn("w-4 h-4 shrink-0 mt-0.5", colorClass)} />
+                        <span className="text-sm text-foreground/80">
+                          {displayContent}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {item.events.length > 8 && (
+                    <p className="text-xs text-muted-foreground pl-6 pt-1">
+                      +{item.events.length - 8} more events
+                    </p>
+                  )}
+                </div>
+              </div>
             )}
 
-            <Link href={`/repos/${item.repoId}?task=${item.taskId}`}>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-              >
-                View Task
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-            </Link>
+            {/* Error message for failed */}
+            {item.error && (
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+                    Job failed
+                  </p>
+                  <p className="text-sm text-red-600 dark:text-red-500 mt-1">
+                    {item.error}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-3 pt-2">
+              {item.status === "failed" && onRetry && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRetry(item.taskId);
+                  }}
+                >
+                  Retry
+                </Button>
+              )}
+
+              <Link href={`/repos/${item.repoId}?task=${item.taskId}`}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                >
+                  View Task
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       )}
