@@ -7,6 +7,7 @@ export {
   type RepoContext,
   type BrainstormConversation,
   type ExistingBrainstormContext,
+  extractJSON,
   getConversation,
   setConversation,
   deleteConversation,

@@ -26,7 +26,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   ready: "Ready",
   executing: "Executing",
   done: "Done",
-  stuck: "Stuck",
+  stuck: "Failed",
 };
 
 // Determine what data gets cleared based on target status

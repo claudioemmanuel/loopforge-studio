@@ -16,6 +16,9 @@ import {
   Plug,
   AlertTriangle,
   X,
+  Zap,
+  Play,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -45,11 +48,18 @@ const settingsSubItems = [
   { href: "/settings/danger-zone", label: "Danger Zone", icon: AlertTriangle },
 ];
 
+const workersSubItems = [
+  { href: "/workers", label: "Active", icon: Play },
+  { href: "/workers/history", label: "History", icon: History },
+  { href: "/workers/failed", label: "Failed", icon: AlertTriangle },
+];
+
 export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
   const pathname = usePathname();
   const { isOpen, closeSidebar } = useSidebar();
 
   const isDashboardActive = pathname === "/dashboard";
+  const isWorkersActive = pathname.startsWith("/workers");
   const isAnalyticsActive = pathname === "/analytics";
   const isSettingsActive = pathname.startsWith("/settings");
 
@@ -172,6 +182,44 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Workers with cascade */}
+          <div>
+            <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground">
+              <Zap className="w-4 h-4" />
+              <span className="flex-1 text-left font-medium">Workers</span>
+            </div>
+
+            <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
+              {workersSubItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
+                      isActive
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-muted-foreground hover:text-foreground",
+                      item.href === "/workers/failed" &&
+                        !isActive &&
+                        "text-amber-500/70 hover:text-amber-500"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "w-3.5 h-3.5",
+                        item.href === "/workers/failed" && "text-amber-500"
+                      )}
+                    />
+                    {item.label}
+                  </Link>
+                );
+              })}
             </div>
           </div>
 

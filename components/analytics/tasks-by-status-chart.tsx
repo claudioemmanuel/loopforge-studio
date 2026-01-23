@@ -23,7 +23,7 @@ const statusLabels: Record<string, string> = {
   planning: "Planning",
   brainstorming: "Brainstorm",
   todo: "Todo",
-  stuck: "Stuck",
+  stuck: "Failed",
 };
 
 export function TasksByStatusChart({ data }: TasksByStatusChartProps) {

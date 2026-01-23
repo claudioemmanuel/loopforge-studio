@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, repos, executions } from "@/lib/db";
 import type { TaskStatus, Execution } from "@/lib/db/schema";
-import { eq, and, inArray, desc, sql } from "drizzle-orm";
+import { eq, and, or, inArray, desc, isNotNull, sql } from "drizzle-orm";
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -26,8 +26,8 @@ export async function GET(request: Request) {
   const repoIds = userRepos.map((r) => r.id);
   const repoMap = new Map(userRepos.map((r) => [r.id, r]));
 
-  // Build status filter
-  let statusFilter: TaskStatus[] = [];
+  // Build status filter based on requested filter
+  let statusFilter: TaskStatus[];
   switch (filter) {
     case "active":
       statusFilter = ["brainstorming", "planning", "ready", "executing"];
@@ -42,16 +42,29 @@ export async function GET(request: Request) {
       statusFilter = ["brainstorming", "planning", "ready", "executing", "done", "stuck"];
   }
 
-  // Query autonomous tasks
-  const autonomousTasks = await db.query.tasks.findMany({
+  // Query tasks with ACTIVE workers:
+  // 1. Autonomous mode tasks (legacy)
+  // 2. Tasks currently processing (processingPhase set - background job running)
+  // 3. Tasks that failed (stuck status)
+  const workerTasks = await db.query.tasks.findMany({
     where: and(
       inArray(tasks.repoId, repoIds),
-      eq(tasks.autonomousMode, true),
-      inArray(tasks.status, statusFilter)
+      inArray(tasks.status, statusFilter),
+      or(
+        // Autonomous mode tasks (legacy)
+        eq(tasks.autonomousMode, true),
+        // Any task currently processing (background job running)
+        isNotNull(tasks.processingPhase),
+        // Failed tasks
+        eq(tasks.status, "stuck" as TaskStatus)
+      )
     ),
     orderBy: [desc(tasks.updatedAt)],
     limit: 50,
   });
+
+  // Alias for backwards compatibility
+  const autonomousTasks = workerTasks;
 
   // Get latest execution per task using DISTINCT ON for efficiency
   const taskIds = autonomousTasks.map((t) => t.id);
@@ -59,10 +72,12 @@ export async function GET(request: Request) {
 
   if (taskIds.length > 0) {
     // Use DISTINCT ON to get only the latest execution per task
+    // Format array as PostgreSQL array literal for ANY operator
+    const taskIdsArray = sql.raw(`ARRAY[${taskIds.map(id => `'${id}'`).join(',')}]::uuid[]`);
     const latestExecutions = await db.execute<Execution>(sql`
       SELECT DISTINCT ON (task_id) *
       FROM executions
-      WHERE task_id = ANY(${taskIds})
+      WHERE task_id = ANY(${taskIdsArray})
       ORDER BY task_id, created_at DESC
     `);
 

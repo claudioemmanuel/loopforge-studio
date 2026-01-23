@@ -39,7 +39,7 @@ const statConfig = {
   total: { label: "Total", icon: ListTodo, color: "text-muted-foreground" },
   inProgress: { label: "In Progress", icon: Zap, color: "text-primary" },
   completed: { label: "Completed", icon: CheckCircle2, color: "text-emerald-500" },
-  stuck: { label: "Stuck", icon: AlertTriangle, color: "text-red-500" },
+  stuck: { label: "Failed", icon: AlertTriangle, color: "text-red-500" },
 };
 
 export default function RepoPage() {

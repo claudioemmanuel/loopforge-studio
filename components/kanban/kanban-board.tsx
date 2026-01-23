@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -39,7 +39,7 @@ const columns: { id: TaskStatus; title: string; description: string }[] = [
   { id: "ready", title: "Ready", description: "Ready to execute" },
   { id: "executing", title: "Executing", description: "AI working on code" },
   { id: "done", title: "Done", description: "Completed tasks" },
-  { id: "stuck", title: "Stuck", description: "Needs attention" },
+  { id: "stuck", title: "Failed", description: "Tasks that encountered errors" },
 ];
 
 // Measuring configuration for smoother animations
@@ -148,7 +148,7 @@ export function KanbanBoard({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={pointerWithin}
       measuring={measuringConfig}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}

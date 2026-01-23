@@ -108,7 +108,7 @@ describe("Responsive Design", () => {
     let layoutContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/dashboard-layout-client.tsx");
+      const filePath = path.resolve(__dirname, "../components/layout/dashboard-layout-client.tsx");
       layoutContent = fs.readFileSync(filePath, "utf-8");
     });
 
@@ -210,7 +210,7 @@ describe("Responsive Design", () => {
     let taskModalContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/task-modal.tsx");
+      const filePath = path.resolve(__dirname, "../components/modals/task-modal.tsx");
       taskModalContent = fs.readFileSync(filePath, "utf-8");
     });
 
@@ -229,7 +229,7 @@ describe("Responsive Design", () => {
     let newTaskModalContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/new-task-modal.tsx");
+      const filePath = path.resolve(__dirname, "../components/modals/new-task-modal.tsx");
       newTaskModalContent = fs.readFileSync(filePath, "utf-8");
     });
 
@@ -371,7 +371,7 @@ describe("Responsive Design", () => {
       const components = [
         "../components/sidebar/mobile-header.tsx",
         "../components/sidebar/mobile-sidebar.tsx",
-        "../components/dashboard-layout-client.tsx",
+        "../components/layout/dashboard-layout-client.tsx",
         "../components/kanban/kanban-column.tsx",
       ];
 

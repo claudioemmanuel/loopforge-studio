@@ -245,7 +245,7 @@ const statusConfig: Record<
   },
   stuck: {
     icon: AlertTriangle,
-    label: "Stuck",
+    label: "Failed",
     color: "text-red-600 dark:text-red-400",
     bgColor: "bg-red-100 dark:bg-red-900/40",
     description: "Needs attention",
@@ -301,7 +301,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
       ready: "Ready",
       executing: "Executing",
       done: "Done",
-      stuck: "Stuck",
+      stuck: "Failed",
     };
     return labels[status] || status;
   };
