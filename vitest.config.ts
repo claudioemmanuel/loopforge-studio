@@ -9,6 +9,8 @@ export default defineConfig({
     exclude: ["node_modules", ".next"],
     // Run database tests sequentially to avoid race conditions
     fileParallelism: false,
+    globalSetup: ["./__tests__/setup/global-setup.ts"],
+    setupFiles: ["./__tests__/setup/setup.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
