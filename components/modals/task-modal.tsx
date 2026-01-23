@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import type { Task, TaskStatus } from "@/lib/db/schema";
-import { BrainstormPanel } from "@/components/brainstorm-panel";
+import { BrainstormPanel } from "@/components/brainstorm";
 import { useAPIError } from "@/components/hooks/use-api-error";
 import { ErrorDialog } from "@/components/ui/error-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -172,6 +172,10 @@ interface TaskModalProps {
   onClose: () => void;
   onUpdate: (task: Task) => void;
   autoStartBrainstorm?: boolean;
+  /** Callback to trigger async processing (same as card button) */
+  onStart?: (taskId: string) => Promise<void>;
+  /** Callback to advance task to next phase */
+  onAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
 }
 
 // Simple markdown-like text renderer
@@ -258,7 +262,7 @@ const workflowSteps: TaskStatus[] = [
   "done",
 ];
 
-export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false }: TaskModalProps) {
+export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false, onStart, onAdvance }: TaskModalProps) {
   const [loading, setLoading] = useState(false);
   const [actionType, setActionType] = useState<string | null>(null);
   const [showBrainstormPanel, setShowBrainstormPanel] = useState(false);
@@ -352,28 +356,33 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   };
 
   const handleBrainstorm = useCallback(async () => {
-    // Call API to generate initial brainstorm result
-    setLoading(true);
-    setActionType("brainstorm");
-    clearError();
-    try {
-      const res = await fetch(`/api/tasks/${task.id}/brainstorm/generate`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        const updatedTask = await res.json();
-        onUpdate(updatedTask);
-        // Don't open panel - result is shown in modal
-      } else {
-        await handleApiError(res);
+    // Close modal immediately and trigger card's async flow
+    if (onStart) {
+      onClose();
+      await onStart(task.id);
+    } else {
+      // Fallback to sync endpoint if no onStart callback (legacy behavior)
+      setLoading(true);
+      setActionType("brainstorm");
+      clearError();
+      try {
+        const res = await fetch(`/api/tasks/${task.id}/brainstorm/generate`, {
+          method: "POST",
+        });
+        if (res.ok) {
+          const updatedTask = await res.json();
+          onUpdate(updatedTask);
+        } else {
+          await handleApiError(res);
+        }
+      } catch (err) {
+        console.error("Error brainstorming:", err);
+      } finally {
+        setLoading(false);
+        setActionType(null);
       }
-    } catch (err) {
-      console.error("Error brainstorming:", err);
-    } finally {
-      setLoading(false);
-      setActionType(null);
     }
-  }, [task.id, clearError, onUpdate, handleApiError]);
+  }, [task.id, clearError, onUpdate, handleApiError, onStart, onClose]);
 
   const handleRefine = () => {
     // Open interactive brainstorm panel for refinement
@@ -407,73 +416,91 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   };
 
   const handlePlan = async () => {
-    setLoading(true);
-    setActionType("plan");
-    clearError();
-    try {
-      const res = await fetch(`/api/tasks/${task.id}/plan`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        const updatedTask = await res.json();
-        onUpdate(updatedTask);
-      } else {
-        await handleApiError(res);
+    // Close modal immediately and trigger card's async flow
+    if (onAdvance) {
+      onClose();
+      await onAdvance(task.id, "plan");
+    } else {
+      // Fallback to sync endpoint if no onAdvance callback (legacy behavior)
+      setLoading(true);
+      setActionType("plan");
+      clearError();
+      try {
+        const res = await fetch(`/api/tasks/${task.id}/plan`, {
+          method: "POST",
+        });
+        if (res.ok) {
+          const updatedTask = await res.json();
+          onUpdate(updatedTask);
+        } else {
+          await handleApiError(res);
+        }
+      } catch (err) {
+        console.error("Error planning:", err);
+      } finally {
+        setLoading(false);
+        setActionType(null);
       }
-    } catch (err) {
-      console.error("Error planning:", err);
-      // Network errors - show inline since no structured error
-    } finally {
-      setLoading(false);
-      setActionType(null);
     }
   };
 
   const handleMarkReady = async () => {
-    setLoading(true);
-    setActionType("ready");
-    clearError();
-    try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "ready" }),
-      });
-      if (res.ok) {
-        const updatedTask = await res.json();
-        onUpdate(updatedTask);
-      } else {
-        await handleApiError(res);
+    // Close modal immediately and trigger card's async flow
+    if (onAdvance) {
+      onClose();
+      await onAdvance(task.id, "ready");
+    } else {
+      // Fallback to sync endpoint if no onAdvance callback (legacy behavior)
+      setLoading(true);
+      setActionType("ready");
+      clearError();
+      try {
+        const res = await fetch(`/api/tasks/${task.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "ready" }),
+        });
+        if (res.ok) {
+          const updatedTask = await res.json();
+          onUpdate(updatedTask);
+        } else {
+          await handleApiError(res);
+        }
+      } catch (err) {
+        console.error("Error marking ready:", err);
+      } finally {
+        setLoading(false);
+        setActionType(null);
       }
-    } catch (err) {
-      console.error("Error marking ready:", err);
-      // Network errors - show inline since no structured error
-    } finally {
-      setLoading(false);
-      setActionType(null);
     }
   };
 
   const handleStartExecution = async () => {
-    setLoading(true);
-    setActionType("execute");
-    clearError();
-    try {
-      const res = await fetch(`/api/tasks/${task.id}/execute`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        const updatedTask = await res.json();
-        onUpdate(updatedTask);
-      } else {
-        await handleApiError(res);
+    // Close modal immediately and trigger card's async flow
+    if (onAdvance) {
+      onClose();
+      await onAdvance(task.id, "execute");
+    } else {
+      // Fallback to sync endpoint if no onAdvance callback (legacy behavior)
+      setLoading(true);
+      setActionType("execute");
+      clearError();
+      try {
+        const res = await fetch(`/api/tasks/${task.id}/execute`, {
+          method: "POST",
+        });
+        if (res.ok) {
+          const updatedTask = await res.json();
+          onUpdate(updatedTask);
+        } else {
+          await handleApiError(res);
+        }
+      } catch (err) {
+        console.error("Error starting execution:", err);
+      } finally {
+        setLoading(false);
+        setActionType(null);
       }
-    } catch (err) {
-      console.error("Error starting execution:", err);
-      // Network errors - show inline since no structured error
-    } finally {
-      setLoading(false);
-      setActionType(null);
     }
   };
 

@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { KanbanBoard } from "@/components/kanban";
-import { TaskModal } from "@/components/task-modal";
-import { NewTaskModal } from "@/components/new-task-modal";
+import { TaskModal, NewTaskModal } from "@/components/modals";
 import { Button } from "@/components/ui/button";
 import { ErrorDialog } from "@/components/ui/error-dialog";
 import {
@@ -567,6 +566,8 @@ export default function RepoPage() {
           }}
           onUpdate={handleTaskUpdated}
           autoStartBrainstorm={autoStartBrainstorm}
+          onStart={handleTaskStart}
+          onAdvance={handleTaskAdvance}
         />
       )}
 

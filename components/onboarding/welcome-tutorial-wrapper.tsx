@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { WelcomeTutorial } from "@/components/welcome-tutorial";
+import { WelcomeTutorial } from "@/components/onboarding/welcome-tutorial";
 
 export function WelcomeTutorialWrapper() {
   const searchParams = useSearchParams();
