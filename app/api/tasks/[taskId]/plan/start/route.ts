@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { queuePlan } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import { publishProcessingEvent, createProcessingEvent } from "@/lib/workers/events";
@@ -70,14 +70,6 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Check if task is already processing
-  if (task.processingPhase) {
-    return NextResponse.json(
-      { error: "Task is already processing", phase: task.processingPhase },
-      { status: 409 }
-    );
-  }
-
   // Check if brainstorm result exists
   if (!task.brainstormResult) {
     return NextResponse.json(
@@ -127,7 +119,34 @@ export async function POST(
     const apiKey = decryptApiKey(encryptedKey);
     const startedAt = new Date();
 
-    // Queue the plan job with repo context
+    // ATOMIC: Claim the processing slot first to prevent race conditions
+    // This UPDATE only succeeds if processingPhase is NULL
+    const claimResult = await db
+      .update(tasks)
+      .set({
+        status: "planning",
+        processingPhase: "planning",
+        processingStartedAt: startedAt,
+        processingStatusText: "Reviewing brainstorm...",
+        updatedAt: startedAt,
+      })
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          isNull(tasks.processingPhase)
+        )
+      )
+      .returning({ id: tasks.id });
+
+    // If no rows were updated, another request already claimed the slot
+    if (claimResult.length === 0) {
+      return NextResponse.json(
+        { error: "Task is already processing", phase: task.processingPhase || "unknown" },
+        { status: 409 }
+      );
+    }
+
+    // Now queue the job (we have exclusive processing rights)
     const job = await queuePlan({
       taskId,
       userId: session.user.id,
@@ -142,16 +161,11 @@ export async function POST(
       repoDefaultBranch: task.repo.defaultBranch || "main",
     });
 
-    // Update task with processing state
+    // Update with the job ID
     await db
       .update(tasks)
       .set({
-        status: "planning",
-        processingPhase: "planning",
         processingJobId: job.id,
-        processingStartedAt: startedAt,
-        processingStatusText: "Reviewing brainstorm...",
-        updatedAt: startedAt,
       })
       .where(eq(tasks.id, taskId));
 
@@ -175,6 +189,18 @@ export async function POST(
       processingPhase: "planning",
     });
   } catch (error) {
+    // If queuing failed after claiming, reset the processing state
+    await db
+      .update(tasks)
+      .set({
+        status: task.status, // Restore original status
+        processingPhase: null,
+        processingJobId: null,
+        processingStartedAt: null,
+        processingStatusText: null,
+      })
+      .where(eq(tasks.id, taskId));
+
     console.error("Failed to queue plan:", {
       taskId,
       provider: aiProvider,

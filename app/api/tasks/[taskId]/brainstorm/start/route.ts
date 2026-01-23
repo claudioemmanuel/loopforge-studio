@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users, repos } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { queueBrainstorm } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import { publishProcessingEvent, createProcessingEvent } from "@/lib/workers/events";
@@ -70,14 +70,6 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Check if task is already processing
-  if (task.processingPhase) {
-    return NextResponse.json(
-      { error: "Task is already processing", phase: task.processingPhase },
-      { status: 409 }
-    );
-  }
-
   // Get user's details
   const user = await db.query.users.findFirst({
     where: eq(users.id, session.user.id),
@@ -119,7 +111,34 @@ export async function POST(
     const apiKey = decryptApiKey(encryptedKey);
     const startedAt = new Date();
 
-    // Queue the brainstorm job
+    // ATOMIC: Claim the processing slot first to prevent race conditions
+    // This UPDATE only succeeds if processingPhase is NULL
+    const claimResult = await db
+      .update(tasks)
+      .set({
+        status: "brainstorming",
+        processingPhase: "brainstorming",
+        processingStartedAt: startedAt,
+        processingStatusText: "Analyzing task...",
+        updatedAt: startedAt,
+      })
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          isNull(tasks.processingPhase)
+        )
+      )
+      .returning({ id: tasks.id });
+
+    // If no rows were updated, another request already claimed the slot
+    if (claimResult.length === 0) {
+      return NextResponse.json(
+        { error: "Task is already processing", phase: task.processingPhase || "unknown" },
+        { status: 409 }
+      );
+    }
+
+    // Now queue the job (we have exclusive processing rights)
     const job = await queueBrainstorm({
       taskId,
       userId: session.user.id,
@@ -130,16 +149,11 @@ export async function POST(
       continueToPlanning: task.autonomousMode,
     });
 
-    // Update task with processing state
+    // Update with the job ID
     await db
       .update(tasks)
       .set({
-        status: "brainstorming",
-        processingPhase: "brainstorming",
         processingJobId: job.id,
-        processingStartedAt: startedAt,
-        processingStatusText: "Analyzing task...",
-        updatedAt: startedAt,
       })
       .where(eq(tasks.id, taskId));
 
@@ -163,6 +177,18 @@ export async function POST(
       processingPhase: "brainstorming",
     });
   } catch (error) {
+    // If queuing failed after claiming, reset the processing state
+    await db
+      .update(tasks)
+      .set({
+        status: task.status, // Restore original status
+        processingPhase: null,
+        processingJobId: null,
+        processingStartedAt: null,
+        processingStatusText: null,
+      })
+      .where(eq(tasks.id, taskId));
+
     console.error("Failed to queue brainstorm:", {
       taskId,
       provider: aiProvider,

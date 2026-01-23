@@ -31,6 +31,7 @@ import { BrainstormPanel } from "@/components/brainstorm";
 import { useAPIError } from "@/components/hooks/use-api-error";
 import { ErrorDialog } from "@/components/ui/error-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TaskModalTabs, TimelineTab, type TabId } from "./task-modal/";
 
 // Helper to strip markdown code blocks
 function stripMarkdownCodeBlocks(text: string): string {
@@ -271,6 +272,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
   const [autonomousMode, setAutonomousMode] = useState(task.autonomousMode ?? false);
   const [togglingAutonomous, setTogglingAutonomous] = useState(false);
   const [showAutonomousConfirm, setShowAutonomousConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>("details");
 
   // Error handling
   const {
@@ -513,7 +515,7 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden bg-card rounded-2xl shadow-2xl border animate-in zoom-in-95 fade-in duration-200">
+      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-hidden bg-card rounded-2xl shadow-2xl border animate-in zoom-in-95 fade-in duration-200">
         {/* Header */}
         <div className="border-b">
           <div className="flex items-start justify-between p-6 pb-4">
@@ -603,8 +605,19 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
           )}
         </div>
 
+        {/* Tabs Navigation */}
+        <TaskModalTabs activeTab={activeTab} onTabChange={setActiveTab} />
+
         {/* Content - Scrollable */}
-        <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-6 space-y-6">
+        <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
+          {/* Timeline Tab */}
+          {activeTab === "timeline" && (
+            <TimelineTab history={task.statusHistory || []} />
+          )}
+
+          {/* Details Tab */}
+          {activeTab === "details" && (
+          <div className="p-6 space-y-6">
           {/* Error Alert - inline display for simple errors */}
           {apiError && !apiError.action && (
             <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20">
@@ -1049,6 +1062,8 @@ export function TaskModal({ task, onClose, onUpdate, autoStartBrainstorm = false
             <div className="text-xs text-muted-foreground">
               Last updated {formatDistanceToNow(task.updatedAt, { addSuffix: true })}
             </div>
+          )}
+          </div>
           )}
         </div>
 

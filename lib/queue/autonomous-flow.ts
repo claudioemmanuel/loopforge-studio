@@ -2,7 +2,7 @@ import { Queue, Worker, Job } from "bullmq";
 import { connectionOptions, createConnectionOptions } from "./connection";
 import { queueExecution, type ExecutionJobData } from "./execution-queue";
 import { db, tasks, users, repos, executions } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import {
   createAIClient,
   getDefaultModel,
@@ -189,15 +189,24 @@ async function processAutonomousFlow(
       repoContext
     );
 
-    // Update task with brainstorm result
-    await db
+    // Update task with brainstorm result - atomic claim to prevent race with user actions
+    // Only update if task is still in todo or brainstorming state (user hasn't moved it)
+    const brainstormUpdate = await db
       .update(tasks)
       .set({
         brainstormResult: JSON.stringify(brainstormResult),
         status: "brainstorming",
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
+      .where(and(
+        eq(tasks.id, taskId),
+        or(eq(tasks.status, "todo"), eq(tasks.status, "brainstorming"))
+      ))
+      .returning({ id: tasks.id });
+
+    if (brainstormUpdate.length === 0) {
+      throw new Error("Task state changed during autonomous flow - brainstorm update aborted");
+    }
 
     await job.updateProgress({ step: "brainstorming", progress: 33 });
     console.log(`[autonomous-flow] Brainstorm complete for task ${taskId}`);
@@ -230,8 +239,9 @@ async function processAutonomousFlow(
     // Generate branch name
     const branchName = `loopforge/${taskId.slice(0, 8)}`;
 
-    // Update task with plan result
-    await db
+    // Update task with plan result - atomic claim to prevent race with user actions
+    // Only update if task is still in brainstorming state
+    const planUpdate = await db
       .update(tasks)
       .set({
         planContent: JSON.stringify(planResult),
@@ -239,7 +249,15 @@ async function processAutonomousFlow(
         branch: branchName,
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
+      .where(and(
+        eq(tasks.id, taskId),
+        eq(tasks.status, "brainstorming")
+      ))
+      .returning({ id: tasks.id });
+
+    if (planUpdate.length === 0) {
+      throw new Error("Task state changed during autonomous flow - plan update aborted");
+    }
 
     await job.updateProgress({ step: "planning", progress: 66 });
     console.log(`[autonomous-flow] Plan complete for task ${taskId}`);
@@ -256,14 +274,23 @@ async function processAutonomousFlow(
       })
     );
 
-    // Update to ready status
-    await db
+    // Update to ready status - atomic claim to prevent race with user actions
+    // Only update if task is still in planning state
+    const readyUpdate = await db
       .update(tasks)
       .set({
         status: "ready",
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
+      .where(and(
+        eq(tasks.id, taskId),
+        eq(tasks.status, "planning")
+      ))
+      .returning({ id: tasks.id });
+
+    if (readyUpdate.length === 0) {
+      throw new Error("Task state changed during autonomous flow - ready update aborted");
+    }
 
     // Get repo details for execution
     const repo = await db.query.repos.findFirst({
@@ -284,14 +311,25 @@ async function processAutonomousFlow(
       })
       .returning();
 
-    // Update task to executing
-    await db
+    // Update task to executing - atomic claim to prevent race with user actions
+    // Only update if task is still in ready state
+    const executingUpdate = await db
       .update(tasks)
       .set({
         status: "executing",
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId));
+      .where(and(
+        eq(tasks.id, taskId),
+        eq(tasks.status, "ready")
+      ))
+      .returning({ id: tasks.id });
+
+    if (executingUpdate.length === 0) {
+      // Clean up the execution record we just created since we can't proceed
+      await db.delete(executions).where(eq(executions.id, execution.id));
+      throw new Error("Task state changed during autonomous flow - executing update aborted");
+    }
 
     // Publish executing event
     await publishWorkerEvent(

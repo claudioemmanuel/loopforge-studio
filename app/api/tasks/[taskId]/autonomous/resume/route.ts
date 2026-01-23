@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users, executions, userSubscriptions } from "@/lib/db";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, ne } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
@@ -48,12 +48,13 @@ function getPreferredModel(user: User, provider: AiProvider): string {
   }
 }
 
-// Helper to queue execution for a task
+// Helper to queue execution for a task with atomic claim
 async function queueTaskExecution(
   task: {
     id: string;
     repoId: string;
     planContent: string | null;
+    status: string;
     repo: { cloneUrl: string };
   },
   userId: string,
@@ -65,43 +66,69 @@ async function queueTaskExecution(
     throw new Error("Task must have a plan to execute");
   }
 
-  const executionId = crypto.randomUUID();
   const branch = `loopforge/${task.id.slice(0, 8)}`;
 
-  // Create execution record
-  await db.insert(executions).values({
-    id: executionId,
-    taskId: task.id,
-    status: "queued",
-    iteration: 0,
-    createdAt: new Date(),
-  });
-
-  // Update task status
-  await db
+  // ATOMIC: Claim the execution slot first to prevent race conditions
+  // This UPDATE only succeeds if status is NOT 'executing'
+  const claimResult = await db
     .update(tasks)
     .set({
       status: "executing",
       branch,
       updatedAt: new Date(),
     })
-    .where(eq(tasks.id, task.id));
+    .where(
+      and(
+        eq(tasks.id, task.id),
+        ne(tasks.status, "executing") // Only claim if not already executing
+      )
+    )
+    .returning({ id: tasks.id });
 
-  // Queue the execution job
-  const job = await queueExecution({
-    executionId,
-    taskId: task.id,
-    repoId: task.repoId,
-    userId,
-    apiKey,
-    aiProvider: provider,
-    preferredModel: model,
-    planContent: task.planContent,
-    branch,
-    cloneUrl: task.repo.cloneUrl,
-  });
+  // If no rows were updated, another request already started execution
+  if (claimResult.length === 0) {
+    throw new Error("Task is already executing");
+  }
 
-  return { executionId, jobId: job.id };
+  try {
+    // Now create execution record (we have exclusive execution rights)
+    const executionId = crypto.randomUUID();
+    await db.insert(executions).values({
+      id: executionId,
+      taskId: task.id,
+      status: "queued",
+      iteration: 0,
+      createdAt: new Date(),
+    });
+
+    // Queue the execution job
+    const job = await queueExecution({
+      executionId,
+      taskId: task.id,
+      repoId: task.repoId,
+      userId,
+      apiKey,
+      aiProvider: provider,
+      preferredModel: model,
+      planContent: task.planContent,
+      branch,
+      cloneUrl: task.repo.cloneUrl,
+    });
+
+    return { executionId, jobId: job.id };
+  } catch (error) {
+    // If queuing failed after claiming, reset the status
+    await db
+      .update(tasks)
+      .set({ status: task.status as "ready", branch: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(tasks.id, task.id),
+          eq(tasks.status, "executing") // Only revert if we set it
+        )
+      );
+    throw error;
+  }
 }
 
 /**
@@ -148,14 +175,13 @@ export async function POST(
     );
   }
 
-  // Enable autonomous mode
-  await db
-    .update(tasks)
-    .set({ autonomousMode: true, updatedAt: new Date() })
-    .where(eq(tasks.id, taskId));
-
-  // If task is "ready", immediately queue execution
+  // If task is "ready", enable autonomous mode AND queue execution atomically
   if (task.status === "ready") {
+    // First enable autonomous mode (will be committed with execution claim)
+    await db
+      .update(tasks)
+      .set({ autonomousMode: true, updatedAt: new Date() })
+      .where(eq(tasks.id, taskId));
     if (!task.planContent) {
       return NextResponse.json(
         { error: "Task must have a plan to execute" },
@@ -320,7 +346,12 @@ export async function POST(
     }
   }
 
-  // For other statuses, just return the updated task
+  // For other statuses, just enable autonomous mode and return
+  await db
+    .update(tasks)
+    .set({ autonomousMode: true, updatedAt: new Date() })
+    .where(eq(tasks.id, taskId));
+
   const updatedTask = await db.query.tasks.findFirst({
     where: eq(tasks.id, taskId),
   });

@@ -205,28 +205,11 @@ async function createOrUpdateSubscription(userId: string, subscription: Stripe.S
   const periodStart = firstItem?.current_period_start ?? Math.floor(Date.now() / 1000);
   const periodEnd = firstItem?.current_period_end ?? Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
 
-  // Check if subscription exists
-  const existingSubscription = await db.query.userSubscriptions.findFirst({
-    where: eq(userSubscriptions.stripeSubscriptionId, subscription.id),
-  });
-
-  if (existingSubscription) {
-    // Update existing subscription
-    await db
-      .update(userSubscriptions)
-      .set({
-        planId: plan.id,
-        billingCycle,
-        currentPeriodStart: new Date(periodStart * 1000),
-        currentPeriodEnd: new Date(periodEnd * 1000),
-        status,
-        cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        updatedAt: new Date(),
-      })
-      .where(eq(userSubscriptions.id, existingSubscription.id));
-  } else {
-    // Create new subscription
-    await db.insert(userSubscriptions).values({
+  // Use atomic upsert to prevent TOCTOU race condition from webhook retries
+  // The unique index on stripeSubscriptionId ensures atomicity
+  await db
+    .insert(userSubscriptions)
+    .values({
       userId,
       planId: plan.id,
       stripeSubscriptionId: subscription.id,
@@ -236,6 +219,17 @@ async function createOrUpdateSubscription(userId: string, subscription: Stripe.S
       currentPeriodEnd: new Date(periodEnd * 1000),
       status,
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    })
+    .onConflictDoUpdate({
+      target: userSubscriptions.stripeSubscriptionId,
+      set: {
+        planId: plan.id,
+        billingCycle,
+        currentPeriodStart: new Date(periodStart * 1000),
+        currentPeriodEnd: new Date(periodEnd * 1000),
+        status,
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        updatedAt: new Date(),
+      },
     });
-  }
 }

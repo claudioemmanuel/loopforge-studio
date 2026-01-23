@@ -14,9 +14,18 @@ import {
   type HistoryItemData,
 } from "@/components/workers/history-card";
 
+interface HistoryStats {
+  total: number;
+  completed: number;
+  failed: number;
+  brainstorming: number;
+  planning: number;
+  executing: number;
+}
+
 interface HistoryResponse {
   items: Array<HistoryItemData & { startedAt: string; completedAt?: string }>;
-  total: number;
+  stats: HistoryStats;
   page: number;
   hasMore: boolean;
 }
@@ -42,7 +51,7 @@ export default function WorkersFailedPage() {
         const params = new URLSearchParams({
           page: pageNum.toString(),
           limit: "20",
-          status: "stuck",
+          status: "failed",
         });
 
         const res = await fetch(`/api/workers/history?${params}`);
@@ -62,7 +71,7 @@ export default function WorkersFailedPage() {
             setItems(parsedItems);
           }
 
-          setTotal(data.total);
+          setTotal(data.stats.failed);
           setHasMore(data.hasMore);
           setPage(pageNum);
         }
@@ -106,7 +115,7 @@ export default function WorkersFailedPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-serif font-bold tracking-tight flex items-center gap-3">
-            <AlertTriangle className="w-8 h-8 text-amber-500" />
+            <AlertTriangle className="w-8 h-8 text-destructive" />
             Failed Tasks
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -125,8 +134,8 @@ export default function WorkersFailedPage() {
       </div>
 
       {/* Stats bar */}
-      <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 mb-6">
-        <AlertTriangle className="w-5 h-5 text-amber-500" />
+      <div className="flex items-center gap-3 p-4 rounded-xl bg-destructive/5 border border-destructive/20 mb-6">
+        <AlertTriangle className="w-5 h-5 text-destructive" />
         <div>
           <p className="text-2xl font-bold">{total}</p>
           <p className="text-xs text-muted-foreground">Failed tasks requiring attention</p>

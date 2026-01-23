@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, repos, workerJobs, workerEvents } from "@/lib/db";
 import type { WorkerJobPhase, WorkerJobStatus } from "@/lib/db/schema";
-import { eq, and, inArray, desc, or, sql, ilike } from "drizzle-orm";
+import { eq, and, inArray, desc, asc, sql } from "drizzle-orm";
 
 export const runtime = "nodejs";
 
@@ -159,7 +159,7 @@ export async function GET(request: Request) {
       with: {
         events: {
           limit: 10,
-          orderBy: [desc(workerEvents.createdAt)],
+          orderBy: [asc(workerEvents.createdAt)],
         },
       },
     });

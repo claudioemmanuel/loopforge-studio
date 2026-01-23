@@ -160,8 +160,9 @@ export async function POST(
     // Save updated conversation to memory
     setConversation(taskId, conversation);
 
-    // Persist to database (async, don't block response)
-    db.update(tasks)
+    // Persist to database - MUST await to prevent data loss
+    // Previous fire-and-forget pattern could lose conversation on server restart
+    await db.update(tasks)
       .set({
         brainstormConversation: JSON.stringify(conversation.messages),
         brainstormResult: conversation.currentPreview
@@ -169,10 +170,7 @@ export async function POST(
           : undefined,
         updatedAt: new Date(),
       })
-      .where(eq(tasks.id, taskId))
-      .catch((err) => {
-        console.error("[brainstorm/chat] Failed to persist conversation:", err);
-      });
+      .where(eq(tasks.id, taskId));
 
     return NextResponse.json({
       message: response.message,

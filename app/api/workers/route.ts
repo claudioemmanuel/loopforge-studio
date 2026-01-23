@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, repos, executions } from "@/lib/db";
 import type { TaskStatus, Execution } from "@/lib/db/schema";
-import { eq, and, or, inArray, desc, isNotNull, sql } from "drizzle-orm";
+import { eq, and, or, inArray, desc, isNotNull } from "drizzle-orm";
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -66,23 +66,23 @@ export async function GET(request: Request) {
   // Alias for backwards compatibility
   const autonomousTasks = workerTasks;
 
-  // Get latest execution per task using DISTINCT ON for efficiency
+  // Get latest execution per task using Drizzle ORM for safety
   const taskIds = autonomousTasks.map((t) => t.id);
   const executionMap = new Map<string, Execution>();
 
   if (taskIds.length > 0) {
-    // Use DISTINCT ON to get only the latest execution per task
-    // Format array as PostgreSQL array literal for ANY operator
-    const taskIdsArray = sql.raw(`ARRAY[${taskIds.map(id => `'${id}'`).join(',')}]::uuid[]`);
-    const latestExecutions = await db.execute<Execution>(sql`
-      SELECT DISTINCT ON (task_id) *
-      FROM executions
-      WHERE task_id = ANY(${taskIdsArray})
-      ORDER BY task_id, created_at DESC
-    `);
+    // Use Drizzle's inArray for safe parameterized queries (no SQL injection risk)
+    // Then deduplicate in JS - simpler and safer than raw SQL
+    const allExecutions = await db.query.executions.findMany({
+      where: inArray(executions.taskId, taskIds),
+      orderBy: [desc(executions.createdAt)],
+    });
 
-    for (const exec of latestExecutions.rows) {
-      executionMap.set(exec.taskId, exec);
+    // Keep only the latest execution per task
+    for (const exec of allExecutions) {
+      if (!executionMap.has(exec.taskId)) {
+        executionMap.set(exec.taskId, exec);
+      }
     }
   }
 

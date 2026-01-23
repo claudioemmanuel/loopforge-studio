@@ -92,6 +92,34 @@
       "when": 1769558400000,
       "tag": "0012_worker_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1769644800000,
+      "tag": "0013_task_status_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1769731200000,
+      "tag": "0014_race_condition_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1769817600000,
+      "tag": "0015_index_optimization",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1769904000000,
+      "tag": "0016_constraint_hardening",
+      "breakpoints": true
     }
   ]
 }
