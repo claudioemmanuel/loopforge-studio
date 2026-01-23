@@ -64,6 +64,20 @@
       "when": 1769212800000,
       "tag": "0008_autonomous_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1769385600000,
+      "tag": "0010_processing_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1769472000000,
+      "tag": "0011_query_optimization",
+      "breakpoints": true
     }
   ]
 }

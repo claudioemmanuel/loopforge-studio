@@ -8,10 +8,11 @@ import {
   generateInitialBrainstorm,
   type RepoContext,
 } from "@/lib/ai";
-import { decryptApiKey } from "@/lib/crypto";
+import { decryptApiKey, decryptGithubToken } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
 import { handleError, Errors } from "@/lib/errors";
 import { queueAutonomousFlow } from "@/lib/queue";
+import { scanRepoViaGitHub, getTestCoverageContext } from "@/lib/github";
 
 function getProviderApiKey(
   user: User,
@@ -146,19 +147,71 @@ export async function POST(
     const client = await createAIClient(aiProvider, apiKey, model);
     console.log("[brainstorm/generate] AI client created successfully");
 
-    // Default repo context
-    const repoContext: RepoContext = {
-      techStack: ["Next.js", "React", "TypeScript", "Drizzle ORM"],
-      fileStructure: ["app/", "components/", "lib/", "public/"],
-      configFiles: ["package.json", "tsconfig.json", "next.config.ts"],
-    };
+    // Scan repository via GitHub API for real context
+    let repoContext: RepoContext;
+    let testCoverageContext = "";
+
+    if (user.encryptedGithubToken && user.githubTokenIv) {
+      try {
+        console.log("[brainstorm/generate] Scanning repository via GitHub API");
+        const githubToken = decryptGithubToken({
+          encrypted: user.encryptedGithubToken,
+          iv: user.githubTokenIv,
+        });
+
+        const [owner, repoName] = task.repo.fullName.split("/");
+        const githubContext = await scanRepoViaGitHub(
+          githubToken,
+          owner,
+          repoName,
+          task.repo.defaultBranch || "main"
+        );
+
+        repoContext = {
+          techStack: githubContext.techStack,
+          fileStructure: githubContext.fileStructure,
+          configFiles: githubContext.configFiles,
+        };
+
+        // Add test coverage context for test-related tasks
+        const lowerTitle = task.title.toLowerCase();
+        if (lowerTitle.includes("test") || lowerTitle.includes("coverage")) {
+          testCoverageContext = getTestCoverageContext(githubContext);
+        }
+
+        console.log("[brainstorm/generate] Repository scanned:", {
+          techStack: repoContext.techStack.length,
+          files: repoContext.fileStructure.length,
+          testFiles: githubContext.testFiles.length,
+        });
+      } catch (error) {
+        console.error("[brainstorm/generate] GitHub scan failed, using defaults:", error);
+        repoContext = {
+          techStack: [],
+          fileStructure: [],
+          configFiles: [],
+        };
+      }
+    } else {
+      console.log("[brainstorm/generate] No GitHub token, using empty context");
+      repoContext = {
+        techStack: [],
+        fileStructure: [],
+        configFiles: [],
+      };
+    }
 
     // Generate the initial brainstorm
+    // Append test coverage context to description for test-related tasks
+    const enrichedDescription = testCoverageContext
+      ? `${task.description || ""}${testCoverageContext}`
+      : task.description;
+
     console.log("[brainstorm/generate] Generating initial brainstorm");
     const brainstormResult = await generateInitialBrainstorm(
       client,
       task.title,
-      task.description,
+      enrichedDescription,
       repoContext
     );
     console.log("[brainstorm/generate] Brainstorm generated successfully");

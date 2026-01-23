@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { KanbanBoard } from "@/components/kanban";
 import { TaskModal } from "@/components/task-modal";
@@ -11,6 +11,10 @@ import {
   BackwardMoveDialog,
   isBackwardMove,
 } from "@/components/ui/backward-move-dialog";
+import {
+  useCardProcessing,
+  useSlideAnimation,
+} from "@/components/hooks/use-card-processing";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -81,6 +85,37 @@ export default function RepoPage() {
     toStatus: "todo",
   });
 
+  // Track previous task statuses to detect lane changes
+  const prevTaskStatusesRef = useRef<Map<string, TaskStatus>>(new Map());
+
+  // Ref to hold fetchData for use in callbacks (declared before hooks that use it)
+  const fetchDataRef = useRef<((signal?: AbortSignal) => Promise<void>) | null>(null);
+
+  // Slide animation hook
+  const { triggerSlide, slidingCards } = useSlideAnimation();
+
+  // Card processing hook for async operations
+  const { processingCards } = useCardProcessing({
+    enabled: true,
+    onProcessingComplete: useCallback((state: { taskId: string; error?: string }) => {
+      // Refresh task data when processing completes
+      fetchDataRef.current?.();
+      // Trigger slide animation for the completed card
+      triggerSlide(state.taskId);
+    }, [triggerSlide]),
+    onProcessingError: useCallback((state: { taskId: string; error?: string }) => {
+      // Show error dialog
+      setErrorDialog({
+        open: true,
+        title: "Processing Failed",
+        description: state.error || "An error occurred during processing",
+        isApiKeyError: state.error?.includes("API key") || false,
+      });
+      // Refresh task data
+      fetchDataRef.current?.();
+    }, []),
+  });
+
   const fetchData = useCallback(async (signal?: AbortSignal) => {
     try {
       const fetchOptions = signal ? { signal } : {};
@@ -110,6 +145,29 @@ export default function RepoPage() {
       }
     }
   }, [repoId]);
+
+  // Keep ref updated
+  fetchDataRef.current = fetchData;
+
+  // Track task status changes to trigger slide animations
+  useEffect(() => {
+    const prevStatuses = prevTaskStatusesRef.current;
+
+    tasks.forEach((task) => {
+      const prevStatus = prevStatuses.get(task.id);
+      if (prevStatus && prevStatus !== task.status) {
+        // Task moved to a different lane - trigger slide animation
+        triggerSlide(task.id);
+      }
+    });
+
+    // Update the ref with current statuses
+    const newStatuses = new Map<string, TaskStatus>();
+    tasks.forEach((task) => {
+      newStatuses.set(task.id, task.status);
+    });
+    prevTaskStatusesRef.current = newStatuses;
+  }, [tasks, triggerSlide]);
 
   // Fetch data on mount and when repoId changes
   useEffect(() => {
@@ -278,18 +336,85 @@ export default function RepoPage() {
   };
 
   const handleTaskStart = async (taskId: string) => {
-    // Find the task and open the modal with auto-start brainstorm
     const task = tasks.find((t) => t.id === taskId);
-    if (task) {
+    if (!task) return;
+
+    // For todo tasks, start async brainstorming (card locks immediately)
+    if (task.status === "todo") {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/brainstorm/start`, {
+          method: "POST",
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          setErrorDialog({
+            open: true,
+            title: "Failed to Start",
+            description: errorData.error || "Failed to start brainstorming",
+            isApiKeyError: errorData.error?.includes("API key") || errorData.code === "NO_PROVIDER_CONFIGURED",
+          });
+          return;
+        }
+
+        // Optimistically update task status
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: "brainstorming" as TaskStatus } : t))
+        );
+      } catch (error) {
+        console.error("Error starting brainstorm:", error);
+        setErrorDialog({
+          open: true,
+          title: "Failed to Start",
+          description: "An unexpected error occurred",
+          isApiKeyError: false,
+        });
+      }
+    } else {
+      // For other statuses, open the modal
       setSelectedTask(task);
-      setAutoStartBrainstorm(true);
+      setAutoStartBrainstorm(task.status === "brainstorming");
     }
   };
 
   const handleTaskAdvance = async (taskId: string, action: "plan" | "ready" | "execute") => {
-    const endpoint = action === "plan"
-      ? `/api/tasks/${taskId}/plan`
-      : action === "ready"
+    // For plan action, use async endpoint (card locks immediately)
+    if (action === "plan") {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/plan/start`, {
+          method: "POST",
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          setErrorDialog({
+            open: true,
+            title: "Failed to Start Planning",
+            description: errorData.error || "Failed to start planning",
+            isApiKeyError: errorData.error?.includes("API key") || errorData.code === "NO_PROVIDER_CONFIGURED",
+          });
+          return;
+        }
+
+        // Optimistically update task status
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: "planning" as TaskStatus } : t))
+        );
+        return;
+      } catch (error) {
+        console.error("Error starting plan:", error);
+        setErrorDialog({
+          open: true,
+          title: "Failed to Start Planning",
+          description: "An unexpected error occurred",
+          isApiKeyError: false,
+        });
+        return;
+      }
+    }
+
+    // For ready and execute actions, use existing synchronous endpoints
+    const endpoint = action === "ready"
       ? `/api/tasks/${taskId}`
       : `/api/tasks/${taskId}/execute`;
 
@@ -427,6 +552,8 @@ export default function RepoPage() {
           onTaskStart={handleTaskStart}
           onTaskAdvance={handleTaskAdvance}
           onAddTask={() => setShowNewTask(true)}
+          processingCards={processingCards}
+          slidingCards={slidingCards}
         />
       </main>
 

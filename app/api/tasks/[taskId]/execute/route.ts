@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users, executions, userSubscriptions } from "@/lib/db";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, count } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
@@ -153,10 +153,10 @@ export async function POST(
       );
     }
 
-    // Check usage against plan limits
+    // Check usage against plan limits using COUNT() for efficiency
     const periodStart = subscription.currentPeriodStart;
-    const completedExecutions = await db
-      .select()
+    const [countResult] = await db
+      .select({ count: count() })
       .from(executions)
       .innerJoin(tasks, eq(executions.taskId, tasks.id))
       .where(
@@ -167,7 +167,7 @@ export async function POST(
         )
       );
 
-    const taskCount = completedExecutions.length;
+    const taskCount = countResult.count;
     const limit = subscription.plan.taskLimit;
     const graceLimit = Math.floor(limit * (1 + subscription.plan.gracePercent / 100));
 

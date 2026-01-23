@@ -2,10 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   calculateProgressFromStatus,
   createWorkerUpdateEvent,
+  createProcessingEvent,
+  phaseStatusMessages,
   type WorkerEvent,
   type WorkerEventData,
+  type ProcessingEvent,
+  type ProcessingEventData,
 } from "@/lib/workers/events";
-import type { TaskStatus } from "@/lib/db/schema";
+import type { TaskStatus, ProcessingPhase } from "@/lib/db/schema";
 
 describe("Worker Events Utilities", () => {
   describe("calculateProgressFromStatus", () => {
@@ -253,6 +257,259 @@ describe("Worker Events Utilities", () => {
       expect(data.currentAction).toBe("Writing tests");
       expect(data.error).toBe("Some error");
       expect(data.completedAt).toBeDefined();
+    });
+  });
+
+  describe("phaseStatusMessages", () => {
+    it("should have messages for all processing phases", () => {
+      const phases: ProcessingPhase[] = ["brainstorming", "planning", "executing"];
+
+      for (const phase of phases) {
+        expect(phaseStatusMessages[phase]).toBeDefined();
+        expect(Array.isArray(phaseStatusMessages[phase])).toBe(true);
+        expect(phaseStatusMessages[phase].length).toBeGreaterThan(0);
+      }
+    });
+
+    it("should have brainstorming phase messages", () => {
+      expect(phaseStatusMessages.brainstorming).toContain("Analyzing task...");
+      expect(phaseStatusMessages.brainstorming).toContain("Generating ideas...");
+      expect(phaseStatusMessages.brainstorming).toContain("Finalizing brainstorm...");
+    });
+
+    it("should have planning phase messages", () => {
+      expect(phaseStatusMessages.planning).toContain("Reviewing brainstorm...");
+      expect(phaseStatusMessages.planning).toContain("Designing plan...");
+      expect(phaseStatusMessages.planning).toContain("Finalizing plan...");
+    });
+
+    it("should have executing phase messages", () => {
+      expect(phaseStatusMessages.executing).toContain("Starting execution...");
+      expect(phaseStatusMessages.executing).toContain("Running tasks...");
+      expect(phaseStatusMessages.executing).toContain("Completing execution...");
+    });
+  });
+
+  describe("createProcessingEvent", () => {
+    const baseParams = {
+      taskId: "task-123",
+      taskTitle: "Implement feature X",
+      repoName: "my-repo",
+      jobId: "job-456",
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-15T10:30:00.000Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should create processing_start event", () => {
+      const startedAt = new Date("2024-01-15T10:29:00.000Z");
+      const event = createProcessingEvent(
+        "processing_start",
+        baseParams.taskId,
+        baseParams.taskTitle,
+        baseParams.repoName,
+        "brainstorming",
+        baseParams.jobId,
+        startedAt
+      );
+
+      expect(event.type).toBe("processing_start");
+      expect(event.data.taskId).toBe(baseParams.taskId);
+      expect(event.data.taskTitle).toBe(baseParams.taskTitle);
+      expect(event.data.repoName).toBe(baseParams.repoName);
+      expect(event.data.processingPhase).toBe("brainstorming");
+      expect(event.data.jobId).toBe(baseParams.jobId);
+      expect(event.data.startedAt).toBe("2024-01-15T10:29:00.000Z");
+    });
+
+    it("should create processing_update event with progress", () => {
+      const startedAt = new Date("2024-01-15T10:29:00.000Z");
+      const event = createProcessingEvent(
+        "processing_update",
+        baseParams.taskId,
+        baseParams.taskTitle,
+        baseParams.repoName,
+        "planning",
+        baseParams.jobId,
+        startedAt,
+        { progress: 50, statusText: "Designing plan..." }
+      );
+
+      expect(event.type).toBe("processing_update");
+      expect(event.data.processingPhase).toBe("planning");
+      expect(event.data.progress).toBe(50);
+      expect(event.data.statusText).toBe("Designing plan...");
+    });
+
+    it("should create processing_complete event with 100% progress", () => {
+      const startedAt = new Date("2024-01-15T10:29:00.000Z");
+      const event = createProcessingEvent(
+        "processing_complete",
+        baseParams.taskId,
+        baseParams.taskTitle,
+        baseParams.repoName,
+        "brainstorming",
+        baseParams.jobId,
+        startedAt,
+        { progress: 75 } // Should be overridden to 100
+      );
+
+      expect(event.type).toBe("processing_complete");
+      expect(event.data.progress).toBe(100);
+    });
+
+    it("should create processing_error event with error message", () => {
+      const startedAt = new Date("2024-01-15T10:29:00.000Z");
+      const event = createProcessingEvent(
+        "processing_error",
+        baseParams.taskId,
+        baseParams.taskTitle,
+        baseParams.repoName,
+        "executing",
+        baseParams.jobId,
+        startedAt,
+        { error: "API rate limit exceeded", progress: 30 }
+      );
+
+      expect(event.type).toBe("processing_error");
+      expect(event.data.error).toBe("API rate limit exceeded");
+      expect(event.data.progress).toBe(30);
+    });
+
+    it("should use default status text from phase messages", () => {
+      const startedAt = new Date("2024-01-15T10:29:00.000Z");
+      const event = createProcessingEvent(
+        "processing_start",
+        baseParams.taskId,
+        baseParams.taskTitle,
+        baseParams.repoName,
+        "brainstorming",
+        baseParams.jobId,
+        startedAt
+      );
+
+      // Should use first message from brainstorming phase
+      expect(event.data.statusText).toBe("Analyzing task...");
+    });
+
+    it("should use custom status text when provided", () => {
+      const startedAt = new Date("2024-01-15T10:29:00.000Z");
+      const event = createProcessingEvent(
+        "processing_update",
+        baseParams.taskId,
+        baseParams.taskTitle,
+        baseParams.repoName,
+        "brainstorming",
+        baseParams.jobId,
+        startedAt,
+        { statusText: "Custom progress message" }
+      );
+
+      expect(event.data.statusText).toBe("Custom progress message");
+    });
+
+    it("should include timestamps", () => {
+      const startedAt = new Date("2024-01-15T10:29:00.000Z");
+      const event = createProcessingEvent(
+        "processing_start",
+        baseParams.taskId,
+        baseParams.taskTitle,
+        baseParams.repoName,
+        "planning",
+        baseParams.jobId,
+        startedAt
+      );
+
+      expect(event.timestamp).toBe("2024-01-15T10:30:00.000Z");
+      expect(event.data.updatedAt).toBe("2024-01-15T10:30:00.000Z");
+      expect(event.data.startedAt).toBe("2024-01-15T10:29:00.000Z");
+    });
+
+    it("should handle all processing phases", () => {
+      const phases: ProcessingPhase[] = ["brainstorming", "planning", "executing"];
+      const startedAt = new Date("2024-01-15T10:29:00.000Z");
+
+      for (const phase of phases) {
+        const event = createProcessingEvent(
+          "processing_start",
+          baseParams.taskId,
+          baseParams.taskTitle,
+          baseParams.repoName,
+          phase,
+          baseParams.jobId,
+          startedAt
+        );
+
+        expect(event.data.processingPhase).toBe(phase);
+        expect(event.data.statusText).toBe(phaseStatusMessages[phase][0]);
+      }
+    });
+  });
+
+  describe("ProcessingEvent type validation", () => {
+    it("should have correct event type structure", () => {
+      const event: ProcessingEvent = {
+        type: "processing_update",
+        data: {
+          taskId: "task-123",
+          taskTitle: "Test task",
+          repoName: "test-repo",
+          processingPhase: "brainstorming",
+          statusText: "Analyzing...",
+          progress: 50,
+          jobId: "job-456",
+          startedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      expect(event.type).toBe("processing_update");
+      expect(event.data.processingPhase).toBe("brainstorming");
+      expect(event.timestamp).toBeDefined();
+    });
+  });
+
+  describe("ProcessingEventData type validation", () => {
+    it("should support all required fields", () => {
+      const data: ProcessingEventData = {
+        taskId: "task-123",
+        taskTitle: "Test task",
+        repoName: "test-repo",
+        processingPhase: "planning",
+        statusText: "Working...",
+        progress: 60,
+        jobId: "job-789",
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      expect(data.taskId).toBe("task-123");
+      expect(data.processingPhase).toBe("planning");
+      expect(data.jobId).toBe("job-789");
+    });
+
+    it("should support optional error field", () => {
+      const data: ProcessingEventData = {
+        taskId: "task-123",
+        taskTitle: "Test task",
+        repoName: "test-repo",
+        processingPhase: "executing",
+        statusText: "Failed",
+        progress: 25,
+        jobId: "job-789",
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        error: "Execution failed: timeout",
+      };
+
+      expect(data.error).toBe("Execution failed: timeout");
     });
   });
 });

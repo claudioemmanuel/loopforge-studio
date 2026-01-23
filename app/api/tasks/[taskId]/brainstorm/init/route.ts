@@ -12,7 +12,8 @@ import {
   type ExistingBrainstormContext,
   type ChatMessage,
 } from "@/lib/ai";
-import { decryptApiKey } from "@/lib/crypto";
+import { decryptApiKey, decryptGithubToken } from "@/lib/crypto";
+import { scanRepoViaGitHub } from "@/lib/github/repo-scanner";
 import type { AiProvider, User } from "@/lib/db/schema";
 import { handleError, Errors } from "@/lib/errors";
 
@@ -126,13 +127,36 @@ export async function POST(
     const client = await createAIClient(aiProvider, apiKey, model);
     console.log("[brainstorm/init] AI client created successfully");
 
-    // Default repo context (repository scanning would require local clone)
-    // For now, use sensible defaults based on the project type
-    const repoContext: RepoContext = {
-      techStack: ["Next.js", "React", "TypeScript", "Drizzle ORM"],
-      fileStructure: ["app/", "components/", "lib/", "public/"],
-      configFiles: ["package.json", "tsconfig.json", "next.config.ts"],
-    };
+    // Scan repository via GitHub API for actual context
+    let repoContext: RepoContext;
+    if (user.encryptedGithubToken && user.githubTokenIv) {
+      try {
+        const githubToken = decryptGithubToken({
+          encrypted: user.encryptedGithubToken,
+          iv: user.githubTokenIv,
+        });
+        const [owner, repoName] = task.repo.fullName.split("/");
+        console.log(`[brainstorm/init] Scanning repo: ${task.repo.fullName}`);
+        const githubContext = await scanRepoViaGitHub(
+          githubToken,
+          owner,
+          repoName,
+          task.repo.defaultBranch || "main"
+        );
+        console.log(`[brainstorm/init] Tech stack detected: ${githubContext.techStack.join(", ")}`);
+        repoContext = {
+          techStack: githubContext.techStack,
+          fileStructure: githubContext.fileStructure,
+          configFiles: githubContext.configFiles,
+        };
+      } catch (error) {
+        console.error("[brainstorm/init] GitHub scan failed:", error);
+        repoContext = { techStack: [], fileStructure: [], configFiles: [] };
+      }
+    } else {
+      console.log("[brainstorm/init] No GitHub token, using empty context");
+      repoContext = { techStack: [], fileStructure: [], configFiles: [] };
+    }
 
     // Check if conversation already exists in memory
     const existingConversation = getConversation(taskId);

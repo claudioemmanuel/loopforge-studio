@@ -1,16 +1,30 @@
 import { Job } from "bullmq";
-import { db, users, tasks, executions, executionEvents } from "../lib/db";
+import { db, users, tasks, executions, executionEvents, repos } from "../lib/db";
 import { eq } from "drizzle-orm";
 import { runLoop, type LoopContext, type ExecutionMode } from "../lib/ralph";
 import {
   createExecutionWorker,
   createAutonomousFlowWorker,
+  createBrainstormWorker,
+  createPlanWorker,
+  queuePlan,
+  queueExecution,
   type ExecutionJobData,
   type ExecutionJobResult,
+  type BrainstormJobData,
+  type BrainstormJobResult,
+  type PlanJobData,
+  type PlanJobResult,
 } from "../lib/queue";
 import { decryptGithubToken } from "../lib/crypto";
-import { createAIClient } from "../lib/ai/client";
-import { publishWorkerEvent, createWorkerUpdateEvent } from "../lib/workers/events";
+import { createAIClient, brainstormTask, generatePlan, type RepoContext } from "../lib/ai";
+import {
+  publishWorkerEvent,
+  createWorkerUpdateEvent,
+  publishProcessingEvent,
+  createProcessingEvent,
+  phaseStatusMessages,
+} from "../lib/workers/events";
 import simpleGit from "simple-git";
 import path from "path";
 import fs from "fs/promises";
@@ -382,6 +396,424 @@ async function processExecution(
   }
 }
 
+// Process brainstorm job
+async function processBrainstorm(
+  job: Job<BrainstormJobData, BrainstormJobResult>
+): Promise<BrainstormJobResult> {
+  const { taskId, userId, repoId, apiKey, aiProvider, preferredModel, continueToPlanning } = job.data;
+
+  console.log(`[brainstorm-worker] Starting brainstorm for task ${taskId}`);
+
+  try {
+    // Get task details
+    const task = await db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+      with: { repo: true },
+    });
+
+    if (!task) {
+      throw new Error("Task not found");
+    }
+
+    const startedAt = task.processingStartedAt || new Date();
+
+    // Create AI client
+    const client = await createAIClient(aiProvider, apiKey, preferredModel);
+
+    // Update status: Analyzing task...
+    await db
+      .update(tasks)
+      .set({ processingStatusText: phaseStatusMessages.brainstorming[0] })
+      .where(eq(tasks.id, taskId));
+
+    await publishProcessingEvent(
+      userId,
+      createProcessingEvent("processing_update", taskId, task.title, task.repo.name, "brainstorming", job.id!, startedAt, {
+        statusText: phaseStatusMessages.brainstorming[0],
+        progress: 10,
+      })
+    );
+
+    // Update status: Generating ideas...
+    await db
+      .update(tasks)
+      .set({ processingStatusText: phaseStatusMessages.brainstorming[1] })
+      .where(eq(tasks.id, taskId));
+
+    await publishProcessingEvent(
+      userId,
+      createProcessingEvent("processing_update", taskId, task.title, task.repo.name, "brainstorming", job.id!, startedAt, {
+        statusText: phaseStatusMessages.brainstorming[1],
+        progress: 30,
+      })
+    );
+
+    // Run brainstorm
+    const result = await brainstormTask(client, task.title, task.description);
+
+    // Update status: Finalizing brainstorm...
+    await db
+      .update(tasks)
+      .set({ processingStatusText: phaseStatusMessages.brainstorming[3] })
+      .where(eq(tasks.id, taskId));
+
+    await publishProcessingEvent(
+      userId,
+      createProcessingEvent("processing_update", taskId, task.title, task.repo.name, "brainstorming", job.id!, startedAt, {
+        statusText: phaseStatusMessages.brainstorming[3],
+        progress: 80,
+      })
+    );
+
+    const brainstormResultJson = JSON.stringify(result, null, 2);
+
+    // Update task with result and clear processing state
+    await db
+      .update(tasks)
+      .set({
+        brainstormResult: brainstormResultJson,
+        processingPhase: null,
+        processingJobId: null,
+        processingStartedAt: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId));
+
+    // Publish completion event
+    await publishProcessingEvent(
+      userId,
+      createProcessingEvent("processing_complete", taskId, task.title, task.repo.name, "brainstorming", job.id!, startedAt, {
+        statusText: "Brainstorm complete",
+        progress: 100,
+      })
+    );
+
+    // Also publish a worker update for the Workers page
+    await publishWorkerEvent(
+      userId,
+      createWorkerUpdateEvent(taskId, task.title, task.repo.name, "brainstorming", {
+        currentAction: "Brainstorm complete",
+      })
+    );
+
+    console.log(`[brainstorm-worker] Brainstorm complete for task ${taskId}`);
+
+    // If autonomous mode, queue planning job
+    if (continueToPlanning) {
+      console.log(`[brainstorm-worker] Autonomous mode: queueing plan for task ${taskId}`);
+
+      const planJob = await queuePlan({
+        taskId,
+        userId,
+        repoId,
+        apiKey,
+        aiProvider,
+        preferredModel,
+        brainstormResult: brainstormResultJson,
+        continueToExecution: true,
+        repoName: task.repo.name,
+        repoFullName: task.repo.fullName,
+        repoDefaultBranch: task.repo.defaultBranch || "main",
+      });
+
+      // Update task to planning phase
+      await db
+        .update(tasks)
+        .set({
+          status: "planning",
+          processingPhase: "planning",
+          processingJobId: planJob.id,
+          processingStartedAt: new Date(),
+          processingStatusText: phaseStatusMessages.planning[0],
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, taskId));
+
+      // Publish processing_start for planning
+      await publishProcessingEvent(
+        userId,
+        createProcessingEvent("processing_start", taskId, task.title, task.repo.name, "planning", planJob.id!, new Date(), {
+          statusText: phaseStatusMessages.planning[0],
+          progress: 0,
+        })
+      );
+    }
+
+    return {
+      success: true,
+      brainstormResult: brainstormResultJson,
+      completedAt: new Date(),
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[brainstorm-worker] Error for task ${taskId}:`, errorMessage);
+
+    // Get task for event publishing
+    const failedTask = await db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+      with: { repo: true },
+    });
+
+    const startedAt = failedTask?.processingStartedAt || new Date();
+
+    // Clear processing state and revert status
+    await db
+      .update(tasks)
+      .set({
+        status: "todo",
+        processingPhase: null,
+        processingJobId: null,
+        processingStartedAt: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId));
+
+    // Publish error event
+    if (failedTask) {
+      await publishProcessingEvent(
+        userId,
+        createProcessingEvent("processing_error", taskId, failedTask.title, failedTask.repo.name, "brainstorming", job.id!, startedAt, {
+          error: errorMessage,
+        })
+      );
+    }
+
+    return {
+      success: false,
+      error: errorMessage,
+      completedAt: new Date(),
+    };
+  }
+}
+
+// Process plan job
+async function processPlan(
+  job: Job<PlanJobData, PlanJobResult>
+): Promise<PlanJobResult> {
+  const { taskId, userId, repoId, apiKey, aiProvider, preferredModel, brainstormResult, continueToExecution, repoName, repoFullName, repoDefaultBranch, techStack } = job.data;
+
+  console.log(`[plan-worker] Starting plan for task ${taskId}`);
+
+  try {
+    // Get task details
+    const task = await db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+      with: { repo: true },
+    });
+
+    if (!task) {
+      throw new Error("Task not found");
+    }
+
+    const startedAt = task.processingStartedAt || new Date();
+
+    // Create AI client
+    const client = await createAIClient(aiProvider, apiKey, preferredModel);
+
+    // Update status: Reviewing brainstorm...
+    await db
+      .update(tasks)
+      .set({ processingStatusText: phaseStatusMessages.planning[0] })
+      .where(eq(tasks.id, taskId));
+
+    await publishProcessingEvent(
+      userId,
+      createProcessingEvent("processing_update", taskId, task.title, task.repo.name, "planning", job.id!, startedAt, {
+        statusText: phaseStatusMessages.planning[0],
+        progress: 10,
+      })
+    );
+
+    // Update status: Designing plan...
+    await db
+      .update(tasks)
+      .set({ processingStatusText: phaseStatusMessages.planning[1] })
+      .where(eq(tasks.id, taskId));
+
+    await publishProcessingEvent(
+      userId,
+      createProcessingEvent("processing_update", taskId, task.title, task.repo.name, "planning", job.id!, startedAt, {
+        statusText: phaseStatusMessages.planning[1],
+        progress: 30,
+      })
+    );
+
+    // Generate plan with repo context
+    const result = await generatePlan(
+      client,
+      task.title,
+      task.description,
+      brainstormResult,
+      {
+        name: repoName || task.repo.name,
+        fullName: repoFullName || task.repo.fullName,
+        defaultBranch: repoDefaultBranch || task.repo.defaultBranch || "main",
+        techStack,
+      }
+    );
+
+    // Update status: Finalizing plan...
+    await db
+      .update(tasks)
+      .set({ processingStatusText: phaseStatusMessages.planning[3] })
+      .where(eq(tasks.id, taskId));
+
+    await publishProcessingEvent(
+      userId,
+      createProcessingEvent("processing_update", taskId, task.title, task.repo.name, "planning", job.id!, startedAt, {
+        statusText: phaseStatusMessages.planning[3],
+        progress: 80,
+      })
+    );
+
+    const planContentJson = JSON.stringify(result, null, 2);
+    const branchName = `loopforge/${taskId.slice(0, 8)}`;
+
+    // Update task with result and clear processing state
+    await db
+      .update(tasks)
+      .set({
+        planContent: planContentJson,
+        branch: branchName,
+        status: continueToExecution ? "ready" : "planning",
+        processingPhase: null,
+        processingJobId: null,
+        processingStartedAt: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId));
+
+    // Publish completion event
+    await publishProcessingEvent(
+      userId,
+      createProcessingEvent("processing_complete", taskId, task.title, task.repo.name, "planning", job.id!, startedAt, {
+        statusText: "Plan complete",
+        progress: 100,
+      })
+    );
+
+    // Also publish a worker update for the Workers page
+    await publishWorkerEvent(
+      userId,
+      createWorkerUpdateEvent(taskId, task.title, task.repo.name, continueToExecution ? "ready" : "planning", {
+        currentAction: "Plan complete",
+      })
+    );
+
+    console.log(`[plan-worker] Plan complete for task ${taskId}`);
+
+    // If autonomous mode, queue execution job
+    if (continueToExecution) {
+      console.log(`[plan-worker] Autonomous mode: queueing execution for task ${taskId}`);
+
+      // Get repo details
+      const repo = await db.query.repos.findFirst({
+        where: eq(repos.id, repoId),
+      });
+
+      if (!repo) {
+        throw new Error("Repository not found");
+      }
+
+      // Create execution record
+      const [execution] = await db
+        .insert(executions)
+        .values({
+          taskId,
+          status: "queued",
+          iteration: 0,
+        })
+        .returning();
+
+      // Update task to executing
+      await db
+        .update(tasks)
+        .set({
+          status: "executing",
+          processingPhase: "executing",
+          processingJobId: execution.id,
+          processingStartedAt: new Date(),
+          processingStatusText: phaseStatusMessages.executing[0],
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, taskId));
+
+      // Queue execution
+      await queueExecution({
+        executionId: execution.id,
+        taskId,
+        repoId,
+        userId,
+        apiKey,
+        aiProvider,
+        preferredModel,
+        planContent: planContentJson,
+        branch: branchName,
+        cloneUrl: repo.cloneUrl,
+      });
+
+      // Publish executing event
+      await publishWorkerEvent(
+        userId,
+        createWorkerUpdateEvent(taskId, task.title, task.repo.name, "executing", {
+          currentAction: "Starting execution...",
+          currentStep: "Step 1",
+        })
+      );
+    }
+
+    return {
+      success: true,
+      planContent: planContentJson,
+      branch: branchName,
+      completedAt: new Date(),
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[plan-worker] Error for task ${taskId}:`, errorMessage);
+
+    // Get task for event publishing
+    const failedTask = await db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+      with: { repo: true },
+    });
+
+    const startedAt = failedTask?.processingStartedAt || new Date();
+
+    // Clear processing state and revert status
+    await db
+      .update(tasks)
+      .set({
+        status: "brainstorming",
+        processingPhase: null,
+        processingJobId: null,
+        processingStartedAt: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, taskId));
+
+    // Publish error event
+    if (failedTask) {
+      await publishProcessingEvent(
+        userId,
+        createProcessingEvent("processing_error", taskId, failedTask.title, failedTask.repo.name, "planning", job.id!, startedAt, {
+          error: errorMessage,
+        })
+      );
+    }
+
+    return {
+      success: false,
+      error: errorMessage,
+      completedAt: new Date(),
+    };
+  }
+}
+
 // Create and start the execution worker
 const worker = createExecutionWorker(processExecution);
 
@@ -420,5 +852,39 @@ autonomousWorker.on("error", (err) => {
 
 console.log("Autonomous flow worker started");
 
-export { worker, autonomousWorker };
+// Create and start the brainstorm worker
+const brainstormWorker = createBrainstormWorker(processBrainstorm);
+
+brainstormWorker.on("completed", (job, result) => {
+  console.log(`Brainstorm job ${job.id} completed:`, result.success ? "success" : "failed");
+});
+
+brainstormWorker.on("failed", (job, err) => {
+  console.error(`Brainstorm job ${job?.id} failed:`, err.message);
+});
+
+brainstormWorker.on("error", (err) => {
+  console.error("Brainstorm worker error:", err);
+});
+
+console.log("Brainstorm worker started");
+
+// Create and start the plan worker
+const planWorker = createPlanWorker(processPlan);
+
+planWorker.on("completed", (job, result) => {
+  console.log(`Plan job ${job.id} completed:`, result.success ? "success" : "failed");
+});
+
+planWorker.on("failed", (job, err) => {
+  console.error(`Plan job ${job?.id} failed:`, err.message);
+});
+
+planWorker.on("error", (err) => {
+  console.error("Plan worker error:", err);
+});
+
+console.log("Plan worker started");
+
+export { worker, autonomousWorker, brainstormWorker, planWorker };
 export default worker;

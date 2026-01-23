@@ -48,6 +48,12 @@ export const billingModeEnum = pgEnum("billing_mode", ["byok", "managed"]);
 
 export const aiProviderEnum = pgEnum("ai_provider", ["anthropic", "openai", "gemini"]);
 
+export const processingPhaseEnum = pgEnum("processing_phase", [
+  "brainstorming",
+  "planning",
+  "executing",
+]);
+
 // =============================================================================
 // Core Tables
 // =============================================================================
@@ -105,6 +111,12 @@ export const tasks = pgTable("tasks", {
   planContent: text("plan_content"),
   branch: text("branch"),
   autonomousMode: boolean("autonomous_mode").notNull().default(false),
+  // Processing state tracking for async operations
+  processingPhase: processingPhaseEnum("processing_phase"), // null when not processing
+  processingJobId: text("processing_job_id"),
+  processingStartedAt: timestamp("processing_started_at"),
+  processingStatusText: text("processing_status_text"),
+  processingProgress: integer("processing_progress").default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -277,6 +289,10 @@ export type BillingMode = (typeof billingModes)[number];
 // AI provider values
 export const aiProviders = ["anthropic", "openai", "gemini"] as const;
 export type AiProvider = (typeof aiProviders)[number];
+
+// Processing phase values
+export const processingPhases = ["brainstorming", "planning", "executing"] as const;
+export type ProcessingPhase = (typeof processingPhases)[number];
 
 // Core types
 export type User = typeof users.$inferSelect;

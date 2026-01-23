@@ -17,6 +17,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./kanban-column";
 import { KanbanCard } from "./kanban-card";
 import type { Task, TaskStatus } from "@/lib/db/schema";
+import type { CardProcessingState } from "@/components/hooks/use-card-processing";
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -26,6 +27,8 @@ interface KanbanBoardProps {
   onTaskStart?: (taskId: string) => Promise<void>;
   onTaskAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
   onAddTask?: () => void;
+  processingCards?: Map<string, CardProcessingState>;
+  slidingCards?: Set<string>;
 }
 
 // Column definitions with workflow order
@@ -54,6 +57,8 @@ export function KanbanBoard({
   onTaskStart,
   onTaskAdvance,
   onAddTask,
+  processingCards,
+  slidingCards,
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
@@ -170,6 +175,8 @@ export function KanbanBoard({
                 onTaskStart={onTaskStart}
                 onTaskAdvance={onTaskAdvance}
                 onAddTask={column.id === "todo" ? onAddTask : undefined}
+                processingCards={processingCards}
+                slidingCards={slidingCards}
               />
             ))}
           </div>

@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+
+# ============================================
+# Development Dockerfile with hot reload
+# ============================================
+FROM node:22-alpine
+
+# Install dependencies needed for native modules and git
+RUN apk add --no-cache libc6-compat python3 make g++ git
+
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package.json package-lock.json* ./
+
+# Install all dependencies (including devDependencies)
+RUN npm ci
+
+# Source code is mounted as volume for hot reload
+# No COPY of source files needed
+
+ENV NODE_ENV=development
+
+EXPOSE 3000
+
+# Default command (overridden in docker-compose)
+CMD ["npm", "run", "dev"]

@@ -11,6 +11,7 @@ import {
   type RepoContext,
 } from "@/lib/ai";
 import { decryptApiKey, decryptGithubToken } from "@/lib/crypto";
+import { scanRepoViaGitHub } from "@/lib/github/repo-scanner";
 import type { AiProvider, User, Task } from "@/lib/db/schema";
 import { publishWorkerEvent, createWorkerUpdateEvent } from "@/lib/workers/events";
 
@@ -150,11 +151,36 @@ async function processAutonomousFlow(
       })
     );
 
-    const repoContext: RepoContext = {
-      techStack: ["Next.js", "React", "TypeScript", "Drizzle ORM"],
-      fileStructure: ["app/", "components/", "lib/", "public/"],
-      configFiles: ["package.json", "tsconfig.json", "next.config.ts"],
-    };
+    // Scan repository via GitHub API for actual context
+    let repoContext: RepoContext;
+    if (user.encryptedGithubToken && user.githubTokenIv) {
+      try {
+        const githubToken = decryptGithubToken({
+          encrypted: user.encryptedGithubToken,
+          iv: user.githubTokenIv,
+        });
+        const [owner, repoName] = task.repo.fullName.split("/");
+        console.log(`[autonomous-flow] Scanning repo: ${task.repo.fullName}`);
+        const githubContext = await scanRepoViaGitHub(
+          githubToken,
+          owner,
+          repoName,
+          task.repo.defaultBranch || "main"
+        );
+        console.log(`[autonomous-flow] Tech stack detected: ${githubContext.techStack.join(", ")}`);
+        repoContext = {
+          techStack: githubContext.techStack,
+          fileStructure: githubContext.fileStructure,
+          configFiles: githubContext.configFiles,
+        };
+      } catch (error) {
+        console.error("[autonomous-flow] GitHub scan failed:", error);
+        repoContext = { techStack: [], fileStructure: [], configFiles: [] };
+      }
+    } else {
+      console.log("[autonomous-flow] No GitHub token, using empty context");
+      repoContext = { techStack: [], fileStructure: [], configFiles: [] };
+    }
 
     const brainstormResult = await generateInitialBrainstorm(
       client,
@@ -192,7 +218,13 @@ async function processAutonomousFlow(
       client,
       task.title,
       task.description,
-      JSON.stringify(brainstormResult)
+      JSON.stringify(brainstormResult),
+      {
+        name: task.repo.name,
+        fullName: task.repo.fullName,
+        defaultBranch: task.repo.defaultBranch || "main",
+        techStack: repoContext.techStack,
+      }
     );
 
     // Generate branch name

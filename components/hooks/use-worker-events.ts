@@ -15,6 +15,7 @@ export interface WorkerEventData {
   error?: string;
   completedAt?: string;
   updatedAt: string;
+  autonomousMode?: boolean;
 }
 
 export interface WorkerEvent {

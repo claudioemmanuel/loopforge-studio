@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { db, tasks, repos, executions } from "@/lib/db";
-import type { TaskStatus } from "@/lib/db/schema";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import type { TaskStatus, Execution } from "@/lib/db/schema";
+import { eq, and, or, inArray, desc, isNotNull, sql } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
 import Redis from "ioredis";
 
@@ -21,28 +21,43 @@ async function getInitialWorkers(userId: string) {
   const repoIds = userRepos.map((r) => r.id);
   const repoMap = new Map(userRepos.map((r) => [r.id, r]));
 
-  const autonomousTasks = await db.query.tasks.findMany({
+  // Get tasks that have been processed - includes:
+  // 1. Autonomous mode tasks (any status)
+  // 2. Tasks currently processing
+  // 3. Tasks that have completed (done/stuck status) - for history
+  const workerTasks = await db.query.tasks.findMany({
     where: and(
       inArray(tasks.repoId, repoIds),
-      eq(tasks.autonomousMode, true),
-      inArray(tasks.status, ["brainstorming", "planning", "ready", "executing", "done", "stuck"] as TaskStatus[])
+      or(
+        // Autonomous mode tasks
+        eq(tasks.autonomousMode, true),
+        // Any task currently processing (async card operations)
+        isNotNull(tasks.processingPhase),
+        // Completed or stuck tasks (worker history)
+        inArray(tasks.status, ["done", "stuck"] as TaskStatus[])
+      )
     ),
     orderBy: [desc(tasks.updatedAt)],
-    limit: 20,
+    limit: 50, // Increased limit for history
   });
 
-  const taskIds = autonomousTasks.map((t) => t.id);
-  const taskExecutions =
-    taskIds.length > 0
-      ? await db.query.executions.findMany({
-          where: inArray(executions.taskId, taskIds),
-          orderBy: [desc(executions.createdAt)],
-        })
-      : [];
+  // Alias for backwards compatibility
+  const autonomousTasks = workerTasks;
 
-  const executionMap = new Map<string, typeof taskExecutions[0]>();
-  for (const exec of taskExecutions) {
-    if (!executionMap.has(exec.taskId)) {
+  // Get latest execution per task using DISTINCT ON for efficiency
+  const taskIds = autonomousTasks.map((t) => t.id);
+  const executionMap = new Map<string, Execution>();
+
+  if (taskIds.length > 0) {
+    // Use DISTINCT ON to get only the latest execution per task
+    const latestExecutions = await db.execute<Execution>(sql`
+      SELECT DISTINCT ON (task_id) *
+      FROM executions
+      WHERE task_id = ANY(${taskIds})
+      ORDER BY task_id, created_at DESC
+    `);
+
+    for (const exec of latestExecutions.rows) {
       executionMap.set(exec.taskId, exec);
     }
   }
@@ -54,29 +69,37 @@ async function getInitialWorkers(userId: string) {
     let progress = 0;
     let currentAction: string | undefined;
 
-    switch (task.status) {
-      case "brainstorming":
-        progress = 20;
-        currentAction = "Generating ideas...";
-        break;
-      case "planning":
-        progress = 40;
-        currentAction = "Creating execution plan...";
-        break;
-      case "ready":
-        progress = 60;
-        currentAction = "Ready to execute";
-        break;
-      case "executing":
-        progress = 80;
-        currentAction = "Executing...";
-        break;
-      case "done":
-        progress = 100;
-        break;
-      case "stuck":
-        progress = execution?.iteration ? Math.min(60 + execution.iteration * 5, 95) : 50;
-        break;
+    // If task is actively processing, use the processing status text and stored progress
+    if (task.processingPhase) {
+      currentAction = task.processingStatusText || undefined;
+      // Use actual progress from database (persisted during processing events)
+      progress = task.processingProgress ?? 0;
+    } else {
+      // Use status-based progress for non-processing tasks
+      switch (task.status) {
+        case "brainstorming":
+          progress = 20;
+          currentAction = "Generating ideas...";
+          break;
+        case "planning":
+          progress = 40;
+          currentAction = "Creating execution plan...";
+          break;
+        case "ready":
+          progress = 60;
+          currentAction = "Ready to execute";
+          break;
+        case "executing":
+          progress = 80;
+          currentAction = "Executing...";
+          break;
+        case "done":
+          progress = 100;
+          break;
+        case "stuck":
+          progress = execution?.iteration ? Math.min(60 + execution.iteration * 5, 95) : 50;
+          break;
+      }
     }
 
     return {
@@ -90,6 +113,11 @@ async function getInitialWorkers(userId: string) {
       error: execution?.errorMessage || undefined,
       completedAt: execution?.completedAt?.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
+      // Include processing state for card processing hook
+      processingPhase: task.processingPhase,
+      processingJobId: task.processingJobId,
+      processingStartedAt: task.processingStartedAt?.toISOString(),
+      autonomousMode: task.autonomousMode,
     };
   });
 }
@@ -153,12 +181,13 @@ export async function GET() {
         });
       } catch (error) {
         console.error("Failed to set up Redis subscription:", error);
-        // Fall back to polling-style updates
-        const pollInterval = setInterval(async () => {
-          if (closed) {
-            clearInterval(pollInterval);
-            return;
-          }
+        // Fall back to polling-style updates with exponential backoff
+        let pollDelay = 5000; // Start at 5s
+        const maxDelay = 30000; // Cap at 30s
+        const backoffMultiplier = 1.5;
+
+        const poll = async () => {
+          if (closed) return;
           try {
             const workers = await getInitialWorkers(userId);
             const event = {
@@ -172,7 +201,14 @@ export async function GET() {
           } catch (err) {
             console.error("Polling error:", err);
           }
-        }, 5000); // Poll every 5 seconds as fallback
+          // Increase delay with exponential backoff, capped at maxDelay
+          pollDelay = Math.min(pollDelay * backoffMultiplier, maxDelay);
+          if (!closed) {
+            setTimeout(poll, pollDelay);
+          }
+        };
+        // Start the polling chain
+        setTimeout(poll, pollDelay);
       }
 
       // Send heartbeat every 30 seconds to keep connection alive

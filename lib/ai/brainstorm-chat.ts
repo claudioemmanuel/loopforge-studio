@@ -2,6 +2,70 @@ import type { AIClient, ChatMessage } from "./client";
 import { readdir, readFile, stat } from "fs/promises";
 import { join } from "path";
 
+/**
+ * Robust JSON extraction that handles various AI response formats.
+ * Tries multiple strategies to extract valid JSON from a response.
+ */
+function extractJSON(response: string): object | null {
+  const trimmed = response.trim();
+
+  // Try 1: Direct parse (response is already valid JSON)
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === "object" && parsed !== null) {
+      return parsed;
+    }
+  } catch {
+    // Not valid JSON, continue to next strategy
+  }
+
+  // Try 2: Strip markdown code blocks (```json ... ```)
+  const jsonCodeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (jsonCodeBlockMatch) {
+    try {
+      const parsed = JSON.parse(jsonCodeBlockMatch[1].trim());
+      if (typeof parsed === "object" && parsed !== null) {
+        return parsed;
+      }
+    } catch {
+      // Invalid JSON inside code block, continue
+    }
+  }
+
+  // Try 3: Find JSON object in text (first { to last })
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      const jsonStr = trimmed.slice(firstBrace, lastBrace + 1);
+      const parsed = JSON.parse(jsonStr);
+      if (typeof parsed === "object" && parsed !== null) {
+        return parsed;
+      }
+    } catch {
+      // Not valid JSON object, continue
+    }
+  }
+
+  // Try 4: Find JSON array in text (first [ to last ])
+  const firstBracket = trimmed.indexOf("[");
+  const lastBracket = trimmed.lastIndexOf("]");
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    try {
+      const jsonStr = trimmed.slice(firstBracket, lastBracket + 1);
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Not valid JSON array, continue
+    }
+  }
+
+  // All strategies failed
+  return null;
+}
+
 export interface BrainstormOption {
   label: string;
   value: string;
@@ -214,29 +278,17 @@ Your brainstormPreview response MUST include ALL existing items plus any new ref
 
   const response = await client.chat(messages, { maxTokens: 2048 });
 
-  // Strip markdown code blocks if present
-  let cleanedResponse = response.trim();
-  const jsonMatch = cleanedResponse.match(/^```json\s*([\s\S]*?)\s*```$/);
-  if (jsonMatch) {
-    cleanedResponse = jsonMatch[1].trim();
-  } else if (cleanedResponse.startsWith("```")) {
-    cleanedResponse = cleanedResponse.slice(3);
-    if (cleanedResponse.endsWith("```")) {
-      cleanedResponse = cleanedResponse.slice(0, -3);
-    }
-    cleanedResponse = cleanedResponse.trim();
+  // Use robust JSON extraction
+  const parsed = extractJSON(response);
+  if (parsed && "message" in parsed) {
+    return parsed as BrainstormChatResponse;
   }
 
-  try {
-    const parsed = JSON.parse(cleanedResponse) as BrainstormChatResponse;
-    return parsed;
-  } catch {
-    // Fallback if JSON parsing fails
-    return {
-      message: cleanedResponse || "I had trouble processing that. Could you try rephrasing?",
-      suggestComplete: false,
-    };
-  }
+  // Fallback if JSON parsing fails
+  return {
+    message: response.trim() || "I had trouble processing that. Could you try rephrasing?",
+    suggestComplete: false,
+  };
 }
 
 export interface ExistingBrainstormContext {
@@ -244,6 +296,81 @@ export interface ExistingBrainstormContext {
   requirements: string[];
   considerations: string[];
   suggestedApproach: string;
+}
+
+/**
+ * Get task-specific prompts based on task type detection.
+ * Helps the AI provide more relevant analysis for common task categories.
+ */
+function getTaskSpecificPrompt(title: string, description: string | null): string {
+  const lowerTitle = title.toLowerCase();
+  const lowerDesc = (description || "").toLowerCase();
+  const combined = `${lowerTitle} ${lowerDesc}`;
+
+  // Testing tasks
+  if (combined.includes("test") || combined.includes("coverage") || combined.includes("spec")) {
+    return `
+TASK TYPE: Testing/Coverage
+
+For this testing task, focus on:
+- Which modules or files need test coverage
+- What types of tests are needed (unit, integration, e2e)
+- Mocking strategies for external dependencies
+- Edge cases and error scenarios to cover
+- Coverage targets and how to measure them
+
+If test context is provided below, use it to identify specific files needing tests.`;
+  }
+
+  // Refactoring tasks
+  if (combined.includes("refactor") || combined.includes("cleanup") || combined.includes("reorganize")) {
+    return `
+TASK TYPE: Refactoring
+
+For this refactoring task, focus on:
+- Identify the specific code to refactor
+- Patterns or principles to apply (DRY, SOLID, etc.)
+- Before/after structure comparison
+- How to maintain backwards compatibility
+- Testing strategy to prevent regressions`;
+  }
+
+  // Bug fix tasks
+  if (combined.includes("fix") || combined.includes("bug") || combined.includes("issue") || combined.includes("error")) {
+    return `
+TASK TYPE: Bug Fix
+
+For this bug fix task, focus on:
+- Root cause analysis approach
+- How to reproduce the issue
+- Potential areas of code to investigate
+- Testing to verify the fix
+- Regression prevention`;
+  }
+
+  // Performance tasks
+  if (combined.includes("performance") || combined.includes("optimize") || combined.includes("speed") || combined.includes("slow")) {
+    return `
+TASK TYPE: Performance Optimization
+
+For this performance task, focus on:
+- Profiling and measurement approach
+- Key metrics to track (load time, response time, memory)
+- Potential bottlenecks to investigate
+- Optimization strategies to consider
+- Before/after benchmarking`;
+  }
+
+  // Feature tasks (default)
+  return `
+TASK TYPE: Feature Implementation
+
+For this feature task, focus on:
+- User-facing behavior and acceptance criteria
+- Integration points with existing code
+- Data model changes if needed
+- UI/UX considerations
+- Testing requirements`;
 }
 
 // Generate initial brainstorm result without chat interaction
@@ -254,27 +381,34 @@ export async function generateInitialBrainstorm(
   taskDescription: string | null,
   repoContext: RepoContext
 ): Promise<BrainstormChatResponse["brainstormPreview"]> {
+  const taskSpecificPrompt = getTaskSpecificPrompt(taskTitle, taskDescription);
+
   const prompt = `You are an expert Scrum Master analyzing a task for sprint planning.
 
 TASK: "${taskTitle}"
 ${taskDescription ? `DESCRIPTION: ${taskDescription}` : ""}
+${taskSpecificPrompt}
 
 REPOSITORY CONTEXT:
 - Tech Stack: ${repoContext.techStack.join(", ") || "Unknown"}
 - File Structure: ${repoContext.fileStructure.join(", ")}
+${repoContext.configFiles.length > 0 ? `- Config Files: ${repoContext.configFiles.join(", ")}` : ""}
 
-Generate a comprehensive initial brainstorm analysis. Provide:
-1. A clear summary of what needs to be done
-2. Key requirements and acceptance criteria (3-5 items)
-3. Technical considerations, risks, or edge cases (2-4 items)
-4. A suggested implementation approach
+Generate a comprehensive initial brainstorm analysis. Be SPECIFIC to this task and repository.
+Do NOT provide generic placeholders - analyze the actual context provided.
+
+Provide:
+1. A clear summary of what needs to be done (specific to the codebase)
+2. Key requirements and acceptance criteria (3-5 SPECIFIC items)
+3. Technical considerations, risks, or edge cases (2-4 items based on tech stack)
+4. A suggested implementation approach (referencing actual files/patterns)
 
 RESPOND WITH JSON ONLY:
 {
   "summary": "Clear, actionable summary of the task",
-  "requirements": ["Requirement 1", "Requirement 2", "..."],
-  "considerations": ["Consideration 1", "Consideration 2", "..."],
-  "suggestedApproach": "High-level approach to implement this task"
+  "requirements": ["Specific requirement 1", "Specific requirement 2", "..."],
+  "considerations": ["Technical consideration 1", "Risk or edge case 2", "..."],
+  "suggestedApproach": "High-level approach referencing actual codebase structure"
 }`;
 
   const messages: ChatMessage[] = [
@@ -283,37 +417,30 @@ RESPOND WITH JSON ONLY:
 
   const response = await client.chat(messages, { maxTokens: 2048 });
 
-  // Strip markdown code blocks
-  let cleanedResponse = response.trim();
-  const jsonMatch = cleanedResponse.match(/^```json\s*([\s\S]*?)\s*```$/);
-  if (jsonMatch) {
-    cleanedResponse = jsonMatch[1].trim();
-  } else if (cleanedResponse.startsWith("```")) {
-    cleanedResponse = cleanedResponse.slice(3);
-    if (cleanedResponse.endsWith("```")) {
-      cleanedResponse = cleanedResponse.slice(0, -3);
-    }
-    cleanedResponse = cleanedResponse.trim();
+  // Use robust JSON extraction
+  const parsed = extractJSON(response);
+  if (parsed && typeof parsed === "object") {
+    const data = parsed as Record<string, unknown>;
+    return {
+      summary: (data.summary as string) || `Analysis of: ${taskTitle}`,
+      requirements: Array.isArray(data.requirements) ? data.requirements : [],
+      considerations: Array.isArray(data.considerations) ? data.considerations : [],
+      suggestedApproach: (data.suggestedApproach as string) || "Further refinement needed",
+    };
   }
 
-  try {
-    const parsed = JSON.parse(cleanedResponse);
-    return {
-      summary: parsed.summary || `Analysis of: ${taskTitle}`,
-      requirements: parsed.requirements || [],
-      considerations: parsed.considerations || [],
-      suggestedApproach: parsed.suggestedApproach || "Further refinement needed",
-    };
-  } catch {
-    // Return a basic structure if parsing fails
-    return {
-      summary: `Initial analysis of: ${taskTitle}`,
-      requirements: ["Define detailed requirements through refinement"],
-      considerations: ["Technical approach needs discussion"],
-      suggestedApproach: "Use the Refine button to interactively clarify this task",
-    };
-  }
+  // Return a basic structure if parsing fails
+  console.error("[generateInitialBrainstorm] JSON extraction failed, raw response:", response.slice(0, 200));
+  return {
+    summary: `Initial analysis of: ${taskTitle}`,
+    requirements: ["Define detailed requirements through refinement"],
+    considerations: ["Technical approach needs discussion"],
+    suggestedApproach: "Use the Refine button to interactively clarify this task",
+  };
 }
+
+// Export for testing
+export { extractJSON, getTaskSpecificPrompt };
 
 export async function initializeBrainstorm(
   client: AIClient,
@@ -375,40 +502,36 @@ Please introduce yourself briefly, acknowledge the task, and ask your first clar
 
   const response = await client.chat(messages, { maxTokens: 2048 });
 
-  // Strip markdown code blocks
-  let cleanedResponse = response.trim();
-  const jsonMatch = cleanedResponse.match(/^```json\s*([\s\S]*?)\s*```$/);
-  if (jsonMatch) {
-    cleanedResponse = jsonMatch[1].trim();
+  // Use robust JSON extraction
+  const parsed = extractJSON(response);
+  if (parsed && "message" in parsed) {
+    const result = parsed as BrainstormChatResponse;
+    // If refining, pre-populate the preview with existing data
+    if (existingBrainstorm && !result.brainstormPreview) {
+      result.brainstormPreview = existingBrainstorm;
+    }
+    return result;
   }
 
-  try {
-    const parsed = JSON.parse(cleanedResponse) as BrainstormChatResponse;
-    // If refining, pre-populate the preview with existing data
-    if (existingBrainstorm && !parsed.brainstormPreview) {
-      parsed.brainstormPreview = existingBrainstorm;
-    }
-    return parsed;
-  } catch {
-    return {
-      message: existingBrainstorm
-        ? "I see you've already brainstormed this. What would you like to refine?"
-        : "Let's brainstorm this task together. What's the main goal you're trying to achieve?",
-      options: existingBrainstorm
-        ? [
-            { label: "Clarify acceptance criteria", value: "acceptance_criteria" },
-            { label: "Define scope boundaries", value: "scope" },
-            { label: "Identify dependencies or risks", value: "dependencies" },
-            { label: "This looks good, ready to proceed", value: "ready" },
-          ]
-        : [
-            { label: "Add a new feature", value: "new_feature" },
-            { label: "Fix a bug", value: "bug_fix" },
-            { label: "Refactor existing code", value: "refactor" },
-            { label: "Something else", value: "other" },
-          ],
-      brainstormPreview: existingBrainstorm,
-      suggestComplete: false,
-    };
-  }
+  // Fallback response
+  return {
+    message: existingBrainstorm
+      ? "I see you've already brainstormed this. What would you like to refine?"
+      : "Let's brainstorm this task together. What's the main goal you're trying to achieve?",
+    options: existingBrainstorm
+      ? [
+          { label: "Clarify acceptance criteria", value: "acceptance_criteria" },
+          { label: "Define scope boundaries", value: "scope" },
+          { label: "Identify dependencies or risks", value: "dependencies" },
+          { label: "This looks good, ready to proceed", value: "ready" },
+        ]
+      : [
+          { label: "Add a new feature", value: "new_feature" },
+          { label: "Fix a bug", value: "bug_fix" },
+          { label: "Refactor existing code", value: "refactor" },
+          { label: "Something else", value: "other" },
+        ],
+    brainstormPreview: existingBrainstorm,
+    suggestComplete: false,
+  };
 }

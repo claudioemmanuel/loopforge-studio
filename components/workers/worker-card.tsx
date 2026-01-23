@@ -40,6 +40,7 @@ export interface WorkerCardData {
   error?: string;
   startedAt: Date;
   completedAt?: Date;
+  autonomousMode?: boolean;
 }
 
 interface WorkerCardProps {
@@ -106,7 +107,6 @@ export function WorkerCard({
   worker,
   defaultExpanded,
   onRetry,
-  onViewDetails,
   onCancel,
   className,
 }: WorkerCardProps) {
@@ -154,16 +154,18 @@ export function WorkerCard({
               <span className="font-medium text-sm truncate">
                 {worker.taskTitle}
               </span>
-              {/* Auto badge */}
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase shrink-0",
-                  "bg-primary/10 text-primary"
-                )}
-              >
-                <Zap className="w-2.5 h-2.5" />
-                Auto
-              </span>
+              {/* Auto badge - only show for autonomous mode tasks */}
+              {worker.autonomousMode && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase shrink-0",
+                    "bg-primary/10 text-primary"
+                  )}
+                >
+                  <Zap className="w-2.5 h-2.5" />
+                  Auto
+                </span>
+              )}
             </div>
 
             {/* Time indicator */}
@@ -309,7 +311,7 @@ export function WorkerCard({
               variant="ghost"
               onClick={(e) => {
                 e.stopPropagation();
-                onViewDetails?.(worker.taskId, worker.repoId);
+                window.location.href = `/workers/${worker.taskId}`;
               }}
               className="h-8 ml-auto"
             >
@@ -360,10 +362,10 @@ export function WorkerEmptyState({ className }: { className?: string }) {
       <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
         <Zap className="w-6 h-6 text-muted-foreground" />
       </div>
-      <h3 className="font-medium text-foreground mb-1">No active workers</h3>
+      <h3 className="font-medium text-foreground mb-1">No tasks processing</h3>
       <p className="text-sm text-muted-foreground max-w-sm">
-        Autonomous tasks will appear here when you trigger them from your task
-        board.
+        Tasks will appear here when they&apos;re processing (brainstorming, planning, or
+        executing).
       </p>
     </div>
   );

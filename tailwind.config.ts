@@ -67,6 +67,14 @@ const config: Config = {
       },
       animation: {
         "gradient-rotate": "gradient-rotate 3s linear infinite",
+        "slide-to-lane": "slide-to-lane 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+      },
+      keyframes: {
+        "slide-to-lane": {
+          "0%": { opacity: "0.8", transform: "translateX(-20px) scale(0.98)" },
+          "50%": { transform: "translateX(5px) scale(1.01)" },
+          "100%": { opacity: "1", transform: "translateX(0) scale(1)" },
+        },
       },
     },
   },
