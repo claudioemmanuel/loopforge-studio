@@ -3,7 +3,7 @@ import { db, repos, tasks } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { StatCard, ActivityFeed, WelcomeBanner, RepoCardExpandable } from "@/components/dashboard";
+import { StatCard, ActivityFeed, WelcomeBanner, RepoCardExpandable, AddRepoButton } from "@/components/dashboard";
 import { ListTodo, CheckCircle2, Zap, TrendingUp, Sparkles } from "lucide-react";
 
 export default async function DashboardPage({
@@ -25,7 +25,22 @@ export default async function DashboardPage({
   const userRepos = await db.query.repos.findMany({
     where: eq(repos.userId, userId),
     orderBy: [desc(repos.updatedAt)],
+    columns: {
+      id: true,
+      name: true,
+      fullName: true,
+      githubRepoId: true,
+      defaultBranch: true,
+      isPrivate: true,
+      updatedAt: true,
+      createdAt: true,
+    },
   });
+
+  // Get GitHub repo IDs for the AddRepoButton
+  const existingRepoGithubIds = userRepos
+    .map(r => parseInt(r.githubRepoId, 10))
+    .filter(id => !isNaN(id));
 
   // Fetch all tasks for user's repos
   const repoIds = userRepos.map(r => r.id);
@@ -76,9 +91,7 @@ export default async function DashboardPage({
             Welcome back, <em className="font-serif">{session.user.name?.split(" ")[0] || "there"}</em>
           </p>
         </div>
-        <Link href="/onboarding">
-          <Button>Add Repository</Button>
-        </Link>
+<AddRepoButton existingRepoGithubIds={existingRepoGithubIds} />
       </div>
 
       {/* Tip Banner */}
