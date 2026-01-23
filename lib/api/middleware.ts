@@ -20,10 +20,10 @@ type RouteParams = { params: Promise<{ taskId: string }> };
 /**
  * Higher-order function that validates authentication and fetches user
  */
-export function withAuth<T>(
-  handler: (request: Request, context: AuthContext) => Promise<NextResponse<T>>
+export function withAuth(
+  handler: (request: Request, context: AuthContext) => Promise<NextResponse>
 ) {
-  return async (request: Request): Promise<NextResponse<T | { error: string }>> => {
+  return async (request: Request): Promise<NextResponse> => {
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -46,13 +46,13 @@ export function withAuth<T>(
 /**
  * Higher-order function that validates auth + fetches task with ownership check
  */
-export function withTask<T>(
-  handler: (request: Request, context: TaskContext) => Promise<NextResponse<T>>
+export function withTask(
+  handler: (request: Request, context: TaskContext) => Promise<NextResponse>
 ) {
   return async (
     request: Request,
     routeParams: RouteParams
-  ): Promise<NextResponse<T | { error: string }>> => {
+  ): Promise<NextResponse> => {
     const session = await auth();
     const { taskId } = await routeParams.params;
 
