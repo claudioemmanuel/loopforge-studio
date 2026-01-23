@@ -96,9 +96,15 @@ beforeAll(async () => {
       processing_started_at TIMESTAMP,
       processing_status_text TEXT,
       processing_progress INTEGER DEFAULT 0,
+      status_history JSONB DEFAULT '[]'::jsonb,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
+
+    -- Add status_history column if it doesn't exist (for existing test databases)
+    DO $$ BEGIN
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS status_history JSONB DEFAULT '[]'::jsonb;
+    EXCEPTION WHEN undefined_table THEN null; END $$;
 
     CREATE TABLE IF NOT EXISTS executions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

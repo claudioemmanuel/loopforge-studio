@@ -61,6 +61,7 @@ export function HistorySection({
   const [filters, setFilters] = React.useState<HistoryFiltersState>({
     search: "",
     status: "all",
+    phase: "all",
     repoId: undefined,
   });
 
@@ -179,7 +180,7 @@ export function HistorySection({
             No history matches your filters
           </p>
           <button
-            onClick={() => setFilters({ search: "", status: "all", repoId: undefined })}
+            onClick={() => setFilters({ search: "", status: "all", phase: "all", repoId: undefined })}
             className="mt-2 text-xs text-primary hover:underline"
           >
             Clear filters
