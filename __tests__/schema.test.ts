@@ -42,6 +42,7 @@ describe("Database Schema", () => {
       DROP TYPE IF EXISTS subscription_status CASCADE;
       DROP TYPE IF EXISTS billing_mode CASCADE;
       DROP TYPE IF EXISTS ai_provider CASCADE;
+      DROP TYPE IF EXISTS processing_phase CASCADE;
 
       -- Create enums
       CREATE TYPE task_status AS ENUM ('todo', 'brainstorming', 'planning', 'ready', 'executing', 'done', 'stuck');
@@ -51,6 +52,7 @@ describe("Database Schema", () => {
       CREATE TYPE subscription_status AS ENUM ('active', 'canceled', 'past_due', 'trialing');
       CREATE TYPE billing_mode AS ENUM ('byok', 'managed');
       CREATE TYPE ai_provider AS ENUM ('anthropic', 'openai', 'gemini');
+      CREATE TYPE processing_phase AS ENUM ('brainstorming', 'planning', 'executing');
 
       -- Create tables
       CREATE TABLE users (
@@ -103,6 +105,11 @@ describe("Database Schema", () => {
         plan_content TEXT,
         branch TEXT,
         autonomous_mode BOOLEAN NOT NULL DEFAULT false,
+        processing_phase processing_phase,
+        processing_job_id TEXT,
+        processing_started_at TIMESTAMP,
+        processing_status_text TEXT,
+        processing_progress INTEGER DEFAULT 0,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );

@@ -1,4 +1,4 @@
-# Development Docker Compose
+# Development Docker Compose - Full stack with hot reload
 # Usage: docker compose -f docker-compose.dev.yml up
 
 services:
@@ -21,6 +21,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - loopforge-dev
 
   # ===========================================
   # Redis - Job queue backend
@@ -37,6 +39,67 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - loopforge-dev
+
+  # ===========================================
+  # Next.js Web Application (dev with hot reload)
+  # ===========================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: loopforge-web-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/loopforge
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - AUTH_TRUST_HOST=true
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - loopforge-dev
+    command: npx next dev
+
+  # ===========================================
+  # BullMQ Worker (dev with hot reload)
+  # ===========================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: loopforge-worker-dev
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/loopforge
+      - REDIS_URL=redis://redis:6379
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - repos-dev-data:/app/repos
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - loopforge-dev
+    command: npx tsx --watch workers/execution-worker.ts
 
   # ===========================================
   # Bull Board - Job queue dashboard
@@ -54,9 +117,17 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    networks:
+      - loopforge-dev
 
 volumes:
   postgres-dev-data:
     driver: local
   redis-dev-data:
     driver: local
+  repos-dev-data:
+    driver: local
+
+networks:
+  loopforge-dev:
+    driver: bridge

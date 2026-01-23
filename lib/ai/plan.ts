@@ -1,5 +1,12 @@
 import type { AIClient } from "./client";
 
+export interface RepoInfo {
+  name: string;
+  fullName: string;
+  techStack?: string[];
+  defaultBranch?: string;
+}
+
 export interface PlanStep {
   id: string;
   title: string;
@@ -27,11 +34,21 @@ export async function generatePlan(
   client: AIClient,
   title: string,
   description: string | null,
-  brainstormResult: string | null
+  brainstormResult: string | null,
+  repoInfo?: RepoInfo
 ): Promise<PlanResult> {
+  const repoContext = repoInfo
+    ? `## REPOSITORY
+Name: ${repoInfo.fullName}
+${repoInfo.techStack?.length ? `Tech Stack: ${repoInfo.techStack.join(", ")}` : ""}
+${repoInfo.defaultBranch ? `Default Branch: ${repoInfo.defaultBranch}` : ""}
+
+`
+    : "";
+
   const prompt = `You are an expert Scrum Master and senior software engineer facilitating Sprint Planning.
 
-## TASK TO PLAN
+${repoContext}## TASK TO PLAN
 Title: ${title}
 ${description ? `Description: ${description}` : ""}
 ${brainstormResult ? `\n## REFINED BACKLOG ITEM (from brainstorming)\n${brainstormResult}` : ""}

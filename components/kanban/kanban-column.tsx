@@ -21,6 +21,7 @@ import {
   CircleDashed,
 } from "lucide-react";
 import type { Task, TaskStatus } from "@/lib/db/schema";
+import type { CardProcessingState } from "@/components/hooks/use-card-processing";
 
 interface KanbanColumnProps {
   id: TaskStatus;
@@ -32,6 +33,8 @@ interface KanbanColumnProps {
   onTaskStart?: (taskId: string) => Promise<void>;
   onTaskAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
   onAddTask?: () => void;
+  processingCards?: Map<string, CardProcessingState>;
+  slidingCards?: Set<string>;
 }
 
 // Column configuration with icons, colors, and empty state messages
@@ -146,6 +149,8 @@ export function KanbanColumn({
   onTaskStart,
   onTaskAdvance,
   onAddTask,
+  processingCards,
+  slidingCards,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver, active } = useDroppable({ id });
   const config = columnConfig[id];
@@ -298,6 +303,8 @@ export function KanbanColumn({
                   onMove={onTaskMove}
                   onStart={onTaskStart}
                   onAdvance={onTaskAdvance}
+                  processingState={processingCards?.get(task.id)}
+                  isSliding={slidingCards?.has(task.id)}
                 />
               ))}
 

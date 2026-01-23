@@ -28,7 +28,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ProcessingPopover, phaseConfig } from "./processing-popover";
 import type { Task, TaskStatus } from "@/lib/db/schema";
+import type { CardProcessingState } from "@/components/hooks/use-card-processing";
 import { formatDistanceToNow } from "date-fns";
 
 interface KanbanCardProps {
@@ -39,6 +41,8 @@ interface KanbanCardProps {
   onStart?: (taskId: string) => Promise<void>;
   onAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
   isDragOverlay?: boolean;
+  processingState?: CardProcessingState;
+  isSliding?: boolean;
 }
 
 // Status configuration with icons, colors, and visual treatments
@@ -135,10 +139,13 @@ function getProgressPercentage(status: TaskStatus): number {
   return progressMap[status];
 }
 
-export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance, isDragOverlay }: KanbanCardProps) {
+export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance, isDragOverlay, processingState, isSliding }: KanbanCardProps) {
   const [starting, setStarting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Check if card is currently processing
+  const isProcessing = !!processingState;
 
   const {
     attributes,
@@ -147,7 +154,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: isProcessing });
 
   const handleStart = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -178,11 +185,14 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
 
   const config = statusConfig[task.status];
   const StatusIcon = config.icon;
-  const progress = getProgressPercentage(task.status);
-  const showProgress = !["stuck", "done", "todo"].includes(task.status);
+  const progress = isProcessing ? processingState.progress : getProgressPercentage(task.status);
+  const showProgress = !["stuck", "done", "todo"].includes(task.status) || isProcessing;
 
   // Show gradient border for executing tasks (but not during drag overlay)
-  const showGradientBorder = task.status === "executing" && !isDragOverlay;
+  const showGradientBorder = task.status === "executing" && !isDragOverlay && !isProcessing;
+
+  // Get processing phase config for ring color
+  const processingConfig = isProcessing ? phaseConfig[processingState.processingPhase] : null;
 
   // Card classes (shared between wrapped and unwrapped versions)
   const cardClasses = cn(
@@ -193,10 +203,11 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
     "transition-all duration-200 ease-out",
     // Default state
     "border-border/60 shadow-sm",
-    // Hover effects - subtle lift
-    "hover:shadow-md hover:border-border hover:-translate-y-0.5",
-    // Cursor - grab cursor for entire card
-    "cursor-grab active:cursor-grabbing select-none",
+    // Hover effects - subtle lift (disabled when processing)
+    !isProcessing && "hover:shadow-md hover:border-border hover:-translate-y-0.5",
+    // Cursor - grab cursor for entire card (pointer when processing)
+    isProcessing ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+    "select-none",
     // Dragging states
     isDragging && "opacity-50 scale-[0.98] shadow-none cursor-grabbing",
     // Drag overlay - floating appearance
@@ -205,6 +216,15 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
       "ring-2 ring-primary/20 ring-offset-2 ring-offset-background",
       "border-primary/30",
     ],
+    // Processing state - ring styling by phase
+    isProcessing && processingConfig && [
+      "ring-2 ring-offset-2 ring-offset-background",
+      processingState.processingPhase === "brainstorming" && "ring-violet-500/50",
+      processingState.processingPhase === "planning" && "ring-blue-500/50",
+      processingState.processingPhase === "executing" && "ring-emerald-500/50",
+    ],
+    // Slide animation when moving between lanes
+    isSliding && "animate-slide-to-lane",
     // Rounded corners - slightly smaller when wrapped to fit inside gradient border
     showGradientBorder ? "rounded-[10px]" : "rounded-xl"
   );
@@ -212,12 +232,39 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
   // Card content (shared between both render paths)
   const cardContent = (
     <>
+      {/* Processing overlay */}
+      {isProcessing && (
+        <div className="absolute inset-0 z-10 bg-background/80 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center gap-2 p-4">
+          <Loader2 className={cn(
+            "w-6 h-6 animate-spin",
+            processingState.processingPhase === "brainstorming" && "text-violet-500",
+            processingState.processingPhase === "planning" && "text-blue-500",
+            processingState.processingPhase === "executing" && "text-emerald-500",
+          )} />
+          <span className="text-xs font-medium text-muted-foreground text-center">
+            {processingState.statusText}
+          </span>
+          <div className="w-full max-w-[120px] h-1 bg-muted rounded-full overflow-hidden">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-300 ease-out",
+                processingState.processingPhase === "brainstorming" && "bg-violet-500",
+                processingState.processingPhase === "planning" && "bg-blue-500",
+                processingState.processingPhase === "executing" && "bg-emerald-500",
+              )}
+              style={{ width: `${processingState.progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Drag handle indicator - visible on mobile, appears on hover on desktop */}
       <div
         className={cn(
           "absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center",
           "sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150",
-          "rounded-l-xl hover:bg-muted/50 pointer-events-none"
+          "rounded-l-xl hover:bg-muted/50 pointer-events-none",
+          isProcessing && "hidden" // Hide drag handle when processing
         )}
       >
         <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60" />
@@ -440,49 +487,57 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
     </>
   );
 
-  // Render with gradient border wrapper for executing tasks
-  if (showGradientBorder) {
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        {...listeners}
-        className={cn(
-          "relative p-[2px] rounded-xl",
-          "cursor-grab active:cursor-grabbing select-none",
-          isDragging && "opacity-50 scale-[0.98]"
-        )}
-      >
-        {/* Rotating gradient background */}
-        <div className="absolute inset-0 rounded-xl overflow-hidden">
-          <div
-            className="absolute inset-[-100%] animate-gradient-rotate"
-            style={{
-              background: "conic-gradient(from 0deg, #22c55e, #14b8a6, #06b6d4, #22c55e)",
-            }}
-          />
-        </div>
-
-        {/* Card content */}
-        <div onClick={onClick} className={cn(cardClasses, "relative")}>
-          {cardContent}
-        </div>
-      </div>
-    );
-  }
-
-  // Standard render for non-executing tasks
-  return (
+  // Base card element (without processing popover wrapper)
+  const baseCard = showGradientBorder ? (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      onClick={onClick}
+      className={cn(
+        "relative p-[2px] rounded-xl",
+        isProcessing ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+        "select-none",
+        isDragging && "opacity-50 scale-[0.98]",
+        isSliding && "animate-slide-to-lane"
+      )}
+    >
+      {/* Rotating gradient background */}
+      <div className="absolute inset-0 rounded-xl overflow-hidden">
+        <div
+          className="absolute inset-[-100%] animate-gradient-rotate"
+          style={{
+            background: "conic-gradient(from 0deg, #22c55e, #14b8a6, #06b6d4, #22c55e)",
+          }}
+        />
+      </div>
+
+      {/* Card content */}
+      <div onClick={isProcessing ? undefined : onClick} className={cn(cardClasses, "relative")}>
+        {cardContent}
+      </div>
+    </div>
+  ) : (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={isProcessing ? undefined : onClick}
       className={cardClasses}
     >
       {cardContent}
     </div>
   );
+
+  // Wrap with processing popover when processing
+  if (isProcessing) {
+    return (
+      <ProcessingPopover processingState={processingState}>
+        {baseCard}
+      </ProcessingPopover>
+    );
+  }
+
+  return baseCard;
 }

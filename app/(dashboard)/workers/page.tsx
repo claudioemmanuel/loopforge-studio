@@ -65,6 +65,7 @@ function toWorkerCardData(worker: WorkerEventData): WorkerCardData {
     error: worker.error,
     startedAt: new Date(worker.updatedAt),
     completedAt: worker.completedAt ? new Date(worker.completedAt) : undefined,
+    autonomousMode: worker.autonomousMode,
   };
 }
 
@@ -79,6 +80,17 @@ export default function WorkersPage() {
     error,
     refresh
   } = useWorkerEvents();
+
+  // Separate active workers from history
+  const { activeWorkers, historyWorkers } = useMemo(() => {
+    const active = workers.filter((worker) =>
+      ["brainstorming", "planning", "ready", "executing"].includes(worker.status)
+    );
+    const history = workers.filter((worker) =>
+      ["done", "stuck"].includes(worker.status)
+    );
+    return { activeWorkers: active, historyWorkers: history };
+  }, [workers]);
 
   // Filter workers based on selected filter
   const filteredWorkers = useMemo(() => {
@@ -98,6 +110,10 @@ export default function WorkersPage() {
     return filteredWorkers.map(toWorkerCardData);
   }, [filteredWorkers]);
 
+  // Convert active and history to card data for sectioned view
+  const activeCards = useMemo(() => activeWorkers.map(toWorkerCardData), [activeWorkers]);
+  const historyCards = useMemo(() => historyWorkers.map(toWorkerCardData), [historyWorkers]);
+
   const handleRetry = async (taskId: string) => {
     try {
       await fetch(`/api/workers/${taskId}/retry`, { method: "POST" });
@@ -116,11 +132,6 @@ export default function WorkersPage() {
     }
   };
 
-  const handleViewDetails = (taskId: string, repoId: string) => {
-    // Navigate to task in repo page
-    window.location.href = `/repos/${repoId}?task=${taskId}`;
-  };
-
   return (
     <div className="p-8">
       {/* Header */}
@@ -131,7 +142,7 @@ export default function WorkersPage() {
             Workers
           </h1>
           <p className="text-muted-foreground mt-1">
-            Monitor your autonomous task executions
+            Monitor your task processing activity
           </p>
         </div>
 
@@ -241,38 +252,92 @@ export default function WorkersPage() {
       )}
 
       {/* Worker list */}
-      <div className="space-y-4">
-        {!isConnected && workerCards.length === 0 ? (
-          // Loading state
-          <>
-            <WorkerCardSkeleton />
-            <WorkerCardSkeleton />
-            <WorkerCardSkeleton />
-          </>
-        ) : workerCards.length > 0 ? (
-          // Workers list
-          workerCards.map((worker) => (
+      {!isConnected && workers.length === 0 ? (
+        // Loading state
+        <div className="space-y-4">
+          <WorkerCardSkeleton />
+          <WorkerCardSkeleton />
+          <WorkerCardSkeleton />
+        </div>
+      ) : filter === "all" ? (
+        // Show sectioned view when "All Workers" is selected
+        <>
+          {/* Active Workers Section */}
+          {activeCards.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4">
+                Active Workers
+              </h2>
+              <div className="space-y-4">
+                {activeCards.map((worker) => (
+                  <WorkerCard
+                    key={worker.id}
+                    worker={worker}
+                    onRetry={handleRetry}
+                    onCancel={handleCancel}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* History Section */}
+          {historyCards.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4">
+                History
+              </h2>
+              <div className="space-y-4">
+                {historyCards.map((worker) => (
+                  <WorkerCard
+                    key={worker.id}
+                    worker={worker}
+                    defaultExpanded={false}
+                    onRetry={handleRetry}
+                    onCancel={handleCancel}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty state when no workers at all */}
+          {activeCards.length === 0 && historyCards.length === 0 && (
+            <WorkerEmptyState />
+          )}
+        </>
+      ) : workerCards.length > 0 ? (
+        // Filtered workers list
+        <div className="space-y-4">
+          {workerCards.map((worker) => (
             <WorkerCard
               key={worker.id}
               worker={worker}
               onRetry={handleRetry}
               onCancel={handleCancel}
-              onViewDetails={handleViewDetails}
             />
-          ))
-        ) : (
-          // Empty state
-          <WorkerEmptyState />
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        // Empty state for filtered view
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Zap className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <h3 className="font-medium text-foreground mb-1">No {filterLabels[filter].toLowerCase()}</h3>
+          <p className="text-sm text-muted-foreground">
+            No workers match the selected filter.
+          </p>
+        </div>
+      )}
 
       {/* Help text */}
-      {workerCards.length === 0 && isConnected && (
+      {workers.length === 0 && isConnected && (
         <div className="mt-8 text-center">
           <p className="text-sm text-muted-foreground">
-            To start an autonomous worker, create a task with{" "}
-            <span className="font-medium text-primary">Autonomous Mode</span>{" "}
-            enabled and click &quot;Start Brainstorming&quot;.
+            Start processing by clicking{" "}
+            <span className="font-medium text-primary">&quot;Start Brainstorming&quot;</span>{" "}
+            on any task from your task board.
           </p>
           <Link href="/dashboard">
             <Button variant="outline" className="mt-4">

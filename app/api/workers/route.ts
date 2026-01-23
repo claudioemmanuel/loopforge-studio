@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, repos, executions } from "@/lib/db";
-import type { TaskStatus } from "@/lib/db/schema";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import type { TaskStatus, Execution } from "@/lib/db/schema";
+import { eq, and, inArray, desc, sql } from "drizzle-orm";
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -53,21 +53,20 @@ export async function GET(request: Request) {
     limit: 50,
   });
 
-  // Get executions for these tasks
+  // Get latest execution per task using DISTINCT ON for efficiency
   const taskIds = autonomousTasks.map((t) => t.id);
-  const taskExecutions =
-    taskIds.length > 0
-      ? await db.query.executions.findMany({
-          where: inArray(executions.taskId, taskIds),
-          orderBy: [desc(executions.createdAt)],
-        })
-      : [];
+  const executionMap = new Map<string, Execution>();
 
-  // Map executions to tasks
-  const executionMap = new Map<string, typeof taskExecutions[0]>();
-  for (const exec of taskExecutions) {
-    // Keep only the latest execution per task
-    if (!executionMap.has(exec.taskId)) {
+  if (taskIds.length > 0) {
+    // Use DISTINCT ON to get only the latest execution per task
+    const latestExecutions = await db.execute<Execution>(sql`
+      SELECT DISTINCT ON (task_id) *
+      FROM executions
+      WHERE task_id = ANY(${taskIds})
+      ORDER BY task_id, created_at DESC
+    `);
+
+    for (const exec of latestExecutions.rows) {
       executionMap.set(exec.taskId, exec);
     }
   }

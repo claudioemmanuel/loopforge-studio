@@ -18,7 +18,7 @@ export class GeminiClient implements AIClient {
         model: this.model,
         generationConfig: {
           maxOutputTokens: options?.maxTokens ?? 4096,
-          temperature: options?.temperature ?? 1,
+          temperature: options?.temperature ?? 0.3,
         },
       });
 

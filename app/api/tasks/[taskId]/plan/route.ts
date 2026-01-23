@@ -117,12 +117,17 @@ export async function POST(
       .set({ status: "planning", updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
 
-    // Generate plan
+    // Generate plan with repo context
     const result = await generatePlan(
       client,
       task.title,
       task.description,
-      task.brainstormResult
+      task.brainstormResult,
+      {
+        name: task.repo.name,
+        fullName: task.repo.fullName,
+        defaultBranch: task.repo.defaultBranch || "main",
+      }
     );
 
     // Update task with result

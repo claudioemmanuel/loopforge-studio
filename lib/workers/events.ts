@@ -1,6 +1,8 @@
 import Redis from "ioredis";
+import { eq } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
-import type { TaskStatus } from "@/lib/db/schema";
+import { db } from "@/lib/db";
+import { tasks, type TaskStatus, type ProcessingPhase } from "@/lib/db/schema";
 
 export interface WorkerEventData {
   taskId: string;
@@ -13,6 +15,7 @@ export interface WorkerEventData {
   error?: string;
   completedAt?: string;
   updatedAt: string;
+  autonomousMode?: boolean;
 }
 
 export interface WorkerEvent {
@@ -20,6 +23,48 @@ export interface WorkerEvent {
   data: WorkerEventData;
   timestamp: string;
 }
+
+// Processing event types for async card operations
+export interface ProcessingEventData {
+  taskId: string;
+  taskTitle: string;
+  repoName: string;
+  processingPhase: ProcessingPhase;
+  statusText: string;
+  progress: number; // 0-100
+  jobId: string;
+  startedAt: string;
+  updatedAt: string;
+  error?: string;
+}
+
+export interface ProcessingEvent {
+  type: "processing_start" | "processing_update" | "processing_complete" | "processing_error";
+  data: ProcessingEventData;
+  timestamp: string;
+}
+
+// Status messages for each processing phase
+export const phaseStatusMessages: Record<ProcessingPhase, string[]> = {
+  brainstorming: [
+    "Analyzing task...",
+    "Generating ideas...",
+    "Identifying considerations...",
+    "Finalizing brainstorm...",
+  ],
+  planning: [
+    "Reviewing brainstorm...",
+    "Designing plan...",
+    "Breaking into steps...",
+    "Finalizing plan...",
+  ],
+  executing: [
+    "Starting execution...",
+    "Running tasks...",
+    "Verifying changes...",
+    "Completing execution...",
+  ],
+};
 
 let publisherClient: Redis | null = null;
 
@@ -130,5 +175,78 @@ export async function closePublisher(): Promise<void> {
   if (publisherClient) {
     await publisherClient.quit();
     publisherClient = null;
+  }
+}
+
+/**
+ * Create a processing event for async card operations
+ */
+export function createProcessingEvent(
+  type: ProcessingEvent["type"],
+  taskId: string,
+  taskTitle: string,
+  repoName: string,
+  processingPhase: ProcessingPhase,
+  jobId: string,
+  startedAt: Date,
+  options: {
+    statusText?: string;
+    progress?: number;
+    error?: string;
+  } = {}
+): ProcessingEvent {
+  // Determine progress based on type if not provided
+  let progress = options.progress ?? 0;
+  if (type === "processing_complete") {
+    progress = 100;
+  } else if (type === "processing_error") {
+    progress = progress; // Keep current progress
+  }
+
+  // Use default status text based on phase if not provided
+  const statusText = options.statusText ?? phaseStatusMessages[processingPhase][0];
+
+  return {
+    type,
+    data: {
+      taskId,
+      taskTitle,
+      repoName,
+      processingPhase,
+      statusText,
+      progress,
+      jobId,
+      startedAt: startedAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+      error: options.error,
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
+ * Publish a processing event to Redis for SSE streaming
+ * Also persists progress to database for recovery on refresh
+ */
+export async function publishProcessingEvent(
+  userId: string,
+  event: ProcessingEvent
+): Promise<void> {
+  try {
+    // Persist progress to database for recovery on page refresh
+    await db.update(tasks)
+      .set({
+        processingProgress: event.data.progress,
+        processingStatusText: event.data.statusText,
+      })
+      .where(eq(tasks.id, event.data.taskId));
+
+    // Publish to Redis for real-time updates
+    const redis = getPublisher();
+    const channel = `worker-events:${userId}`;
+    await redis.publish(channel, JSON.stringify(event));
+    console.log(`[processing-events] Published ${event.type} for task ${event.data.taskId} (${event.data.processingPhase})`);
+  } catch (error) {
+    console.error("[processing-events] Failed to publish event:", error);
   }
 }

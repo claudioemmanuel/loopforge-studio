@@ -1,5 +1,5 @@
 import { db, tasks, executions, usageRecords, repos } from "@/lib/db";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { eachDayOfInterval, format } from "date-fns";
 
 export interface AnalyticsDateRange {
@@ -141,14 +141,18 @@ export async function getDailyCompletions(
     ),
   });
 
+  // Pre-group tasks by date using Map for O(n) lookup instead of O(n*m)
+  const tasksByDate = new Map<string, number>();
+  for (const task of completedTasks) {
+    const dateKey = format(task.updatedAt, "yyyy-MM-dd");
+    tasksByDate.set(dateKey, (tasksByDate.get(dateKey) ?? 0) + 1);
+  }
+
   const days = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
 
   return days.map(day => {
     const dayStr = format(day, "yyyy-MM-dd");
-    const count = completedTasks.filter(t =>
-      format(t.updatedAt, "yyyy-MM-dd") === dayStr
-    ).length;
-    return { date: dayStr, completed: count };
+    return { date: dayStr, completed: tasksByDate.get(dayStr) ?? 0 };
   });
 }
 
@@ -201,36 +205,60 @@ export async function getRepoActivity(
     where: eq(repos.userId, userId),
   });
 
-  const results: RepoActivity[] = [];
+  if (userRepos.length === 0) return [];
 
-  for (const repo of userRepos) {
-    const repoTasks = await db.query.tasks.findMany({
-      where: and(
-        eq(tasks.repoId, repo.id),
-        gte(tasks.createdAt, dateRange.start),
-        lte(tasks.createdAt, dateRange.end)
-      ),
-    });
+  const repoIds = userRepos.map(r => r.id);
 
+  // Batch query: Get all tasks across all repos in one query
+  const allTasks = await db.query.tasks.findMany({
+    where: and(
+      inArray(tasks.repoId, repoIds),
+      gte(tasks.createdAt, dateRange.start),
+      lte(tasks.createdAt, dateRange.end)
+    ),
+  });
+
+  // Batch query: Get all executions for these tasks in one query
+  const taskIds = allTasks.map(t => t.id);
+  const allExecs = taskIds.length > 0
+    ? await db.query.executions.findMany({
+        where: inArray(executions.taskId, taskIds),
+      })
+    : [];
+
+  // Group tasks by repo in memory
+  const tasksByRepo = new Map<string, typeof allTasks>();
+  for (const task of allTasks) {
+    const arr = tasksByRepo.get(task.repoId) ?? [];
+    arr.push(task);
+    tasksByRepo.set(task.repoId, arr);
+  }
+
+  // Group executions by task in memory
+  const execsByTask = new Map<string, typeof allExecs>();
+  for (const exec of allExecs) {
+    const arr = execsByTask.get(exec.taskId) ?? [];
+    arr.push(exec);
+    execsByTask.set(exec.taskId, arr);
+  }
+
+  // Build results from in-memory data
+  return userRepos.map(repo => {
+    const repoTasks = tasksByRepo.get(repo.id) ?? [];
     const completedTasks = repoTasks.filter(t => t.status === "done").length;
 
     // Count commits from executions
-    const taskIds = repoTasks.map(t => t.id);
     let commits = 0;
-    if (taskIds.length > 0) {
-      const execs = await db.query.executions.findMany({
-        where: (executions, { inArray }) => inArray(executions.taskId, taskIds),
-      });
-      commits = execs.reduce((sum, e) => sum + (e.commits?.length || 0), 0);
+    for (const task of repoTasks) {
+      const taskExecs = execsByTask.get(task.id) ?? [];
+      commits += taskExecs.reduce((sum, e) => sum + (e.commits?.length || 0), 0);
     }
 
-    results.push({
+    return {
       repoId: repo.id,
       repoName: repo.fullName,
       commits,
       tasksCompleted: completedTasks,
-    });
-  }
-
-  return results;
+    };
+  });
 }
