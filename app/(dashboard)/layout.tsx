@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { DashboardLayoutClient } from "@/components/dashboard-layout-client";
+import { DashboardLayoutClient } from "@/components/layout";
 import { db } from "@/lib/db";
 import { repos, tasks } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";

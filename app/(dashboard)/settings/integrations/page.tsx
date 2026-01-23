@@ -21,7 +21,7 @@ import {
   AnthropicIcon,
   OpenAIIcon,
   GeminiIcon,
-} from "@/components/provider-icons";
+} from "@/components/providers";
 
 type Provider = "anthropic" | "openai" | "gemini";
 

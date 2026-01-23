@@ -2,8 +2,8 @@
 
 import { Suspense } from "react";
 import { Sidebar } from "@/components/sidebar";
-import { PageTransition } from "@/components/page-transition";
-import { WelcomeTutorialWrapper } from "@/components/welcome-tutorial-wrapper";
+import { PageTransition } from "@/components/layout/page-transition";
+import { WelcomeTutorialWrapper } from "@/components/onboarding";
 import {
   SidebarProvider,
   MobileHeader,
