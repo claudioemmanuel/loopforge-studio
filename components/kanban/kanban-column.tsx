@@ -242,15 +242,16 @@ export function KanbanColumn({
           className={cn(
             "flex-1 overflow-y-auto p-3 space-y-2.5",
             "min-h-[180px] max-h-[calc(100vh-280px)]",
+            "h-full",
             // Custom scrollbar styling
             "scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent"
           )}
         >
           {tasks.length === 0 ? (
-            // Empty State - clean and inviting
+            // Empty State - clean and inviting, fills space for better drop target
             <div
               className={cn(
-                "flex flex-col items-center justify-center py-10 px-4",
+                "flex flex-col items-center justify-center h-full min-h-[180px] px-4",
                 "text-center"
               )}
             >

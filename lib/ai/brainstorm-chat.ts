@@ -6,7 +6,7 @@ import { join } from "path";
  * Robust JSON extraction that handles various AI response formats.
  * Tries multiple strategies to extract valid JSON from a response.
  */
-function extractJSON(response: string): object | null {
+export function extractJSON(response: string): object | null {
   const trimmed = response.trim();
 
   // Try 1: Direct parse (response is already valid JSON)
@@ -440,7 +440,7 @@ RESPOND WITH JSON ONLY:
 }
 
 // Export for testing
-export { extractJSON, getTaskSpecificPrompt };
+export { getTaskSpecificPrompt };
 
 export async function initializeBrainstorm(
   client: AIClient,

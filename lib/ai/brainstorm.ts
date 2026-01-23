@@ -1,4 +1,5 @@
 import type { AIClient } from "./client";
+import { extractJSON } from "./brainstorm-chat";
 
 export interface BrainstormResult {
   summary: string;
@@ -40,45 +41,41 @@ Respond only with valid JSON, no additional text.`;
     { maxTokens: 2048 }
   );
 
-  // Strip markdown code blocks if present (common with Gemini)
-  let cleanedText = text.trim();
+  // Use robust JSON extraction that handles multiple formats
+  const parsed = extractJSON(text);
 
-  // Handle ```json with optional newlines/whitespace
-  const jsonBlockMatch = cleanedText.match(/^```json\s*([\s\S]*?)\s*```$/);
-  const codeBlockMatch = cleanedText.match(/^```\s*([\s\S]*?)\s*```$/);
-
-  if (jsonBlockMatch) {
-    cleanedText = jsonBlockMatch[1].trim();
-  } else if (codeBlockMatch) {
-    cleanedText = codeBlockMatch[1].trim();
-  } else {
-    // Fallback: simple strip
-    if (cleanedText.startsWith("```json")) {
-      cleanedText = cleanedText.slice(7);
-    } else if (cleanedText.startsWith("```")) {
-      cleanedText = cleanedText.slice(3);
-    }
-    if (cleanedText.endsWith("```")) {
-      cleanedText = cleanedText.slice(0, -3);
-    }
-    cleanedText = cleanedText.trim();
-  }
-
-  try {
-    return JSON.parse(cleanedText);
-  } catch {
-    // If JSON parsing fails, create a structured response from the text
-    // Don't include the raw JSON-looking text, just provide a summary
-    const summaryText = cleanedText.startsWith("{")
-      ? "Failed to parse AI response. Please try again."
-      : cleanedText.substring(0, 500);
+  if (parsed && typeof parsed === "object") {
+    // Validate and return with defaults for missing fields
+    const data = parsed as Record<string, unknown>;
     return {
-      summary: summaryText,
-      requirements: [],
-      considerations: [],
-      suggestedApproach: cleanedText.startsWith("{")
-        ? "The AI response was not properly formatted. Please retry the brainstorming step."
-        : cleanedText,
+      summary: typeof data.summary === "string" ? data.summary : `Analysis of: ${title}`,
+      requirements: Array.isArray(data.requirements) ? data.requirements : [],
+      considerations: Array.isArray(data.considerations) ? data.considerations : [],
+      suggestedApproach: typeof data.suggestedApproach === "string"
+        ? data.suggestedApproach
+        : "Further analysis needed",
     };
   }
+
+  // If JSON parsing fails completely, try to extract useful content from the text
+  const cleanedText = text.trim();
+
+  // Check if it looks like the AI tried to respond but JSON was malformed
+  if (cleanedText.includes("{") || cleanedText.includes("summary")) {
+    console.error("[brainstorm] Failed to parse AI response as JSON:", cleanedText.substring(0, 200));
+    return {
+      summary: "The AI response could not be parsed. Please try again.",
+      requirements: [],
+      considerations: [],
+      suggestedApproach: "Retry the brainstorming step or try with a different AI model.",
+    };
+  }
+
+  // AI responded with plain text instead of JSON
+  return {
+    summary: cleanedText.substring(0, 500),
+    requirements: [],
+    considerations: [],
+    suggestedApproach: cleanedText,
+  };
 }

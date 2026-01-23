@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ExecutionTimeline } from "@/components/workers/execution-timeline";
+import { ExecutionDetailTabs } from "@/components/workers/execution-detail-tabs";
 import type { Task, Execution, ExecutionEvent, Repo } from "@/lib/db/schema";
 
 interface WorkerDetailData {
@@ -48,7 +49,7 @@ function getStatusBadge(task: Task & { repo: Repo }) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400">
           <AlertTriangle className="w-3.5 h-3.5" />
-          Stuck
+          Failed
         </span>
       );
     case "executing":
@@ -308,13 +309,22 @@ export default function WorkerDetailPage() {
         </div>
       )}
 
-      {/* Timeline */}
-      <div className="bg-card border rounded-xl p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-6">
-          Timeline
-        </h2>
-        <ExecutionTimeline task={task} execution={execution} events={events} />
-      </div>
+      {/* Execution Details - Tabbed view for completed/stuck, Timeline for active */}
+      {["done", "stuck"].includes(task.status) ? (
+        <div className="bg-card border rounded-xl p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-6">
+            Execution Details
+          </h2>
+          <ExecutionDetailTabs task={task} execution={execution} events={events} />
+        </div>
+      ) : (
+        <div className="bg-card border rounded-xl p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-6">
+            Timeline
+          </h2>
+          <ExecutionTimeline task={task} execution={execution} events={events} />
+        </div>
+      )}
 
       {/* Task description */}
       {task.description && (

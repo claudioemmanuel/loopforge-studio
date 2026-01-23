@@ -1,12 +1,26 @@
 import { auth } from "@/lib/auth";
-import { db, tasks, repos, executions } from "@/lib/db";
-import type { TaskStatus, Execution } from "@/lib/db/schema";
+import { db, tasks, repos } from "@/lib/db";
+import type { TaskStatus, Execution, ProcessingPhase } from "@/lib/db/schema";
 import { eq, and, or, inArray, desc, isNotNull, sql } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
 import Redis from "ioredis";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Helper to get default status text for a processing phase
+function getDefaultStatusText(phase: ProcessingPhase): string {
+  switch (phase) {
+    case "brainstorming":
+      return "Starting brainstorm...";
+    case "planning":
+      return "Starting plan generation...";
+    case "executing":
+      return "Starting execution...";
+    default:
+      return "Processing...";
+  }
+}
 
 // Helper to get initial worker data
 async function getInitialWorkers(userId: string) {
@@ -21,24 +35,24 @@ async function getInitialWorkers(userId: string) {
   const repoIds = userRepos.map((r) => r.id);
   const repoMap = new Map(userRepos.map((r) => [r.id, r]));
 
-  // Get tasks that have been processed - includes:
-  // 1. Autonomous mode tasks (any status)
-  // 2. Tasks currently processing
-  // 3. Tasks that have completed (done/stuck status) - for history
+  // Get tasks with ACTIVE workers:
+  // 1. Autonomous mode tasks (legacy)
+  // 2. Tasks currently processing (processingPhase set - background job running)
+  // 3. Tasks that failed (stuck status)
   const workerTasks = await db.query.tasks.findMany({
     where: and(
       inArray(tasks.repoId, repoIds),
       or(
-        // Autonomous mode tasks
+        // Autonomous mode tasks (legacy)
         eq(tasks.autonomousMode, true),
-        // Any task currently processing (async card operations)
+        // Any task currently processing (background job running)
         isNotNull(tasks.processingPhase),
-        // Completed or stuck tasks (worker history)
-        inArray(tasks.status, ["done", "stuck"] as TaskStatus[])
+        // Failed tasks
+        eq(tasks.status, "stuck" as TaskStatus)
       )
     ),
     orderBy: [desc(tasks.updatedAt)],
-    limit: 50, // Increased limit for history
+    limit: 50,
   });
 
   // Alias for backwards compatibility
@@ -50,10 +64,12 @@ async function getInitialWorkers(userId: string) {
 
   if (taskIds.length > 0) {
     // Use DISTINCT ON to get only the latest execution per task
+    // Format array as PostgreSQL array literal for ANY operator
+    const taskIdsArray = sql.raw(`ARRAY[${taskIds.map(id => `'${id}'`).join(',')}]::uuid[]`);
     const latestExecutions = await db.execute<Execution>(sql`
       SELECT DISTINCT ON (task_id) *
       FROM executions
-      WHERE task_id = ANY(${taskIds})
+      WHERE task_id = ANY(${taskIdsArray})
       ORDER BY task_id, created_at DESC
     `);
 
@@ -71,9 +87,14 @@ async function getInitialWorkers(userId: string) {
 
     // If task is actively processing, use the processing status text and stored progress
     if (task.processingPhase) {
-      currentAction = task.processingStatusText || undefined;
-      // Use actual progress from database (persisted during processing events)
-      progress = task.processingProgress ?? 0;
+      // Provide defaults for tasks that just started processing (race condition fix)
+      if (!task.processingProgress || task.processingProgress === 0) {
+        progress = 5; // Show minimal progress to indicate processing started
+        currentAction = task.processingStatusText || getDefaultStatusText(task.processingPhase);
+      } else {
+        progress = task.processingProgress;
+        currentAction = task.processingStatusText || getDefaultStatusText(task.processingPhase);
+      }
     } else {
       // Use status-based progress for non-processing tasks
       switch (task.status) {

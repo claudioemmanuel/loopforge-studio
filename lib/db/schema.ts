@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, uuid, text, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, uuid, text, integer, boolean, timestamp, jsonb, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import type { ExecutionEventMetadata } from "@/lib/ralph/types";
 
@@ -52,6 +52,30 @@ export const processingPhaseEnum = pgEnum("processing_phase", [
   "brainstorming",
   "planning",
   "executing",
+]);
+
+export const workerJobPhaseEnum = pgEnum("worker_job_phase", [
+  "brainstorming",
+  "planning",
+  "executing",
+]);
+
+export const workerJobStatusEnum = pgEnum("worker_job_status", [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+export const workerEventTypeEnum = pgEnum("worker_event_type", [
+  "thinking",
+  "action",
+  "file_read",
+  "file_write",
+  "api_call",
+  "error",
+  "complete",
 ]);
 
 // =============================================================================
@@ -146,6 +170,47 @@ export const executionEvents = pgTable("execution_events", {
 });
 
 // =============================================================================
+// Worker History Tables
+// =============================================================================
+
+// Worker jobs - tracks all background processing (brainstorm, plan, execute)
+export const workerJobs = pgTable("worker_jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  taskId: uuid("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  phase: workerJobPhaseEnum("phase").notNull(),
+  status: workerJobStatusEnum("status").notNull().default("queued"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+  resultSummary: text("result_summary"),
+  jobId: varchar("job_id", { length: 100 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Worker event metadata type
+export interface WorkerEventMetadata {
+  model?: string;
+  filePath?: string;
+  command?: string;
+  tokenCount?: number;
+  duration?: number;
+  requirementsCount?: number;
+  stepsCount?: number;
+  iteration?: number;
+  [key: string]: unknown;
+}
+
+// Worker events - timeline of actions during any job
+export const workerEvents = pgTable("worker_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerJobId: uuid("worker_job_id").notNull().references(() => workerJobs.id, { onDelete: "cascade" }),
+  eventType: workerEventTypeEnum("event_type").notNull(),
+  content: text("content").notNull(),
+  metadata: jsonb("metadata").$type<WorkerEventMetadata>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// =============================================================================
 // Subscription Tables
 // =============================================================================
 
@@ -222,6 +287,7 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   }),
   executions: many(executions),
   usageRecords: many(usageRecords),
+  workerJobs: many(workerJobs),
 }));
 
 export const executionsRelations = relations(executions, ({ one, many }) => ({
@@ -236,6 +302,21 @@ export const executionEventsRelations = relations(executionEvents, ({ one }) => 
   execution: one(executions, {
     fields: [executionEvents.executionId],
     references: [executions.id],
+  }),
+}));
+
+export const workerJobsRelations = relations(workerJobs, ({ one, many }) => ({
+  task: one(tasks, {
+    fields: [workerJobs.taskId],
+    references: [tasks.id],
+  }),
+  events: many(workerEvents),
+}));
+
+export const workerEventsRelations = relations(workerEvents, ({ one }) => ({
+  workerJob: one(workerJobs, {
+    fields: [workerEvents.workerJobId],
+    references: [workerJobs.id],
   }),
 }));
 
@@ -313,3 +394,18 @@ export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export type NewUserSubscription = typeof userSubscriptions.$inferInsert;
 export type UsageRecord = typeof usageRecords.$inferSelect;
 export type NewUsageRecord = typeof usageRecords.$inferInsert;
+
+// Worker history types
+export const workerJobPhases = ["brainstorming", "planning", "executing"] as const;
+export type WorkerJobPhase = (typeof workerJobPhases)[number];
+
+export const workerJobStatuses = ["queued", "running", "completed", "failed", "cancelled"] as const;
+export type WorkerJobStatus = (typeof workerJobStatuses)[number];
+
+export const workerEventTypes = ["thinking", "action", "file_read", "file_write", "api_call", "error", "complete"] as const;
+export type WorkerEventType = (typeof workerEventTypes)[number];
+
+export type WorkerJob = typeof workerJobs.$inferSelect;
+export type NewWorkerJob = typeof workerJobs.$inferInsert;
+export type WorkerEvent = typeof workerEvents.$inferSelect;
+export type NewWorkerEvent = typeof workerEvents.$inferInsert;

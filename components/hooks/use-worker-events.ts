@@ -81,15 +81,35 @@ export function useWorkerEvents(
       try {
         const workerEvent: WorkerEvent = JSON.parse(event.data);
 
+        // Helper to ensure worker data has required fields with defaults
+        const normalizeWorkerData = (data: WorkerEventData): WorkerEventData => ({
+          ...data,
+          taskTitle: data.taskTitle || "Processing...",
+          repoName: data.repoName || "Unknown",
+          progress: data.progress ?? 0,
+          currentAction: data.currentAction || getDefaultStatusText(data.status),
+        });
+
+        // Helper to get default status text
+        function getDefaultStatusText(status: TaskStatus): string {
+          switch (status) {
+            case "brainstorming": return "Starting brainstorm...";
+            case "planning": return "Starting plan generation...";
+            case "executing": return "Starting execution...";
+            default: return undefined as unknown as string;
+          }
+        }
+
         switch (workerEvent.type) {
           case "worker_list":
-            // Initial list of workers
-            setWorkers(workerEvent.data as WorkerEventData[]);
+            // Initial list of workers - normalize data to ensure required fields
+            const normalizedList = (workerEvent.data as WorkerEventData[]).map(normalizeWorkerData);
+            setWorkers(normalizedList);
             break;
 
           case "worker_update":
-            // Update a single worker
-            const updateData = workerEvent.data as WorkerEventData;
+            // Update a single worker - normalize data
+            const updateData = normalizeWorkerData(workerEvent.data as WorkerEventData);
             setWorkers((prev) => {
               const index = prev.findIndex((w) => w.taskId === updateData.taskId);
               if (index >= 0) {
@@ -103,7 +123,7 @@ export function useWorkerEvents(
             break;
 
           case "worker_complete":
-            const completeData = workerEvent.data as WorkerEventData;
+            const completeData = normalizeWorkerData(workerEvent.data as WorkerEventData);
             setWorkers((prev) =>
               prev.map((w) =>
                 w.taskId === completeData.taskId ? completeData : w
@@ -113,7 +133,7 @@ export function useWorkerEvents(
             break;
 
           case "worker_stuck":
-            const stuckData = workerEvent.data as WorkerEventData;
+            const stuckData = normalizeWorkerData(workerEvent.data as WorkerEventData);
             setWorkers((prev) =>
               prev.map((w) =>
                 w.taskId === stuckData.taskId ? stuckData : w

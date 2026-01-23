@@ -74,7 +74,7 @@ function getStatusIndicator(status: WorkerStatus): {
       return {
         icon: <AlertTriangle className="w-3.5 h-3.5" />,
         className: "text-amber-500",
-        label: "Stuck",
+        label: "Failed",
       };
     default:
       return {

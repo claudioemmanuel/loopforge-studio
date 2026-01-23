@@ -1,5 +1,6 @@
 import { Job } from "bullmq";
-import { db, users, tasks, executions, executionEvents, repos } from "../lib/db";
+import { db, users, tasks, executions, executionEvents, repos, workerJobs, workerEvents } from "../lib/db";
+import type { WorkerEventMetadata } from "../lib/db/schema";
 import { eq } from "drizzle-orm";
 import { runLoop, type LoopContext, type ExecutionMode } from "../lib/ralph";
 import {
@@ -64,6 +65,32 @@ function mapEventTypeToDb(
   return mapping[eventType] || "thinking";
 }
 
+// Worker event types for unified history
+type WorkerEventTypeValue = "thinking" | "action" | "file_read" | "file_write" | "api_call" | "error" | "complete";
+
+// Map execution event types to worker event types
+function mapEventTypeToWorkerEvent(eventType: string): WorkerEventTypeValue {
+  const mapping: Record<string, WorkerEventTypeValue> = {
+    thinking: "thinking",
+    file_read: "file_read",
+    file_write: "file_write",
+    command_run: "action",
+    commit: "action",
+    error: "error",
+    complete: "complete",
+    stuck: "error",
+    agent_start: "thinking",
+    agent_complete: "complete",
+    review_start: "thinking",
+    review_complete: "complete",
+    task_start: "action",
+    task_complete: "complete",
+    task_failed: "error",
+  };
+
+  return mapping[eventType] || "action";
+}
+
 // Format event type for display in SSE stream
 function formatEventAction(eventType: string, content?: string): string {
   const actionMap: Record<string, string> = {
@@ -74,7 +101,7 @@ function formatEventAction(eventType: string, content?: string): string {
     commit: "Committing changes",
     error: "Error encountered",
     complete: "Completed",
-    stuck: "Stuck",
+    stuck: "Failed",
     agent_start: "Starting agent",
     agent_complete: "Agent finished",
     review_start: "Starting review",
@@ -208,6 +235,23 @@ async function processExecution(
     throw new Error("Task not found");
   }
 
+  // Create worker job record for execution phase
+  const [workerJob] = await db.insert(workerJobs).values({
+    taskId,
+    phase: "executing",
+    status: "running",
+    startedAt: new Date(),
+    jobId: job.id,
+  }).returning();
+
+  // Emit initial thinking event
+  await db.insert(workerEvents).values({
+    workerJobId: workerJob.id,
+    eventType: "thinking",
+    content: "Preparing execution environment...",
+    metadata: { model: preferredModel } as WorkerEventMetadata,
+  });
+
   // Get user's GitHub token for authenticated git operations
   const githubToken = await getUserGithubToken(userId);
 
@@ -248,6 +292,10 @@ async function processExecution(
 
   console.log(`Execution mode: ${useMultiAgent ? "multi-agent" : "classic"}`);
 
+  // Track stats for result summary
+  let filesWritten = 0;
+  let commandsRun = 0;
+
   try {
     const result = await runLoop(loopContext, {
       client: aiClient,
@@ -275,6 +323,22 @@ async function processExecution(
           },
           createdAt: event.timestamp,
         });
+
+        // Also insert to worker_events for unified history
+        const workerEventType = mapEventTypeToWorkerEvent(event.type);
+        await db.insert(workerEvents).values({
+          workerJobId: workerJob.id,
+          eventType: workerEventType,
+          content: event.content,
+          metadata: {
+            ...event.metadata,
+            iteration: event.metadata?.iteration,
+          } as WorkerEventMetadata,
+        });
+
+        // Track stats
+        if (event.type === "file_write") filesWritten++;
+        if (event.type === "command_run") commandsRun++;
 
         // Update job progress
         const iteration = event.metadata?.iteration || 0;
@@ -335,6 +399,31 @@ async function processExecution(
       .set({ status: taskStatus, updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
 
+    // Emit completion event to worker_events
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "complete",
+      content: taskStatus === "done" ? "Execution complete" : "Execution stuck",
+      metadata: {
+        commits: result.commits?.length || 0,
+        filesWritten,
+        commandsRun,
+      } as WorkerEventMetadata,
+    });
+
+    // Update worker job as completed/failed
+    const commitsCount = result.commits?.length || 0;
+    await db.update(workerJobs)
+      .set({
+        status: result.status === "complete" ? "completed" : "failed",
+        completedAt: new Date(),
+        resultSummary: result.status === "complete"
+          ? `${commitsCount} commit${commitsCount !== 1 ? "s" : ""}, ${filesWritten} file${filesWritten !== 1 ? "s" : ""} changed`
+          : `Failed after ${result.iterations} iteration${result.iterations !== 1 ? "s" : ""}`,
+        errorMessage: result.error || null,
+      })
+      .where(eq(workerJobs.id, workerJob.id));
+
     // Publish completion/stuck event to Redis for SSE
     const completionEvent = createWorkerUpdateEvent(
       taskId,
@@ -374,6 +463,22 @@ async function processExecution(
       .set({ status: "stuck", updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
 
+    // Update worker job as failed
+    await db.update(workerJobs)
+      .set({
+        status: "failed",
+        completedAt: new Date(),
+        errorMessage,
+      })
+      .where(eq(workerJobs.id, workerJob.id));
+
+    // Emit error event to worker_events
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "error",
+      content: errorMessage,
+    });
+
     // Publish error event to Redis for SSE
     const errorEvent = createWorkerUpdateEvent(
       taskId,
@@ -404,6 +509,15 @@ async function processBrainstorm(
 
   console.log(`[brainstorm-worker] Starting brainstorm for task ${taskId}`);
 
+  // Create worker job record
+  const [workerJob] = await db.insert(workerJobs).values({
+    taskId,
+    phase: "brainstorming",
+    status: "running",
+    startedAt: new Date(),
+    jobId: job.id,
+  }).returning();
+
   try {
     // Get task details
     const task = await db.query.tasks.findFirst({
@@ -420,6 +534,14 @@ async function processBrainstorm(
     // Create AI client
     const client = await createAIClient(aiProvider, apiKey, preferredModel);
 
+    // Emit thinking event to worker_events
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "thinking",
+      content: "Analyzing task requirements and context...",
+      metadata: { model: preferredModel } as WorkerEventMetadata,
+    });
+
     // Update status: Analyzing task...
     await db
       .update(tasks)
@@ -433,6 +555,14 @@ async function processBrainstorm(
         progress: 10,
       })
     );
+
+    // Emit action event
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "action",
+      content: "Generating ideas and requirements...",
+      metadata: { model: preferredModel } as WorkerEventMetadata,
+    });
 
     // Update status: Generating ideas...
     await db
@@ -466,6 +596,26 @@ async function processBrainstorm(
     );
 
     const brainstormResultJson = JSON.stringify(result, null, 2);
+
+    // Count requirements for result summary
+    const requirementsCount = result.requirements?.length || 0;
+
+    // Emit completion event to worker_events
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "complete",
+      content: "Brainstorming complete",
+      metadata: { requirementsCount } as WorkerEventMetadata,
+    });
+
+    // Update worker job as completed
+    await db.update(workerJobs)
+      .set({
+        status: "completed",
+        completedAt: new Date(),
+        resultSummary: `Generated ${requirementsCount} requirement${requirementsCount !== 1 ? "s" : ""}`,
+      })
+      .where(eq(workerJobs.id, workerJob.id));
 
     // Update task with result and clear processing state
     await db
@@ -549,6 +699,22 @@ async function processBrainstorm(
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error(`[brainstorm-worker] Error for task ${taskId}:`, errorMessage);
 
+    // Update worker job as failed
+    await db.update(workerJobs)
+      .set({
+        status: "failed",
+        completedAt: new Date(),
+        errorMessage,
+      })
+      .where(eq(workerJobs.id, workerJob.id));
+
+    // Emit error event to worker_events
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "error",
+      content: errorMessage,
+    });
+
     // Get task for event publishing
     const failedTask = await db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),
@@ -596,6 +762,15 @@ async function processPlan(
 
   console.log(`[plan-worker] Starting plan for task ${taskId}`);
 
+  // Create worker job record
+  const [workerJob] = await db.insert(workerJobs).values({
+    taskId,
+    phase: "planning",
+    status: "running",
+    startedAt: new Date(),
+    jobId: job.id,
+  }).returning();
+
   try {
     // Get task details
     const task = await db.query.tasks.findFirst({
@@ -612,6 +787,14 @@ async function processPlan(
     // Create AI client
     const client = await createAIClient(aiProvider, apiKey, preferredModel);
 
+    // Emit thinking event to worker_events
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "thinking",
+      content: "Reviewing brainstorm results...",
+      metadata: { model: preferredModel } as WorkerEventMetadata,
+    });
+
     // Update status: Reviewing brainstorm...
     await db
       .update(tasks)
@@ -625,6 +808,14 @@ async function processPlan(
         progress: 10,
       })
     );
+
+    // Emit action event
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "action",
+      content: "Designing implementation plan...",
+      metadata: { model: preferredModel } as WorkerEventMetadata,
+    });
 
     // Update status: Designing plan...
     await db
@@ -670,6 +861,26 @@ async function processPlan(
 
     const planContentJson = JSON.stringify(result, null, 2);
     const branchName = `loopforge/${taskId.slice(0, 8)}`;
+
+    // Count steps for result summary
+    const stepsCount = result.steps?.length || 0;
+
+    // Emit completion event to worker_events
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "complete",
+      content: "Planning complete",
+      metadata: { stepsCount } as WorkerEventMetadata,
+    });
+
+    // Update worker job as completed
+    await db.update(workerJobs)
+      .set({
+        status: "completed",
+        completedAt: new Date(),
+        resultSummary: `Created ${stepsCount}-step plan`,
+      })
+      .where(eq(workerJobs.id, workerJob.id));
 
     // Update task with result and clear processing state
     await db
@@ -774,6 +985,22 @@ async function processPlan(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error(`[plan-worker] Error for task ${taskId}:`, errorMessage);
+
+    // Update worker job as failed
+    await db.update(workerJobs)
+      .set({
+        status: "failed",
+        completedAt: new Date(),
+        errorMessage,
+      })
+      .where(eq(workerJobs.id, workerJob.id));
+
+    // Emit error event to worker_events
+    await db.insert(workerEvents).values({
+      workerJobId: workerJob.id,
+      eventType: "error",
+      content: errorMessage,
+    });
 
     // Get task for event publishing
     const failedTask = await db.query.tasks.findFirst({

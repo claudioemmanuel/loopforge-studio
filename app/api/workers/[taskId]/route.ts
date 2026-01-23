@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, executions, executionEvents } from "@/lib/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   if (execution) {
     events = await db.query.executionEvents.findMany({
       where: eq(executionEvents.executionId, execution.id),
-      orderBy: [executionEvents.createdAt],
+      orderBy: [asc(executionEvents.createdAt)],
     });
   }
 

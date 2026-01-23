@@ -43,25 +43,44 @@ class MockEventSource {
   }
 }
 
-// Global mock
-(global as unknown as { EventSource: typeof MockEventSource }).EventSource = MockEventSource;
+// Global mock - create a factory class that captures the instance
+let capturedEventSource: MockEventSource | null = null;
+
+class CapturedEventSource extends MockEventSource {
+  constructor(url: string) {
+    super(url);
+    capturedEventSource = this;
+  }
+
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSED = 2;
+}
+
+// Set the global mock
+(global as unknown as { EventSource: typeof CapturedEventSource }).EventSource = CapturedEventSource;
 
 describe("useCardProcessing hook", () => {
   let mockEventSource: MockEventSource;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    // Capture the EventSource instance
-    vi.spyOn(global, "EventSource" as keyof typeof global).mockImplementation((url: string) => {
-      mockEventSource = new MockEventSource(url);
-      return mockEventSource as unknown as EventSource;
-    });
+    capturedEventSource = null;
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    capturedEventSource = null;
   });
+
+  // Helper to get the captured mock after hook renders
+  const getEventSource = () => {
+    if (!capturedEventSource) {
+      throw new Error("EventSource not yet created");
+    }
+    return capturedEventSource;
+  };
 
   describe("Initial state", () => {
     it("should start with empty processing cards", async () => {
@@ -118,7 +137,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(startEvent);
+        getEventSource().simulateMessage(startEvent);
       });
 
       expect(result.current.processingCards.has("task-123")).toBe(true);
@@ -155,7 +174,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(startEvent);
+        getEventSource().simulateMessage(startEvent);
       });
 
       // Then update it
@@ -176,7 +195,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(updateEvent);
+        getEventSource().simulateMessage(updateEvent);
       });
 
       const state = result.current.getProcessingState("task-123");
@@ -212,7 +231,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(startEvent);
+        getEventSource().simulateMessage(startEvent);
       });
 
       expect(result.current.processingCards.has("task-123")).toBe(true);
@@ -235,7 +254,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(completeEvent);
+        getEventSource().simulateMessage(completeEvent);
       });
 
       expect(result.current.processingCards.has("task-123")).toBe(false);
@@ -271,7 +290,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(startEvent);
+        getEventSource().simulateMessage(startEvent);
       });
 
       // Then error
@@ -293,7 +312,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(errorEvent);
+        getEventSource().simulateMessage(errorEvent);
       });
 
       expect(result.current.processingCards.has("task-123")).toBe(false);
@@ -343,7 +362,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(workerListEvent);
+        getEventSource().simulateMessage(workerListEvent);
       });
 
       // Only active processing tasks should be added
@@ -381,7 +400,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(startEvent);
+        getEventSource().simulateMessage(startEvent);
       });
 
       expect(result.current.isProcessing("task-123")).toBe(true);
@@ -414,7 +433,7 @@ describe("useCardProcessing hook", () => {
       };
 
       act(() => {
-        mockEventSource.simulateMessage(startEvent);
+        getEventSource().simulateMessage(startEvent);
       });
 
       const state = result.current.getProcessingState("task-123");

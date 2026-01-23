@@ -121,7 +121,7 @@ const statusConfig: Record<
     bgColor: "bg-red-100/80 dark:bg-red-900/40",
     borderColor: "border-red-200/80 dark:border-red-700/50",
     glowColor: "shadow-red-500/20",
-    label: "Stuck",
+    label: "Failed",
   },
 };
 
