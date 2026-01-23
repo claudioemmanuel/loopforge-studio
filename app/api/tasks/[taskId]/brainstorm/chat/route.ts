@@ -4,52 +4,19 @@ import { db, tasks, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
   createAIClient,
-  getDefaultModel,
   getConversation,
   setConversation,
   chatWithAI,
   type RepoContext,
   type ExistingBrainstormContext,
-  type BrainstormConversation,
 } from "@/lib/ai";
-import { decryptApiKey } from "@/lib/crypto";
-import type { AiProvider, User } from "@/lib/db/schema";
 import { handleError, Errors } from "@/lib/errors";
-
-function getProviderApiKey(
-  user: User,
-  provider: AiProvider
-): { encrypted: string; iv: string } | null {
-  switch (provider) {
-    case "anthropic":
-      return user.encryptedApiKey && user.apiKeyIv
-        ? { encrypted: user.encryptedApiKey, iv: user.apiKeyIv }
-        : null;
-    case "openai":
-      return user.openaiEncryptedApiKey && user.openaiApiKeyIv
-        ? { encrypted: user.openaiEncryptedApiKey, iv: user.openaiApiKeyIv }
-        : null;
-    case "gemini":
-      return user.geminiEncryptedApiKey && user.geminiApiKeyIv
-        ? { encrypted: user.geminiEncryptedApiKey, iv: user.geminiApiKeyIv }
-        : null;
-    default:
-      return null;
-  }
-}
-
-function getPreferredModel(user: User, provider: AiProvider): string {
-  switch (provider) {
-    case "anthropic":
-      return user.preferredAnthropicModel || getDefaultModel("anthropic");
-    case "openai":
-      return user.preferredOpenaiModel || getDefaultModel("openai");
-    case "gemini":
-      return user.preferredGeminiModel || getDefaultModel("gemini");
-    default:
-      return getDefaultModel("anthropic");
-  }
-}
+import {
+  findConfiguredProvider,
+  getProviderApiKey,
+  getPreferredModel,
+} from "@/lib/api";
+import { decryptApiKey } from "@/lib/crypto";
 
 export async function POST(
   request: Request,
@@ -62,7 +29,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Parse request body
+  // Parse request body early (before other checks) since we need it
   const body = await request.json();
   const { message, choice } = body as { message?: string; choice?: string };
 
@@ -152,21 +119,8 @@ export async function POST(
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Find configured provider
-  const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
-  let aiProvider: AiProvider | null = null;
-
-  if (user.preferredProvider && getProviderApiKey(user, user.preferredProvider)) {
-    aiProvider = user.preferredProvider;
-  } else {
-    for (const provider of providers) {
-      if (getProviderApiKey(user, provider)) {
-        aiProvider = provider;
-        break;
-      }
-    }
-  }
-
+  // Find configured provider using shared helper
+  const aiProvider = findConfiguredProvider(user);
   if (!aiProvider) {
     return handleError(Errors.noProviderConfigured());
   }

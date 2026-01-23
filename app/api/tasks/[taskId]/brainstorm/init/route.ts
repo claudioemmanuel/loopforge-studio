@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, tasks, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import {
   createAIClient,
-  getDefaultModel,
   initializeBrainstorm,
   setConversation,
   getConversation,
@@ -12,67 +8,12 @@ import {
   type ExistingBrainstormContext,
   type ChatMessage,
 } from "@/lib/ai";
-import { decryptApiKey, decryptGithubToken } from "@/lib/crypto";
+import { decryptGithubToken } from "@/lib/crypto";
 import { scanRepoViaGitHub } from "@/lib/github/repo-scanner";
-import type { AiProvider, User } from "@/lib/db/schema";
 import { handleError, Errors } from "@/lib/errors";
+import { withTask, getAIClientConfig } from "@/lib/api";
 
-function getProviderApiKey(
-  user: User,
-  provider: AiProvider
-): { encrypted: string; iv: string } | null {
-  switch (provider) {
-    case "anthropic":
-      return user.encryptedApiKey && user.apiKeyIv
-        ? { encrypted: user.encryptedApiKey, iv: user.apiKeyIv }
-        : null;
-    case "openai":
-      return user.openaiEncryptedApiKey && user.openaiApiKeyIv
-        ? { encrypted: user.openaiEncryptedApiKey, iv: user.openaiApiKeyIv }
-        : null;
-    case "gemini":
-      return user.geminiEncryptedApiKey && user.geminiApiKeyIv
-        ? { encrypted: user.geminiEncryptedApiKey, iv: user.geminiApiKeyIv }
-        : null;
-    default:
-      return null;
-  }
-}
-
-function getPreferredModel(user: User, provider: AiProvider): string {
-  switch (provider) {
-    case "anthropic":
-      return user.preferredAnthropicModel || getDefaultModel("anthropic");
-    case "openai":
-      return user.preferredOpenaiModel || getDefaultModel("openai");
-    case "gemini":
-      return user.preferredGeminiModel || getDefaultModel("gemini");
-    default:
-      return getDefaultModel("anthropic");
-  }
-}
-
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get task with repo
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export const POST = withTask(async (request, { user, task, taskId }) => {
   // This endpoint is for refinement only - task must already have a brainstorm result
   // Initial brainstorming should use /brainstorm/generate instead
   if (!task.brainstormResult) {
@@ -82,49 +23,14 @@ export async function POST(
     );
   }
 
-  // Get user
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, session.user.id),
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  // Find configured provider
-  const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
-  let aiProvider: AiProvider | null = null;
-
-  if (user.preferredProvider && getProviderApiKey(user, user.preferredProvider)) {
-    aiProvider = user.preferredProvider;
-  } else {
-    for (const provider of providers) {
-      if (getProviderApiKey(user, provider)) {
-        aiProvider = provider;
-        break;
-      }
-    }
-  }
-
-  if (!aiProvider) {
+  const config = getAIClientConfig(user);
+  if (!config) {
     return handleError(Errors.noProviderConfigured());
   }
 
-  const encryptedKey = getProviderApiKey(user, aiProvider);
-  if (!encryptedKey) {
-    return handleError(Errors.authError(aiProvider));
-  }
-
   try {
-    console.log("[brainstorm/init] Decrypting API key for provider:", aiProvider);
-    const apiKey = decryptApiKey(encryptedKey);
-
-    console.log("[brainstorm/init] Getting preferred model");
-    const model = getPreferredModel(user, aiProvider);
-    console.log("[brainstorm/init] Using model:", model);
-
-    console.log("[brainstorm/init] Creating AI client");
-    const client = await createAIClient(aiProvider, apiKey, model);
+    console.log("[brainstorm/init] Creating AI client for provider:", config.provider);
+    const client = await createAIClient(config.provider, config.apiKey, config.model);
     console.log("[brainstorm/init] AI client created successfully");
 
     // Scan repository via GitHub API for actual context
@@ -300,4 +206,4 @@ export async function POST(
     console.error("Brainstorm init error:", error);
     return handleError(error);
   }
-}
+});
