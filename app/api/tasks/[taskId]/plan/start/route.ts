@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, users } from "@/lib/db";
-import { eq, and, isNull } from "drizzle-orm";
+import { db, tasks, users, buildStatusHistoryAppend } from "@/lib/db";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { queuePlan } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import { publishProcessingEvent, createProcessingEvent } from "@/lib/workers/events";
@@ -125,6 +125,12 @@ export async function POST(
       .update(tasks)
       .set({
         status: "planning",
+        statusHistory: buildStatusHistoryAppend({
+          fromStatus: task.status,
+          toStatus: "planning",
+          triggeredBy: "user",
+          userId: session.user.id,
+        }),
         processingPhase: "planning",
         processingStartedAt: startedAt,
         processingStatusText: "Reviewing brainstorm...",
