@@ -1,7 +1,7 @@
 import { Job } from "bullmq";
-import { db, users, tasks, executions, executionEvents, repos, workerJobs, workerEvents } from "../lib/db";
-import type { WorkerEventMetadata } from "../lib/db/schema";
-import { eq } from "drizzle-orm";
+import { db, users, tasks, executions, executionEvents, repos, workerJobs, workerEvents, buildStatusHistoryAppend } from "../lib/db";
+import type { WorkerEventMetadata, TaskStatus } from "../lib/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { runLoop, type LoopContext, type ExecutionMode } from "../lib/ralph";
 import {
   createExecutionWorker,
@@ -392,11 +392,19 @@ async function processExecution(
       })
       .where(eq(executions.id, executionId));
 
-    // Update task status
-    const taskStatus = result.status === "complete" ? "done" : "stuck";
+    // Update task status with history
+    const taskStatus: TaskStatus = result.status === "complete" ? "done" : "stuck";
     await db
       .update(tasks)
-      .set({ status: taskStatus, updatedAt: new Date() })
+      .set({
+        status: taskStatus,
+        statusHistory: buildStatusHistoryAppend({
+          fromStatus: "executing",
+          toStatus: taskStatus,
+          triggeredBy: "worker",
+        }),
+        updatedAt: new Date(),
+      })
       .where(eq(tasks.id, taskId));
 
     // Emit completion event to worker_events
@@ -457,10 +465,18 @@ async function processExecution(
       })
       .where(eq(executions.id, executionId));
 
-    // Update task status
+    // Update task status with history
     await db
       .update(tasks)
-      .set({ status: "stuck", updatedAt: new Date() })
+      .set({
+        status: "stuck",
+        statusHistory: buildStatusHistoryAppend({
+          fromStatus: "executing",
+          toStatus: "stuck",
+          triggeredBy: "worker",
+        }),
+        updatedAt: new Date(),
+      })
       .where(eq(tasks.id, taskId));
 
     // Update worker job as failed
@@ -667,11 +683,16 @@ async function processBrainstorm(
         repoDefaultBranch: task.repo.defaultBranch || "main",
       });
 
-      // Update task to planning phase
+      // Update task to planning phase with history
       await db
         .update(tasks)
         .set({
           status: "planning",
+          statusHistory: buildStatusHistoryAppend({
+            fromStatus: "brainstorming",
+            toStatus: "planning",
+            triggeredBy: "autonomous",
+          }),
           processingPhase: "planning",
           processingJobId: planJob.id,
           processingStartedAt: new Date(),
@@ -723,11 +744,16 @@ async function processBrainstorm(
 
     const startedAt = failedTask?.processingStartedAt || new Date();
 
-    // Clear processing state and revert status
+    // Clear processing state and revert status with history
     await db
       .update(tasks)
       .set({
         status: "todo",
+        statusHistory: buildStatusHistoryAppend({
+          fromStatus: "brainstorming",
+          toStatus: "todo",
+          triggeredBy: "worker",
+        }),
         processingPhase: null,
         processingJobId: null,
         processingStartedAt: null,
@@ -882,13 +908,19 @@ async function processPlan(
       })
       .where(eq(workerJobs.id, workerJob.id));
 
-    // Update task with result and clear processing state
+    // Update task with result and clear processing state with history
+    const newStatus: TaskStatus = continueToExecution ? "ready" : "planning";
     await db
       .update(tasks)
       .set({
         planContent: planContentJson,
         branch: branchName,
-        status: continueToExecution ? "ready" : "planning",
+        status: newStatus,
+        statusHistory: buildStatusHistoryAppend({
+          fromStatus: "planning",
+          toStatus: newStatus,
+          triggeredBy: continueToExecution ? "autonomous" : "worker",
+        }),
         processingPhase: null,
         processingJobId: null,
         processingStartedAt: null,
@@ -939,11 +971,16 @@ async function processPlan(
         })
         .returning();
 
-      // Update task to executing
+      // Update task to executing with history
       await db
         .update(tasks)
         .set({
           status: "executing",
+          statusHistory: buildStatusHistoryAppend({
+            fromStatus: "ready",
+            toStatus: "executing",
+            triggeredBy: "autonomous",
+          }),
           processingPhase: "executing",
           processingJobId: execution.id,
           processingStartedAt: new Date(),
@@ -1010,11 +1047,16 @@ async function processPlan(
 
     const startedAt = failedTask?.processingStartedAt || new Date();
 
-    // Clear processing state and revert status
+    // Clear processing state and revert status with history
     await db
       .update(tasks)
       .set({
         status: "brainstorming",
+        statusHistory: buildStatusHistoryAppend({
+          fromStatus: "planning",
+          toStatus: "brainstorming",
+          triggeredBy: "worker",
+        }),
         processingPhase: null,
         processingJobId: null,
         processingStartedAt: null,
