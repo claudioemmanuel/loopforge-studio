@@ -4,15 +4,19 @@ import { db, tasks, users, buildStatusHistoryAppend } from "@/lib/db";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { queuePlan } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
-import { publishProcessingEvent, createProcessingEvent } from "@/lib/workers/events";
+import {
+  publishProcessingEvent,
+  createProcessingEvent,
+} from "@/lib/workers/events";
 import type { AiProvider, User } from "@/lib/db/schema";
 import { getDefaultModel } from "@/lib/ai";
 import { handleError, Errors } from "@/lib/errors";
+import { apiLogger } from "@/lib/logger";
 
 // Helper to get API key for a specific provider
 function getProviderApiKey(
   user: User,
-  provider: AiProvider
+  provider: AiProvider,
 ): { encrypted: string; iv: string } | null {
   switch (provider) {
     case "anthropic":
@@ -22,12 +26,18 @@ function getProviderApiKey(
       return null;
     case "openai":
       if (user.openaiEncryptedApiKey && user.openaiApiKeyIv) {
-        return { encrypted: user.openaiEncryptedApiKey, iv: user.openaiApiKeyIv };
+        return {
+          encrypted: user.openaiEncryptedApiKey,
+          iv: user.openaiApiKeyIv,
+        };
       }
       return null;
     case "gemini":
       if (user.geminiEncryptedApiKey && user.geminiApiKeyIv) {
-        return { encrypted: user.geminiEncryptedApiKey, iv: user.geminiApiKeyIv };
+        return {
+          encrypted: user.geminiEncryptedApiKey,
+          iv: user.geminiApiKeyIv,
+        };
       }
       return null;
     default:
@@ -51,7 +61,7 @@ function getPreferredModel(user: User, provider: AiProvider): string {
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;
@@ -74,7 +84,7 @@ export async function POST(
   if (!task.brainstormResult) {
     return NextResponse.json(
       { error: "Cannot plan without brainstorm result" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -91,7 +101,10 @@ export async function POST(
   const findConfiguredProvider = (): AiProvider | null => {
     const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
 
-    if (user.preferredProvider && getProviderApiKey(user, user.preferredProvider)) {
+    if (
+      user.preferredProvider &&
+      getProviderApiKey(user, user.preferredProvider)
+    ) {
       return user.preferredProvider;
     }
 
@@ -136,19 +149,17 @@ export async function POST(
         processingStatusText: "Reviewing brainstorm...",
         updatedAt: startedAt,
       })
-      .where(
-        and(
-          eq(tasks.id, taskId),
-          isNull(tasks.processingPhase)
-        )
-      )
+      .where(and(eq(tasks.id, taskId), isNull(tasks.processingPhase)))
       .returning({ id: tasks.id });
 
     // If no rows were updated, another request already claimed the slot
     if (claimResult.length === 0) {
       return NextResponse.json(
-        { error: "Task is already processing", phase: task.processingPhase || "unknown" },
-        { status: 409 }
+        {
+          error: "Task is already processing",
+          phase: task.processingPhase || "unknown",
+        },
+        { status: 409 },
       );
     }
 
@@ -184,7 +195,7 @@ export async function POST(
       "planning",
       job.id!,
       startedAt,
-      { statusText: "Reviewing brainstorm...", progress: 0 }
+      { statusText: "Reviewing brainstorm...", progress: 0 },
     );
     await publishProcessingEvent(session.user.id, processingEvent);
 
@@ -207,11 +218,10 @@ export async function POST(
       })
       .where(eq(tasks.id, taskId));
 
-    console.error("Failed to queue plan:", {
-      taskId,
-      provider: aiProvider,
-      error,
-    });
+    apiLogger.error(
+      { taskId, provider: aiProvider, error },
+      "Failed to queue plan",
+    );
     return handleError(error);
   }
 }

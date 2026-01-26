@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, repos } from "@/lib/db";
+import { apiLogger } from "@/lib/logger";
 
 interface GitHubRepo {
   id: number;
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     if (!reposToAdd || reposToAdd.length === 0) {
       return NextResponse.json(
         { error: "At least one repository is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -77,10 +78,10 @@ export async function POST(request: Request) {
       success: true,
     });
   } catch (error) {
-    console.error("Error adding repositories:", error);
+    apiLogger.error({ error }, "Error adding repositories");
     return NextResponse.json(
       { error: "Failed to add repositories" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

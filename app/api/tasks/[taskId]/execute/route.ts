@@ -7,11 +7,12 @@ import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
 import { getDefaultModel } from "@/lib/ai/client";
 import { handleError, Errors } from "@/lib/errors";
+import { apiLogger } from "@/lib/logger";
 
 // Helper to get API key for a specific provider
 function getProviderApiKey(
   user: User,
-  provider: AiProvider
+  provider: AiProvider,
 ): { encrypted: string; iv: string } | null {
   switch (provider) {
     case "anthropic":
@@ -21,12 +22,18 @@ function getProviderApiKey(
       return null;
     case "openai":
       if (user.openaiEncryptedApiKey && user.openaiApiKeyIv) {
-        return { encrypted: user.openaiEncryptedApiKey, iv: user.openaiApiKeyIv };
+        return {
+          encrypted: user.openaiEncryptedApiKey,
+          iv: user.openaiApiKeyIv,
+        };
       }
       return null;
     case "gemini":
       if (user.geminiEncryptedApiKey && user.geminiApiKeyIv) {
-        return { encrypted: user.geminiEncryptedApiKey, iv: user.geminiApiKeyIv };
+        return {
+          encrypted: user.geminiEncryptedApiKey,
+          iv: user.geminiApiKeyIv,
+        };
       }
       return null;
     default:
@@ -50,7 +57,7 @@ function getPreferredModel(user: User, provider: AiProvider): string {
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;
@@ -72,14 +79,14 @@ export async function POST(
   if (task.status !== "ready") {
     return NextResponse.json(
       { error: "Task must be in ready status to execute" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (!task.planContent) {
     return NextResponse.json(
       { error: "Task must have a plan to execute" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -98,7 +105,10 @@ export async function POST(
     const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
 
     // First try the user's preferred provider
-    if (user.preferredProvider && getProviderApiKey(user, user.preferredProvider)) {
+    if (
+      user.preferredProvider &&
+      getProviderApiKey(user, user.preferredProvider)
+    ) {
       return user.preferredProvider;
     }
 
@@ -142,8 +152,8 @@ export async function POST(
       .where(
         and(
           eq(tasks.id, taskId),
-          eq(tasks.status, "ready") // Only claim if still ready
-        )
+          eq(tasks.status, "ready"), // Only claim if still ready
+        ),
       )
       .returning({ id: tasks.id });
 
@@ -151,7 +161,7 @@ export async function POST(
     if (claimResult.length === 0) {
       return NextResponse.json(
         { error: "Task is already executing or not in ready status" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -189,11 +199,7 @@ export async function POST(
       jobId: job.id,
     });
   } catch (error) {
-    console.error("Execution error:", {
-      taskId,
-      error,
-      timestamp: new Date().toISOString(),
-    });
+    apiLogger.error({ taskId, error }, "Execution error");
 
     // Revert status on error (only if we claimed it)
     await db
@@ -202,8 +208,8 @@ export async function POST(
       .where(
         and(
           eq(tasks.id, taskId),
-          eq(tasks.status, "executing") // Only revert if we set it
-        )
+          eq(tasks.status, "executing"), // Only revert if we set it
+        ),
       );
 
     return handleError(error);

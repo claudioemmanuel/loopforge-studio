@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth, getUserGithubToken } from "@/lib/auth";
 import { fetchUserRepos } from "@/lib/github";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET() {
   const session = await auth();
@@ -16,7 +17,7 @@ export async function GET() {
     if (!githubToken) {
       return NextResponse.json(
         { error: "GitHub token not found. Please re-authenticate." },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -25,10 +26,10 @@ export async function GET() {
 
     return NextResponse.json(repos);
   } catch (error) {
-    console.error("Error fetching repos:", error);
+    apiLogger.error({ error }, "Error fetching repos");
     return NextResponse.json(
       { error: "Failed to fetch repositories" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

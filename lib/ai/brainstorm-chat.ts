@@ -1,6 +1,7 @@
 import type { AIClient, ChatMessage } from "./client";
 import { readdir, readFile, stat } from "fs/promises";
 import { join } from "path";
+import { aiLogger } from "@/lib/logger";
 
 /**
  * Robust JSON extraction that handles various AI response formats.
@@ -32,6 +33,37 @@ export function extractJSON(response: string): object | null {
     }
   }
 
+  // Try 2b: Handle markdown code block without closing ``` (common with Gemini)
+  const openCodeBlockMatch = trimmed.match(/^```(?:json)?\s*\n?([\s\S]+)/);
+  if (openCodeBlockMatch && !jsonCodeBlockMatch) {
+    const content = openCodeBlockMatch[1].trim();
+    // Find the JSON object within the code block content
+    const firstBrace = content.indexOf("{");
+    const lastBrace = content.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      try {
+        const jsonStr = content.slice(firstBrace, lastBrace + 1);
+        const parsed = JSON.parse(jsonStr);
+        if (typeof parsed === "object" && parsed !== null) {
+          return parsed;
+        }
+      } catch {
+        // Try to repair truncated JSON
+        const repaired = repairTruncatedJSON(content.slice(firstBrace));
+        if (repaired) {
+          try {
+            const parsed = JSON.parse(repaired);
+            if (typeof parsed === "object" && parsed !== null) {
+              return parsed;
+            }
+          } catch {
+            // Repair failed, continue
+          }
+        }
+      }
+    }
+  }
+
   // Try 3: Find JSON object in text (first { to last })
   const firstBrace = trimmed.indexOf("{");
   const lastBrace = trimmed.lastIndexOf("}");
@@ -43,7 +75,18 @@ export function extractJSON(response: string): object | null {
         return parsed;
       }
     } catch {
-      // Not valid JSON object, continue
+      // Try to repair truncated JSON
+      const repaired = repairTruncatedJSON(trimmed.slice(firstBrace));
+      if (repaired) {
+        try {
+          const parsed = JSON.parse(repaired);
+          if (typeof parsed === "object" && parsed !== null) {
+            return parsed;
+          }
+        } catch {
+          // Repair failed, continue
+        }
+      }
     }
   }
 
@@ -63,6 +106,67 @@ export function extractJSON(response: string): object | null {
   }
 
   // All strategies failed
+  return null;
+}
+
+/**
+ * Attempts to repair truncated JSON by closing unclosed brackets/braces.
+ * This handles cases where AI responses are cut off due to token limits.
+ */
+function repairTruncatedJSON(json: string): string | null {
+  // Remove trailing incomplete string values (cut off mid-string)
+  let repaired = json.replace(/,?\s*"[^"]*$/, "");
+
+  // Remove trailing incomplete array elements
+  repaired = repaired.replace(/,\s*$/, "");
+
+  // Count open/close braces and brackets
+  let braceCount = 0;
+  let bracketCount = 0;
+  let inString = false;
+  let escapeNext = false;
+
+  for (const char of repaired) {
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    if (char === "\\") {
+      escapeNext = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (char === "{") braceCount++;
+    if (char === "}") braceCount--;
+    if (char === "[") bracketCount++;
+    if (char === "]") bracketCount--;
+  }
+
+  // If we're still in a string, try to close it
+  if (inString) {
+    repaired += '"';
+  }
+
+  // Close any unclosed brackets and braces
+  while (bracketCount > 0) {
+    repaired += "]";
+    bracketCount--;
+  }
+  while (braceCount > 0) {
+    repaired += "}";
+    braceCount--;
+  }
+
+  // Only return if we made changes
+  if (repaired !== json) {
+    return repaired;
+  }
+
   return null;
 }
 
@@ -100,11 +204,16 @@ export interface BrainstormConversation {
 // In-memory store for active conversations (not persisted)
 const activeConversations = new Map<string, BrainstormConversation>();
 
-export function getConversation(taskId: string): BrainstormConversation | undefined {
+export function getConversation(
+  taskId: string,
+): BrainstormConversation | undefined {
   return activeConversations.get(taskId);
 }
 
-export function setConversation(taskId: string, conversation: BrainstormConversation): void {
+export function setConversation(
+  taskId: string,
+  conversation: BrainstormConversation,
+): void {
   activeConversations.set(taskId, conversation);
 }
 
@@ -123,7 +232,11 @@ export async function scanRepository(repoPath: string): Promise<RepoContext> {
     const entries = await readdir(repoPath, { withFileTypes: true });
 
     for (const entry of entries) {
-      if (entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules") {
+      if (
+        entry.isDirectory() &&
+        !entry.name.startsWith(".") &&
+        entry.name !== "node_modules"
+      ) {
         fileStructure.push(`${entry.name}/`);
       } else if (entry.isFile()) {
         fileStructure.push(entry.name);
@@ -156,7 +269,10 @@ export async function scanRepository(repoPath: string): Promise<RepoContext> {
 
     // Read package.json for more details if it exists
     try {
-      const pkgContent = await readFile(join(repoPath, "package.json"), "utf-8");
+      const pkgContent = await readFile(
+        join(repoPath, "package.json"),
+        "utf-8",
+      );
       const pkg = JSON.parse(pkgContent);
       const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
@@ -167,9 +283,8 @@ export async function scanRepository(repoPath: string): Promise<RepoContext> {
     } catch {
       // No package.json or invalid
     }
-
   } catch (error) {
-    console.error("Error scanning repository:", error);
+    aiLogger.error({ error }, "Error scanning repository");
   }
 
   return {
@@ -244,7 +359,7 @@ export async function chatWithAI(
   client: AIClient,
   conversation: BrainstormConversation,
   userMessage: string,
-  taskTitle?: string
+  taskTitle?: string,
 ): Promise<BrainstormChatResponse> {
   // Build comprehensive context message with current state
   let contextMsg = `Repository Context:
@@ -286,7 +401,9 @@ Your brainstormPreview response MUST include ALL existing items plus any new ref
 
   // Fallback if JSON parsing fails
   return {
-    message: response.trim() || "I had trouble processing that. Could you try rephrasing?",
+    message:
+      response.trim() ||
+      "I had trouble processing that. Could you try rephrasing?",
     suggestComplete: false,
   };
 }
@@ -302,13 +419,20 @@ export interface ExistingBrainstormContext {
  * Get task-specific prompts based on task type detection.
  * Helps the AI provide more relevant analysis for common task categories.
  */
-function getTaskSpecificPrompt(title: string, description: string | null): string {
+function getTaskSpecificPrompt(
+  title: string,
+  description: string | null,
+): string {
   const lowerTitle = title.toLowerCase();
   const lowerDesc = (description || "").toLowerCase();
   const combined = `${lowerTitle} ${lowerDesc}`;
 
   // Testing tasks
-  if (combined.includes("test") || combined.includes("coverage") || combined.includes("spec")) {
+  if (
+    combined.includes("test") ||
+    combined.includes("coverage") ||
+    combined.includes("spec")
+  ) {
     return `
 TASK TYPE: Testing/Coverage
 
@@ -323,7 +447,11 @@ If test context is provided below, use it to identify specific files needing tes
   }
 
   // Refactoring tasks
-  if (combined.includes("refactor") || combined.includes("cleanup") || combined.includes("reorganize")) {
+  if (
+    combined.includes("refactor") ||
+    combined.includes("cleanup") ||
+    combined.includes("reorganize")
+  ) {
     return `
 TASK TYPE: Refactoring
 
@@ -336,7 +464,12 @@ For this refactoring task, focus on:
   }
 
   // Bug fix tasks
-  if (combined.includes("fix") || combined.includes("bug") || combined.includes("issue") || combined.includes("error")) {
+  if (
+    combined.includes("fix") ||
+    combined.includes("bug") ||
+    combined.includes("issue") ||
+    combined.includes("error")
+  ) {
     return `
 TASK TYPE: Bug Fix
 
@@ -349,7 +482,12 @@ For this bug fix task, focus on:
   }
 
   // Performance tasks
-  if (combined.includes("performance") || combined.includes("optimize") || combined.includes("speed") || combined.includes("slow")) {
+  if (
+    combined.includes("performance") ||
+    combined.includes("optimize") ||
+    combined.includes("speed") ||
+    combined.includes("slow")
+  ) {
     return `
 TASK TYPE: Performance Optimization
 
@@ -379,7 +517,7 @@ export async function generateInitialBrainstorm(
   client: AIClient,
   taskTitle: string,
   taskDescription: string | null,
-  repoContext: RepoContext
+  repoContext: RepoContext,
 ): Promise<BrainstormChatResponse["brainstormPreview"]> {
   const taskSpecificPrompt = getTaskSpecificPrompt(taskTitle, taskDescription);
 
@@ -411,9 +549,7 @@ RESPOND WITH JSON ONLY:
   "suggestedApproach": "High-level approach referencing actual codebase structure"
 }`;
 
-  const messages: ChatMessage[] = [
-    { role: "user", content: prompt },
-  ];
+  const messages: ChatMessage[] = [{ role: "user", content: prompt }];
 
   const response = await client.chat(messages, { maxTokens: 2048 });
 
@@ -424,18 +560,25 @@ RESPOND WITH JSON ONLY:
     return {
       summary: (data.summary as string) || `Analysis of: ${taskTitle}`,
       requirements: Array.isArray(data.requirements) ? data.requirements : [],
-      considerations: Array.isArray(data.considerations) ? data.considerations : [],
-      suggestedApproach: (data.suggestedApproach as string) || "Further refinement needed",
+      considerations: Array.isArray(data.considerations)
+        ? data.considerations
+        : [],
+      suggestedApproach:
+        (data.suggestedApproach as string) || "Further refinement needed",
     };
   }
 
   // Return a basic structure if parsing fails
-  console.error("[generateInitialBrainstorm] JSON extraction failed, raw response:", response.slice(0, 200));
+  aiLogger.error(
+    { responsePreview: response.slice(0, 200) },
+    "JSON extraction failed in generateInitialBrainstorm",
+  );
   return {
     summary: `Initial analysis of: ${taskTitle}`,
     requirements: ["Define detailed requirements through refinement"],
     considerations: ["Technical approach needs discussion"],
-    suggestedApproach: "Use the Refine button to interactively clarify this task",
+    suggestedApproach:
+      "Use the Refine button to interactively clarify this task",
   };
 }
 
@@ -447,7 +590,7 @@ export async function initializeBrainstorm(
   taskTitle: string,
   taskDescription: string | null,
   repoContext: RepoContext,
-  existingBrainstorm?: ExistingBrainstormContext
+  existingBrainstorm?: ExistingBrainstormContext,
 ): Promise<BrainstormChatResponse> {
   let initialPrompt: string;
 
@@ -520,7 +663,10 @@ Please introduce yourself briefly, acknowledge the task, and ask your first clar
       : "Let's brainstorm this task together. What's the main goal you're trying to achieve?",
     options: existingBrainstorm
       ? [
-          { label: "Clarify acceptance criteria", value: "acceptance_criteria" },
+          {
+            label: "Clarify acceptance criteria",
+            value: "acceptance_criteria",
+          },
           { label: "Define scope boundaries", value: "scope" },
           { label: "Identify dependencies or risks", value: "dependencies" },
           { label: "This looks good, ready to proceed", value: "ready" },

@@ -5,6 +5,8 @@
  * Unlike the filesystem-based scanRepository(), this works with repos before they're cloned.
  */
 
+import { githubLogger } from "@/lib/logger";
+
 export interface GitHubRepoContext {
   techStack: string[];
   fileStructure: string[];
@@ -35,7 +37,7 @@ export async function scanRepoViaGitHub(
   githubToken: string,
   owner: string,
   repo: string,
-  branch: string = "main"
+  branch: string = "main",
 ): Promise<GitHubRepoContext> {
   try {
     // Get repo tree (recursive for full structure)
@@ -46,11 +48,14 @@ export async function scanRepoViaGitHub(
           Authorization: `Bearer ${githubToken}`,
           Accept: "application/vnd.github.v3+json",
         },
-      }
+      },
     );
 
     if (!treeResponse.ok) {
-      console.error(`[repo-scanner] Failed to fetch tree: ${treeResponse.status}`);
+      githubLogger.error(
+        { status: treeResponse.status },
+        "Failed to fetch tree",
+      );
       return getDefaultRepoContext();
     }
 
@@ -64,7 +69,14 @@ export async function scanRepoViaGitHub(
     const sourceFiles = findSourceFiles(entries);
 
     // Detect tech stack from config files and file patterns
-    const techStack = await detectTechStack(githubToken, owner, repo, branch, configFiles, entries);
+    const techStack = await detectTechStack(
+      githubToken,
+      owner,
+      repo,
+      branch,
+      configFiles,
+      entries,
+    );
 
     return {
       techStack: [...new Set(techStack)], // Dedupe
@@ -74,7 +86,7 @@ export async function scanRepoViaGitHub(
       sourceFiles: sourceFiles.slice(0, 100), // Limit
     };
   } catch (error) {
-    console.error("[repo-scanner] Error scanning repository:", error);
+    githubLogger.error({ error }, "Error scanning repository");
     return getDefaultRepoContext();
   }
 }
@@ -89,7 +101,8 @@ function extractDirectories(entries: TreeEntry[]): string[] {
     if (!entry.path) continue;
 
     // Skip hidden dirs and node_modules
-    if (entry.path.startsWith(".") || entry.path.includes("node_modules")) continue;
+    if (entry.path.startsWith(".") || entry.path.includes("node_modules"))
+      continue;
 
     // Get first path segment for top-level structure
     const firstSegment = entry.path.split("/")[0];
@@ -131,7 +144,9 @@ function findConfigFiles(entries: TreeEntry[]): string[] {
   ];
 
   return entries
-    .filter((e) => e.type === "blob" && e.path && configPatterns.includes(e.path))
+    .filter(
+      (e) => e.type === "blob" && e.path && configPatterns.includes(e.path),
+    )
     .map((e) => e.path!);
 }
 
@@ -148,7 +163,7 @@ function findTestFiles(entries: TreeEntry[]): FileInfo[] {
           e.path.includes(".spec.") ||
           e.path.includes("__tests__/") ||
           e.path.includes("/test/") ||
-          e.path.includes("/tests/"))
+          e.path.includes("/tests/")),
     )
     .map((e) => ({
       path: e.path!,
@@ -172,7 +187,7 @@ function findSourceFiles(entries: TreeEntry[]): FileInfo[] {
         !e.path.includes(".test.") &&
         !e.path.includes(".spec.") &&
         !e.path.includes("__tests__/") &&
-        !e.path.includes("node_modules/")
+        !e.path.includes("node_modules/"),
     )
     .map((e) => ({
       path: e.path!,
@@ -189,7 +204,7 @@ async function detectTechStack(
   repo: string,
   branch: string,
   configFiles: string[],
-  entries: TreeEntry[]
+  entries: TreeEntry[],
 ): Promise<string[]> {
   const techStack: string[] = [];
 
@@ -230,13 +245,15 @@ async function detectTechStack(
             Authorization: `Bearer ${githubToken}`,
             Accept: "application/vnd.github.v3+json",
           },
-        }
+        },
       );
 
       if (pkgResponse.ok) {
         const pkgData = await pkgResponse.json();
         if (pkgData.content) {
-          const content = Buffer.from(pkgData.content, "base64").toString("utf-8");
+          const content = Buffer.from(pkgData.content, "base64").toString(
+            "utf-8",
+          );
           const pkg = JSON.parse(content);
           const deps = { ...pkg.dependencies, ...pkg.devDependencies };
 
@@ -244,7 +261,8 @@ async function detectTechStack(
           if (deps["vue"]) techStack.push("Vue");
           if (deps["drizzle-orm"]) techStack.push("Drizzle ORM");
           if (deps["prisma"]) techStack.push("Prisma");
-          if (deps["next-auth"] || deps["@auth/core"]) techStack.push("NextAuth");
+          if (deps["next-auth"] || deps["@auth/core"])
+            techStack.push("NextAuth");
           if (deps["stripe"]) techStack.push("Stripe");
           if (deps["express"]) techStack.push("Express");
           if (deps["fastify"]) techStack.push("Fastify");
@@ -256,7 +274,7 @@ async function detectTechStack(
         }
       }
     } catch (error) {
-      console.error("[repo-scanner] Error reading package.json:", error);
+      githubLogger.error({ error }, "Error reading package.json");
     }
   }
 
@@ -294,8 +312,8 @@ export function getTestCoverageContext(context: GitHubRepoContext): string {
         .replace(".spec.", ".")
         .replace("__tests__/", "")
         .replace("/test/", "/")
-        .replace("/tests/", "/")
-    )
+        .replace("/tests/", "/"),
+    ),
   );
 
   const untestedFiles = sourceFiles.filter((s) => {
@@ -305,7 +323,9 @@ export function getTestCoverageContext(context: GitHubRepoContext): string {
       s.path.replace(".ts", ".spec.ts"),
       s.path.replace(".tsx", ".spec.tsx"),
     ];
-    return !possibleTestPaths.some((p) => testFiles.some((t) => t.path.endsWith(p.split("/").pop()!)));
+    return !possibleTestPaths.some((p) =>
+      testFiles.some((t) => t.path.endsWith(p.split("/").pop()!)),
+    );
   });
 
   const lines: string[] = [];

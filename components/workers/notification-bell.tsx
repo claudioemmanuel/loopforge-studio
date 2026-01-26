@@ -123,7 +123,7 @@ function WorkerNotificationRow({
       className={cn(
         "w-full flex items-start gap-3 p-3 rounded-lg text-left",
         "hover:bg-muted/50 transition-colors",
-        "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
       )}
     >
       {/* Status indicator */}
@@ -134,7 +134,9 @@ function WorkerNotificationRow({
       {/* Content */}
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-medium text-sm truncate">{worker.taskTitle}</span>
+          <span className="font-medium text-sm truncate">
+            {worker.taskTitle}
+          </span>
           <span className="text-xs text-muted-foreground shrink-0">
             {formatTimestamp(worker.timestamp)}
           </span>
@@ -184,7 +186,7 @@ export function NotificationBell({
 
   // Calculate badge state
   const activeWorkers = workers.filter(
-    (w) => w.status !== "done" && w.status !== "stuck"
+    (w) => w.status !== "done" && w.status !== "stuck",
   );
   const stuckWorkers = workers.filter((w) => w.status === "stuck");
   const hasStuck = stuckWorkers.length > 0;
@@ -209,11 +211,10 @@ export function NotificationBell({
     })
     .slice(0, 5);
 
-  const handleWorkerSelect = (taskId: string) => {
+  const handleWorkerSelect = (_taskId: string) => {
     // Close popover and navigate or open modal
     setOpen(false);
-    // Navigation would be handled by parent or via router
-    console.log("Selected worker task:", taskId);
+    // TODO: Navigation would be handled by parent or via router
   };
 
   return (
@@ -242,7 +243,7 @@ export function NotificationBell({
                 "transition-colors",
                 hasStuck
                   ? "bg-destructive text-destructive-foreground"
-                  : "bg-amber-500 text-white"
+                  : "bg-amber-500 text-white",
               )}
             >
               {hasStuck ? "!" : activeCount}
@@ -261,7 +262,7 @@ export function NotificationBell({
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
             "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",
-            "data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2"
+            "data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           )}
         >
           {/* Header */}
@@ -300,7 +301,7 @@ export function NotificationBell({
               className={cn(
                 "flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg",
                 "text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                "transition-colors"
+                "transition-colors",
               )}
               onClick={() => setOpen(false)}
             >
@@ -317,7 +318,11 @@ export function NotificationBell({
 /**
  * Empty state variant for when SSE is not connected
  */
-export function NotificationBellSkeleton({ className }: { className?: string }) {
+export function NotificationBellSkeleton({
+  className,
+}: {
+  className?: string;
+}) {
   return (
     <Button
       variant="ghost"

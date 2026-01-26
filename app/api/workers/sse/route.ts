@@ -4,6 +4,7 @@ import type { TaskStatus, Execution, ProcessingPhase } from "@/lib/db/schema";
 import { eq, and, or, inArray, desc, isNotNull, sql } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
 import Redis from "ioredis";
+import { apiLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,8 +49,8 @@ async function getInitialWorkers(userId: string) {
         // Any task currently processing (background job running)
         isNotNull(tasks.processingPhase),
         // Failed tasks
-        eq(tasks.status, "stuck" as TaskStatus)
-      )
+        eq(tasks.status, "stuck" as TaskStatus),
+      ),
     ),
     orderBy: [desc(tasks.updatedAt)],
     limit: 50,
@@ -65,7 +66,9 @@ async function getInitialWorkers(userId: string) {
   if (taskIds.length > 0) {
     // Use DISTINCT ON to get only the latest execution per task
     // Format array as PostgreSQL array literal for ANY operator
-    const taskIdsArray = sql.raw(`ARRAY[${taskIds.map(id => `'${id}'`).join(',')}]::uuid[]`);
+    const taskIdsArray = sql.raw(
+      `ARRAY[${taskIds.map((id) => `'${id}'`).join(",")}]::uuid[]`,
+    );
     const latestExecutions = await db.execute<Execution>(sql`
       SELECT DISTINCT ON (task_id) *
       FROM executions
@@ -90,10 +93,14 @@ async function getInitialWorkers(userId: string) {
       // Provide defaults for tasks that just started processing (race condition fix)
       if (!task.processingProgress || task.processingProgress === 0) {
         progress = 5; // Show minimal progress to indicate processing started
-        currentAction = task.processingStatusText || getDefaultStatusText(task.processingPhase);
+        currentAction =
+          task.processingStatusText ||
+          getDefaultStatusText(task.processingPhase);
       } else {
         progress = task.processingProgress;
-        currentAction = task.processingStatusText || getDefaultStatusText(task.processingPhase);
+        currentAction =
+          task.processingStatusText ||
+          getDefaultStatusText(task.processingPhase);
       }
     } else {
       // Use status-based progress for non-processing tasks
@@ -118,7 +125,9 @@ async function getInitialWorkers(userId: string) {
           progress = 100;
           break;
         case "stuck":
-          progress = execution?.iteration ? Math.min(60 + execution.iteration * 5, 95) : 50;
+          progress = execution?.iteration
+            ? Math.min(60 + execution.iteration * 5, 95)
+            : 50;
           break;
       }
     }
@@ -168,10 +177,10 @@ export async function GET() {
           timestamp: new Date().toISOString(),
         };
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(initialEvent)}\n\n`)
+          encoder.encode(`data: ${JSON.stringify(initialEvent)}\n\n`),
         );
       } catch (error) {
-        console.error("Error fetching initial workers:", error);
+        apiLogger.error({ error }, "Error fetching initial workers");
       }
 
       // Set up Redis subscription for real-time updates
@@ -192,16 +201,16 @@ export async function GET() {
               controller.enqueue(encoder.encode(`data: ${message}\n\n`));
             } catch (error) {
               // Stream may be closed
-              console.error("Error sending SSE message:", error);
+              apiLogger.error({ error }, "Error sending SSE message");
             }
           }
         });
 
         redis.on("error", (error) => {
-          console.error("Redis subscription error:", error);
+          apiLogger.error({ error }, "Redis subscription error");
         });
       } catch (error) {
-        console.error("Failed to set up Redis subscription:", error);
+        apiLogger.error({ error }, "Failed to set up Redis subscription");
         // Fall back to polling-style updates with exponential backoff
         let pollDelay = 5000; // Start at 5s
         const maxDelay = 30000; // Cap at 30s
@@ -217,10 +226,10 @@ export async function GET() {
               timestamp: new Date().toISOString(),
             };
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+              encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
             );
           } catch (err) {
-            console.error("Polling error:", err);
+            apiLogger.error({ err }, "Polling error");
           }
           // Increase delay with exponential backoff, capped at maxDelay
           pollDelay = Math.min(pollDelay * backoffMultiplier, maxDelay);

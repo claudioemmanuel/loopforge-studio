@@ -3,6 +3,7 @@ import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
 import Redis from "ioredis";
+import { apiLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,10 +74,10 @@ export async function GET(request: Request, { params }: RouteParams) {
         });
 
         redis.on("error", (error) => {
-          console.error("Redis subscription error:", error);
+          apiLogger.error({ error }, "Redis subscription error");
         });
       } catch (error) {
-        console.error("Failed to set up Redis subscription:", error);
+        apiLogger.error({ error }, "Failed to set up Redis subscription");
       }
 
       // Send heartbeat every 30 seconds to keep connection alive

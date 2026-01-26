@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { APIError, Errors } from "./api-error";
 import type { APIErrorResponse } from "./types";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * Create a NextResponse from an APIError
@@ -16,15 +17,20 @@ export function errorResponse(error: APIError): NextResponse<APIErrorResponse> {
 export function handleError(error: unknown): NextResponse<APIErrorResponse> {
   // If already an APIError, use it directly
   if (error instanceof APIError) {
-    console.error(`[API Error] ${error.code}: ${error.message}`, {
-      provider: error.provider,
-      originalError: error.originalError,
-    });
+    apiLogger.error(
+      {
+        code: error.code,
+        message: error.message,
+        provider: error.provider,
+        originalError: error.originalError,
+      },
+      "API error",
+    );
     return errorResponse(error);
   }
 
   // Log the original error for debugging
-  console.error("[Unhandled Error]", error);
+  apiLogger.error({ error }, "Unhandled error");
 
   // Convert to generic server error
   const apiError = Errors.serverError(error);

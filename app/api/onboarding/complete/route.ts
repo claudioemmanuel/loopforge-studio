@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db, users, repos } from "@/lib/db";
 import { encryptApiKey } from "@/lib/crypto";
 import { eq } from "drizzle-orm";
+import { apiLogger } from "@/lib/logger";
 
 interface GitHubRepo {
   id: number;
@@ -13,11 +14,15 @@ interface GitHubRepo {
   clone_url: string;
 }
 
+type Provider = "anthropic" | "openai" | "gemini";
+
 interface CompleteOnboardingRequest {
   // Support both single repo (legacy) and multiple repos
   repo?: GitHubRepo;
   repos?: GitHubRepo[];
   apiKey: string; // Required for BYOK (only mode now)
+  provider?: Provider; // Optional, defaults to "anthropic" for backward compatibility
+  model?: string; // Optional, uses default for provider if not specified
 }
 
 export async function POST(request: Request) {
@@ -29,7 +34,13 @@ export async function POST(request: Request) {
 
   try {
     const body: CompleteOnboardingRequest = await request.json();
-    const { repo, repos: reposList, apiKey } = body;
+    const {
+      repo,
+      repos: reposList,
+      apiKey,
+      provider = "anthropic",
+      model,
+    } = body;
 
     // Normalize to array (support both single repo and multiple repos)
     const reposToAdd = reposList || (repo ? [repo] : []);
@@ -37,7 +48,7 @@ export async function POST(request: Request) {
     if (reposToAdd.length === 0) {
       return NextResponse.json(
         { error: "At least one repository is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -45,20 +56,63 @@ export async function POST(request: Request) {
     if (!apiKey) {
       return NextResponse.json(
         { error: "API key is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Update user with encrypted API key
+    // Encrypt the API key
     const encrypted = encryptApiKey(apiKey);
+
+    // Build the update object based on the selected provider
+    type UserUpdateFields = {
+      onboardingCompleted: boolean;
+      updatedAt: Date;
+      preferredProvider: "anthropic" | "openai" | "gemini";
+      encryptedApiKey?: string;
+      apiKeyIv?: string;
+      openaiEncryptedApiKey?: string;
+      openaiApiKeyIv?: string;
+      geminiEncryptedApiKey?: string;
+      geminiApiKeyIv?: string;
+      preferredAnthropicModel?: string;
+      preferredOpenaiModel?: string;
+      preferredGeminiModel?: string;
+    };
+
+    const updateFields: UserUpdateFields = {
+      onboardingCompleted: true,
+      updatedAt: new Date(),
+      preferredProvider: provider,
+    };
+
+    // Store API key in the correct provider-specific column
+    switch (provider) {
+      case "anthropic":
+        updateFields.encryptedApiKey = encrypted.encrypted;
+        updateFields.apiKeyIv = encrypted.iv;
+        if (model) {
+          updateFields.preferredAnthropicModel = model;
+        }
+        break;
+      case "openai":
+        updateFields.openaiEncryptedApiKey = encrypted.encrypted;
+        updateFields.openaiApiKeyIv = encrypted.iv;
+        if (model) {
+          updateFields.preferredOpenaiModel = model;
+        }
+        break;
+      case "gemini":
+        updateFields.geminiEncryptedApiKey = encrypted.encrypted;
+        updateFields.geminiApiKeyIv = encrypted.iv;
+        if (model) {
+          updateFields.preferredGeminiModel = model;
+        }
+        break;
+    }
+
     await db
       .update(users)
-      .set({
-        encryptedApiKey: encrypted.encrypted,
-        apiKeyIv: encrypted.iv,
-        onboardingCompleted: true,
-        updatedAt: new Date(),
-      })
+      .set(updateFields)
       .where(eq(users.id, session.user.id));
 
     // Create repo records using atomic upsert to prevent race condition duplicates
@@ -107,10 +161,10 @@ export async function POST(request: Request) {
       success: true,
     });
   } catch (error) {
-    console.error("Error completing onboarding:", error);
+    apiLogger.error({ error }, "Error completing onboarding");
     return NextResponse.json(
       { error: "Failed to complete onboarding" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

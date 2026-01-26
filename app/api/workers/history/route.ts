@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db, tasks, repos, workerJobs, workerEvents } from "@/lib/db";
 import type { WorkerJobPhase, WorkerJobStatus } from "@/lib/db/schema";
 import { eq, and, inArray, desc, asc, sql } from "drizzle-orm";
+import { apiLogger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -54,7 +55,11 @@ export async function GET(request: Request) {
 
   // Parse query parameters
   const phase = searchParams.get("phase") as WorkerJobPhase | "all" | null;
-  const status = searchParams.get("status") as "completed" | "failed" | "all" | null;
+  const status = searchParams.get("status") as
+    | "completed"
+    | "failed"
+    | "all"
+    | null;
   const search = searchParams.get("search");
   const repoId = searchParams.get("repoId");
   const page = parseInt(searchParams.get("page") || "1", 10);
@@ -70,7 +75,14 @@ export async function GET(request: Request) {
     if (userRepos.length === 0) {
       return NextResponse.json({
         items: [],
-        stats: { total: 0, completed: 0, failed: 0, brainstorming: 0, planning: 0, executing: 0 },
+        stats: {
+          total: 0,
+          completed: 0,
+          failed: 0,
+          brainstorming: 0,
+          planning: 0,
+          executing: 0,
+        },
         page,
         hasMore: false,
       });
@@ -88,7 +100,14 @@ export async function GET(request: Request) {
     if (userTasks.length === 0) {
       return NextResponse.json({
         items: [],
-        stats: { total: 0, completed: 0, failed: 0, brainstorming: 0, planning: 0, executing: 0 },
+        stats: {
+          total: 0,
+          completed: 0,
+          failed: 0,
+          brainstorming: 0,
+          planning: 0,
+          executing: 0,
+        },
         page,
         hasMore: false,
       });
@@ -118,7 +137,9 @@ export async function GET(request: Request) {
 
     // Filter by repo
     if (repoId && repoIds.includes(repoId)) {
-      const repoTaskIds = userTasks.filter((t) => t.repoId === repoId).map((t) => t.id);
+      const repoTaskIds = userTasks
+        .filter((t) => t.repoId === repoId)
+        .map((t) => t.id);
       if (repoTaskIds.length > 0) {
         conditions.push(inArray(workerJobs.taskId, repoTaskIds));
       }
@@ -135,7 +156,14 @@ export async function GET(request: Request) {
         // No matching tasks, return empty
         return NextResponse.json({
           items: [],
-          stats: { total: 0, completed: 0, failed: 0, brainstorming: 0, planning: 0, executing: 0 },
+          stats: {
+            total: 0,
+            completed: 0,
+            failed: 0,
+            brainstorming: 0,
+            planning: 0,
+            executing: 0,
+          },
           page,
           hasMore: false,
         });
@@ -172,7 +200,9 @@ export async function GET(request: Request) {
 
     // Apply same filters to stats (except pagination)
     if (repoId && repoIds.includes(repoId)) {
-      const repoTaskIds = userTasks.filter((t) => t.repoId === repoId).map((t) => t.id);
+      const repoTaskIds = userTasks
+        .filter((t) => t.repoId === repoId)
+        .map((t) => t.id);
       if (repoTaskIds.length > 0) {
         statsConditions.push(inArray(workerJobs.taskId, repoTaskIds));
       }
@@ -187,16 +217,17 @@ export async function GET(request: Request) {
       }
     }
 
-    const statsResult = await db.select({
-      total: sql<number>`count(*)`,
-      completed: sql<number>`count(*) filter (where ${workerJobs.status} = 'completed')`,
-      failed: sql<number>`count(*) filter (where ${workerJobs.status} = 'failed')`,
-      brainstorming: sql<number>`count(*) filter (where ${workerJobs.phase} = 'brainstorming')`,
-      planning: sql<number>`count(*) filter (where ${workerJobs.phase} = 'planning')`,
-      executing: sql<number>`count(*) filter (where ${workerJobs.phase} = 'executing')`,
-    })
-    .from(workerJobs)
-    .where(and(...statsConditions));
+    const statsResult = await db
+      .select({
+        total: sql<number>`count(*)`,
+        completed: sql<number>`count(*) filter (where ${workerJobs.status} = 'completed')`,
+        failed: sql<number>`count(*) filter (where ${workerJobs.status} = 'failed')`,
+        brainstorming: sql<number>`count(*) filter (where ${workerJobs.phase} = 'brainstorming')`,
+        planning: sql<number>`count(*) filter (where ${workerJobs.phase} = 'planning')`,
+        executing: sql<number>`count(*) filter (where ${workerJobs.phase} = 'executing')`,
+      })
+      .from(workerJobs)
+      .where(and(...statsConditions));
 
     const stats: HistoryStats = {
       total: Number(statsResult[0]?.total || 0),
@@ -215,7 +246,9 @@ export async function GET(request: Request) {
       // Calculate duration
       let duration: number | undefined;
       if (job.startedAt && job.completedAt) {
-        duration = Math.floor((job.completedAt.getTime() - job.startedAt.getTime()) / 1000);
+        duration = Math.floor(
+          (job.completedAt.getTime() - job.startedAt.getTime()) / 1000,
+        );
       }
 
       return {
@@ -248,10 +281,10 @@ export async function GET(request: Request) {
       hasMore: offset + items.length < totalCount,
     });
   } catch (error) {
-    console.error("Error fetching worker history:", error);
+    apiLogger.error({ error }, "Error fetching worker history");
     return NextResponse.json(
       { error: "Failed to fetch history" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

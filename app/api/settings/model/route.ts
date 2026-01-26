@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { apiLogger } from "@/lib/logger";
 
 // Valid models per provider
 const VALID_MODELS = {
@@ -10,16 +11,8 @@ const VALID_MODELS = {
     "claude-opus-4-20250514",
     "claude-haiku-3-20240307",
   ],
-  openai: [
-    "gpt-4o",
-    "gpt-4-turbo",
-    "gpt-4o-mini",
-  ],
-  gemini: [
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-  ],
+  openai: ["gpt-4o", "gpt-4-turbo", "gpt-4o-mini"],
+  gemini: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
 } as const;
 
 type Provider = keyof typeof VALID_MODELS;
@@ -38,16 +31,20 @@ export async function POST(request: NextRequest) {
     // Validate provider
     if (!provider || !VALID_MODELS[provider]) {
       return NextResponse.json(
-        { error: "Invalid provider. Must be one of: anthropic, openai, gemini" },
-        { status: 400 }
+        {
+          error: "Invalid provider. Must be one of: anthropic, openai, gemini",
+        },
+        { status: 400 },
       );
     }
 
     // Validate model for the provider
     if (!model || !VALID_MODELS[provider].includes(model as never)) {
       return NextResponse.json(
-        { error: `Invalid model for ${provider}. Valid models: ${VALID_MODELS[provider].join(", ")}` },
-        { status: 400 }
+        {
+          error: `Invalid model for ${provider}. Valid models: ${VALID_MODELS[provider].join(", ")}`,
+        },
+        { status: 400 },
       );
     }
 
@@ -61,17 +58,14 @@ export async function POST(request: NextRequest) {
       updateData.preferredGeminiModel = model;
     }
 
-    await db
-      .update(users)
-      .set(updateData)
-      .where(eq(users.id, session.user.id));
+    await db.update(users).set(updateData).where(eq(users.id, session.user.id));
 
     return NextResponse.json({ success: true, provider, model });
   } catch (error) {
-    console.error("Failed to update model preference:", error);
+    apiLogger.error({ error }, "Failed to update model preference");
     return NextResponse.json(
       { error: "Failed to update model preference" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

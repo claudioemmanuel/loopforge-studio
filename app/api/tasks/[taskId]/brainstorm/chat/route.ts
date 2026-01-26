@@ -17,10 +17,11 @@ import {
   getPreferredModel,
 } from "@/lib/api";
 import { decryptApiKey } from "@/lib/crypto";
+import { apiLogger } from "@/lib/logger";
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;
@@ -36,7 +37,7 @@ export async function POST(
   if (!message && !choice) {
     return NextResponse.json(
       { error: "Message or choice is required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -53,7 +54,7 @@ export async function POST(
   // Get existing conversation or restore from database/re-initialize
   let conversation = getConversation(taskId);
   if (!conversation) {
-    console.log("[brainstorm/chat] No conversation in memory, checking database...");
+    apiLogger.debug({ taskId }, "No conversation in memory, checking database");
 
     // Re-create conversation from task context
     const repoContext: RepoContext = {
@@ -64,7 +65,7 @@ export async function POST(
 
     // Try to restore from database first
     if (task.brainstormConversation) {
-      console.log("[brainstorm/chat] Found persisted conversation, restoring...");
+      apiLogger.debug({ taskId }, "Found persisted conversation, restoring");
       try {
         const persistedMessages = JSON.parse(task.brainstormConversation);
         let existingBrainstorm: ExistingBrainstormContext | undefined;
@@ -84,13 +85,16 @@ export async function POST(
         };
         setConversation(taskId, conversation);
       } catch {
-        console.log("[brainstorm/chat] Failed to parse persisted conversation, creating new");
+        apiLogger.warn(
+          { taskId },
+          "Failed to parse persisted conversation, creating new",
+        );
       }
     }
 
     // If still no conversation, create a fresh one
     if (!conversation) {
-      console.log("[brainstorm/chat] Creating new conversation...");
+      apiLogger.debug({ taskId }, "Creating new conversation");
       let existingBrainstorm: ExistingBrainstormContext | undefined;
       if (task.brainstormResult) {
         try {
@@ -136,15 +140,18 @@ export async function POST(
     const client = await createAIClient(aiProvider, apiKey, model);
 
     // Build user message
-    const userMessage = choice
-      ? `I choose: ${choice}`
-      : message || "";
+    const userMessage = choice ? `I choose: ${choice}` : message || "";
 
     // Add user message to conversation
     conversation.messages.push({ role: "user", content: userMessage });
 
     // Get AI response (pass task title to keep AI focused on the original task)
-    const response = await chatWithAI(client, conversation, userMessage, task.title);
+    const response = await chatWithAI(
+      client,
+      conversation,
+      userMessage,
+      task.title,
+    );
 
     // Add AI response to conversation
     conversation.messages.push({
@@ -162,7 +169,8 @@ export async function POST(
 
     // Persist to database - MUST await to prevent data loss
     // Previous fire-and-forget pattern could lose conversation on server restart
-    await db.update(tasks)
+    await db
+      .update(tasks)
       .set({
         brainstormConversation: JSON.stringify(conversation.messages),
         brainstormResult: conversation.currentPreview
@@ -179,7 +187,7 @@ export async function POST(
       suggestComplete: response.suggestComplete,
     });
   } catch (error) {
-    console.error("Brainstorm chat error:", error);
+    apiLogger.error({ error }, "Brainstorm chat error");
     return handleError(error);
   }
 }
