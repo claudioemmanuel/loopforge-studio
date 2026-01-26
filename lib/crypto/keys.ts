@@ -4,13 +4,14 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 
-// Get encryption key from environment or generate a default for development
+// Get encryption key from environment - required for all environments
 function getEncryptionKey(): Buffer {
   const key = process.env.ENCRYPTION_KEY;
   if (!key) {
-    // In development, use a deterministic key (NOT for production!)
-    console.warn("ENCRYPTION_KEY not set, using development key");
-    return crypto.createHash("sha256").update("loopforge-dev-key").digest();
+    throw new Error(
+      "ENCRYPTION_KEY environment variable is not set. " +
+        "Generate a secure 32-byte hex key with: openssl rand -hex 32"
+    );
   }
   // Expect a hex-encoded 32-byte key
   return Buffer.from(key, "hex");

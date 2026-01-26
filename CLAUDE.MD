@@ -1,10 +1,10 @@
-# Claude Context for Loopforge
+# Claude Context for Loopforge Studio
 
-This document provides context and guidelines for Claude when working on the Loopforge codebase.
+This document provides context and guidelines for Claude when working on the Loopforge Studio codebase.
 
 ## Project Overview
 
-Loopforge is an AI-powered autonomous development platform that connects AI coding agents (like Ralph) to GitHub repositories. Users create tasks through a Kanban interface, and AI agents brainstorm, plan, and execute code changes, pushing commits directly to GitHub branches.
+Loopforge Studio is an AI-powered autonomous development platform that connects AI coding agents (like Ralph) to GitHub repositories. Users create tasks through a Kanban interface, and AI agents brainstorm, plan, and execute code changes, pushing commits directly to GitHub branches.
 
 ## Key Architecture Decisions
 
@@ -29,7 +29,7 @@ Loopforge is an AI-powered autonomous development platform that connects AI codi
 app/
 ├── (auth)/           # Authentication pages (login, onboarding, setup)
 ├── (dashboard)/      # Main app (analytics, repos, settings, workers)
-└── api/              # API routes (tasks, repos, github, analytics, stripe, workers)
+└── api/              # API routes (tasks, repos, github, analytics, workers)
 
 lib/
 ├── api/              # Shared API utilities
@@ -94,12 +94,10 @@ __tests__/
 ## Database Schema (lib/db/schema.ts)
 
 ### Key Tables
-- **users**: User accounts (linked to GitHub via OAuth)
+- **users**: User accounts (linked to GitHub via OAuth), includes encrypted AI provider API keys
 - **repos**: Connected GitHub repositories
 - **tasks**: Individual tasks on the Kanban board
 - **executionLogs**: Detailed logs of AI execution steps
-- **subscriptions**: Stripe subscription data
-- **encryptedKeys**: User API keys for AI providers (encrypted)
 
 ### Task Lifecycle Fields
 - `status`: todo, brainstorming, planning, ready, executing, done, stuck
@@ -197,9 +195,8 @@ Users can choose their preferred provider and model:
 - **OpenAI**: gpt-4o, gpt-4-turbo, gpt-4o-mini
 - **Google**: gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash
 
-### Billing Modes
-- **BYOK (Bring Your Own Key)**: User provides their own API key
-- **Managed**: User subscribes and uses platform-provided credits (not yet implemented)
+### API Key Model
+Loopforge uses BYOK (Bring Your Own Key) - users provide their own AI provider API keys. Keys are encrypted at rest using AES-256-GCM.
 
 ### The Ralph Loop (lib/ralph/loop.ts)
 The core autonomous agent that executes tasks:
@@ -286,9 +283,7 @@ ENCRYPTION_KEY=<generate with openssl rand -hex 32>
 ```
 
 ### Optional
-- `APP_ANTHROPIC_API_KEY`: For managed billing (not user BYOK)
-- `STRIPE_*`: For subscription billing
-- `NODE_ENV`: production, development, test
+- `NODE_ENV`: development, test (defaults to development)
 
 ## Development Workflow
 

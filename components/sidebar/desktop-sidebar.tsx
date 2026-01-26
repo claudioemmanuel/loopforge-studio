@@ -99,7 +99,7 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
             <LoopforgeIcon size={32} />
             {!collapsed && (
               <span className="font-serif font-bold text-lg">
-                <span className="text-primary">Loop</span>forge
+                <span className="text-primary">Loopforge</span> Studio
               </span>
             )}
           </Link>

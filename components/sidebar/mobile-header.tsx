@@ -15,7 +15,7 @@ export function MobileHeader() {
       <Link href="/dashboard" className="flex items-center gap-2">
         <LoopforgeIcon size={28} />
         <span className="font-serif font-bold text-lg">
-          <span className="text-primary">Loop</span>forge
+          <span className="text-primary">Loopforge</span> Studio
         </span>
       </Link>
       <div className="flex items-center gap-1">

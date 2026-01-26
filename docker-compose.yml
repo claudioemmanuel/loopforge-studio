@@ -1,17 +1,34 @@
+# ===========================================
+# Loopforge Studio Docker Compose - Simple Setup
+# ===========================================
+# One-liner setup for open-source users:
+#
+#   git clone https://github.com/yourorg/loopforge
+#   cd loopforge
+#   cp .env.example .env
+#   # Edit .env to add GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET
+#   ./scripts/init-secrets.sh
+#   docker compose up
+#
+# For development with hot reload, use docker-compose.dev.yml instead:
+#   docker compose -f docker-compose.dev.yml up
+#
+# ===========================================
+
 services:
   # ===========================================
   # PostgreSQL - Primary database
   # ===========================================
   postgres:
     image: postgres:16-alpine
-    container_name: loopforge-postgres
+    container_name: loopforge-studio-postgres
     restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: loopforge
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -20,17 +37,15 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - loopforge-network
+      - loopforge
 
   # ===========================================
   # Redis - Job queue backend
   # ===========================================
   redis:
     image: redis:7-alpine
-    container_name: loopforge-redis
+    container_name: loopforge-studio-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -39,7 +54,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - loopforge-network
+      - loopforge
 
   # ===========================================
   # Next.js Web Application
@@ -48,10 +63,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: loopforge-web
+    container_name: loopforge-studio-web
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/loopforge
@@ -67,22 +82,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     networks:
-      - loopforge-network
+      - loopforge
 
   # ===========================================
-  # BullMQ Execution Worker
+  # BullMQ Worker - Task execution
   # ===========================================
   worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    container_name: loopforge-worker
+    container_name: loopforge-studio-worker
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -97,29 +107,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - loopforge-network
-
-  # ===========================================
-  # Bull Board - Job queue dashboard (optional)
-  # ===========================================
-  bull-board:
-    image: deadly0/bull-board
-    container_name: loopforge-bull-board
-    restart: unless-stopped
-    ports:
-      - "3001:3000"
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_USE_TLS=false
-      - BULL_PREFIX=bull
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - loopforge-network
-    profiles:
-      - monitoring
+      - loopforge
 
 volumes:
   postgres-data:
@@ -130,5 +118,5 @@ volumes:
     driver: local
 
 networks:
-  loopforge-network:
+  loopforge:
     driver: bridge

@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { users, repos, userSubscriptions, subscriptionPlans, usageRecords } from "@/lib/db/schema";
-import { eq, and, gte, lte, count } from "drizzle-orm";
+import { users, repos } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { SettingsProvider } from "./settings-context";
 
 export default async function SettingsLayout({
@@ -34,38 +34,6 @@ export default async function SettingsLayout({
     })
     .from(repos)
     .where(eq(repos.userId, session.user.id));
-
-  // Fetch subscription if exists
-  let subscriptionData = null;
-  const subscription = await db.query.userSubscriptions.findFirst({
-    where: eq(userSubscriptions.userId, session.user.id),
-    with: {
-      plan: true,
-    },
-  });
-
-  if (subscription) {
-    // Get usage for current period
-    const usageResult = await db
-      .select({
-        taskCount: count(),
-      })
-      .from(usageRecords)
-      .where(
-        and(
-          eq(usageRecords.userId, session.user.id),
-          gte(usageRecords.periodStart, subscription.currentPeriodStart),
-          lte(usageRecords.periodStart, subscription.currentPeriodEnd)
-        )
-      );
-
-    subscriptionData = {
-      plan: subscription.plan.displayName,
-      usage: usageResult[0]?.taskCount ?? 0,
-      limit: subscription.plan.taskLimit,
-      nextBilling: subscription.currentPeriodEnd.toLocaleDateString(),
-    };
-  }
 
   // Mask API keys if present
   let apiKeyMasked = null;
@@ -118,7 +86,6 @@ export default async function SettingsLayout({
       // No providers configured
       return null;
     })(),
-    subscription: subscriptionData,
     github: {
       username: user.username,
       connectedAt: user.createdAt.toLocaleDateString("en-US", {

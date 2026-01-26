@@ -3,12 +3,12 @@
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
 
 interface TokenUsageChartProps {
-  data: {
+  data?: {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
     avgPerTask: number;
-  };
+  } | null;
 }
 
 function formatTokens(num: number): string {
@@ -18,9 +18,11 @@ function formatTokens(num: number): string {
 }
 
 export function TokenUsageChart({ data }: TokenUsageChartProps) {
+  const safeData = data ?? { inputTokens: 0, outputTokens: 0, totalTokens: 0, avgPerTask: 0 };
+
   const chartData = [
-    { name: "Input", value: data.inputTokens },
-    { name: "Output", value: data.outputTokens },
+    { name: "Input", value: safeData.inputTokens },
+    { name: "Output", value: safeData.outputTokens },
   ];
 
   return (
@@ -38,11 +40,11 @@ export function TokenUsageChart({ data }: TokenUsageChartProps) {
       <div className="mt-4 pt-4 border-t space-y-1 text-sm">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Total</span>
-          <span className="font-medium">{formatTokens(data.totalTokens)} tokens</span>
+          <span className="font-medium">{formatTokens(safeData.totalTokens)} tokens</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Avg per task</span>
-          <span className="font-medium">{formatTokens(data.avgPerTask)} tokens</span>
+          <span className="font-medium">{formatTokens(safeData.avgPerTask)} tokens</span>
         </div>
       </div>
     </div>

@@ -1,144 +1,77 @@
-# ===========================================
 # Dependencies
-# ===========================================
 node_modules/
-/.pnp
+.pnp
 .pnp.js
-.yarn/install-state.gz
+.yarn/
 
-# ===========================================
-# Next.js build outputs
-# ===========================================
-/.next/
-/out/
-/build/
-.next
+# Next.js
+.next/
+out/
+build/
+dist/
 
-# ===========================================
-# Production
-# ===========================================
-/dist/
-
-# ===========================================
-# Environment files
-# ===========================================
+# Environment
 .env
-.env.local
-.env.development
-.env.development.local
-.env.test
-.env.test.local
-.env.production
-.env.production.local
-.env*.local
+.env.*
+!.env.example
 
-# ===========================================
 # TypeScript
-# ===========================================
 *.tsbuildinfo
-next-env.d.ts
 
-# ===========================================
 # Testing
-# ===========================================
-/coverage/
+coverage/
 .nyc_output/
-*.lcov
 test-results/
 playwright-report/
-playwright/.cache/
 
-# ===========================================
-# Database (Drizzle ORM / SQLite / PostgreSQL)
-# ===========================================
+# Database
 *.db
 *.db-journal
 *.sqlite
 *.sqlite3
-drizzle/meta/.snapshot.json
 
-# ===========================================
-# Redis / BullMQ
-# ===========================================
+# Redis
 dump.rdb
 *.rdb
 
-# ===========================================
-# Loopforge-specific
-# ===========================================
-# Cloned repositories for task execution
+# Loopforge
 /repos/
+/data/
 
-# ===========================================
-# IDE / Editor
-# ===========================================
+# IDE
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
 *.swp
 *.swo
 *~
-.project
-.classpath
-.settings/
 
-# ===========================================
-# OS generated files
-# ===========================================
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-Desktop.ini
 
-# ===========================================
-# Debug logs
-# ===========================================
+# Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-.pnpm-debug.log*
 
-# ===========================================
-# Security / Secrets
-# ===========================================
+# Secrets
 *.pem
 *.key
 *.crt
-*.p12
-*.pfx
 secrets/
 credentials.json
-service-account*.json
 
-# ===========================================
 # Docker
-# ===========================================
 docker-compose.override.yml
 .docker/
 
-# ===========================================
 # Vercel
-# ===========================================
 .vercel
 
-# ===========================================
-# Turbopack / Turborepo
-# ===========================================
-.turbo/
-
-# ===========================================
 # Misc
-# ===========================================
-*.log
+.turbo/
+.cache/
 *.tmp
 *.temp
 *.bak
-*.backup
-.cache/

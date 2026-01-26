@@ -1,4 +1,4 @@
-import { db, tasks, executions, usageRecords, repos } from "@/lib/db";
+import { db, tasks, executions, repos } from "@/lib/db";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { eachDayOfInterval, format } from "date-fns";
 
@@ -24,20 +24,6 @@ export interface TasksByStatus {
 export interface DailyCompletion {
   date: string;
   completed: number;
-}
-
-export interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  avgPerTask: number;
-}
-
-export interface CostBreakdown {
-  totalCents: number;
-  inputCostCents: number;
-  outputCostCents: number;
-  avgPerTaskCents: number;
 }
 
 export interface RepoActivity {
@@ -154,47 +140,6 @@ export async function getDailyCompletions(
     const dayStr = format(day, "yyyy-MM-dd");
     return { date: dayStr, completed: tasksByDate.get(dayStr) ?? 0 };
   });
-}
-
-export async function getTokenUsage(
-  userId: string,
-  dateRange: AnalyticsDateRange
-): Promise<TokenUsage> {
-  const records = await db.query.usageRecords.findMany({
-    where: and(
-      eq(usageRecords.userId, userId),
-      gte(usageRecords.createdAt, dateRange.start),
-      lte(usageRecords.createdAt, dateRange.end)
-    ),
-  });
-
-  const inputTokens = records.reduce((sum, r) => sum + r.inputTokens, 0);
-  const outputTokens = records.reduce((sum, r) => sum + r.outputTokens, 0);
-  const totalTokens = inputTokens + outputTokens;
-  const avgPerTask = records.length > 0 ? Math.round(totalTokens / records.length) : 0;
-
-  return { inputTokens, outputTokens, totalTokens, avgPerTask };
-}
-
-export async function getCostBreakdown(
-  userId: string,
-  dateRange: AnalyticsDateRange
-): Promise<CostBreakdown> {
-  const records = await db.query.usageRecords.findMany({
-    where: and(
-      eq(usageRecords.userId, userId),
-      gte(usageRecords.createdAt, dateRange.start),
-      lte(usageRecords.createdAt, dateRange.end)
-    ),
-  });
-
-  const totalCents = records.reduce((sum, r) => sum + r.costCents, 0);
-  // Approximate split (Claude pricing: input ~$3/M, output ~$15/M)
-  const inputCostCents = Math.round(totalCents * 0.4);
-  const outputCostCents = totalCents - inputCostCents;
-  const avgPerTaskCents = records.length > 0 ? Math.round(totalCents / records.length) : 0;
-
-  return { totalCents, inputCostCents, outputCostCents, avgPerTaskCents };
 }
 
 export async function getRepoActivity(

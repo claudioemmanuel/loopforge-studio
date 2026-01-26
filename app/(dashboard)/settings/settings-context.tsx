@@ -20,12 +20,6 @@ interface SettingsData {
     gemini: string;
   };
   preferredProvider?: "anthropic" | "openai" | "gemini" | null;
-  subscription?: {
-    plan: string;
-    usage: number;
-    limit: number;
-    nextBilling?: string;
-  } | null;
   github: {
     username: string;
     connectedAt: string;

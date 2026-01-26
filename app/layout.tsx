@@ -14,7 +14,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Loopforge - AI-Powered Development",
+  title: "Loopforge Studio - AI-Powered Development",
   description: "Visual Kanban interface for autonomous AI coding",
 };
 

@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, uuid, text, integer, boolean, timestamp, jsonb, varchar, uniqueIndex, unique } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, uuid, text, integer, boolean, timestamp, jsonb, varchar, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import type { ExecutionEventMetadata } from "@/lib/ralph/types";
 
@@ -34,17 +34,6 @@ export const executionEventTypeEnum = pgEnum("execution_event_type", [
   "complete",
   "stuck",
 ]);
-
-export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "yearly"]);
-
-export const subscriptionStatusEnum = pgEnum("subscription_status", [
-  "active",
-  "canceled",
-  "past_due",
-  "trialing",
-]);
-
-export const billingModeEnum = pgEnum("billing_mode", ["byok", "managed"]);
 
 export const aiProviderEnum = pgEnum("ai_provider", ["anthropic", "openai", "gemini"]);
 
@@ -101,8 +90,6 @@ export const users = pgTable("users", {
   preferredProvider: aiProviderEnum("preferred_provider").default("anthropic"),
   encryptedGithubToken: text("encrypted_github_token"),
   githubTokenIv: text("github_token_iv"),
-  billingMode: billingModeEnum("billing_mode"), // null until onboarding chooses
-  stripeCustomerId: text("stripe_customer_id"), // set when managed user creates Stripe customer
   onboardingCompleted: boolean("onboarding_completed").default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -215,68 +202,11 @@ export const workerEvents = pgTable("worker_events", {
 });
 
 // =============================================================================
-// Subscription Tables
-// =============================================================================
-
-// Subscription plans table
-export const subscriptionPlans = pgTable("subscription_plans", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull().unique(), // e.g., "pro", "team"
-  displayName: text("display_name").notNull(), // e.g., "Pro", "Team"
-  priceMonthly: integer("price_monthly").notNull(), // in cents, e.g., 3900 = $39
-  priceYearly: integer("price_yearly").notNull(), // in cents, e.g., 39000 = $390
-  stripePriceMonthly: text("stripe_price_monthly"), // Stripe price ID for monthly billing
-  stripePriceYearly: text("stripe_price_yearly"), // Stripe price ID for yearly billing
-  taskLimit: integer("task_limit").notNull(), // e.g., 30, 100
-  gracePercent: integer("grace_percent").notNull().default(10), // 10% overage allowed
-  features: jsonb("features").$type<string[]>(), // Feature list for display
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-// User subscriptions table
-export const userSubscriptions = pgTable("user_subscriptions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  planId: uuid("plan_id").notNull().references(() => subscriptionPlans.id),
-  stripeSubscriptionId: text("stripe_subscription_id"),
-  stripeCustomerId: text("stripe_customer_id"),
-  billingCycle: billingCycleEnum("billing_cycle").notNull().default("monthly"),
-  currentPeriodStart: timestamp("current_period_start").notNull(),
-  currentPeriodEnd: timestamp("current_period_end").notNull(),
-  status: subscriptionStatusEnum("status").notNull().default("active"),
-  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => [
-  // Prevent duplicate subscriptions from webhook retries (partial index for non-null values)
-  uniqueIndex("user_subscriptions_stripe_id_unique").on(table.stripeSubscriptionId),
-]);
-
-// Usage records table
-export const usageRecords = pgTable("usage_records", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
-  periodStart: timestamp("period_start").notNull(),
-  inputTokens: integer("input_tokens").notNull().default(0),
-  outputTokens: integer("output_tokens").notNull().default(0),
-  costCents: integer("cost_cents").notNull().default(0),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-// =============================================================================
 // Relations
 // =============================================================================
 
-export const usersRelations = relations(users, ({ many, one }) => ({
+export const usersRelations = relations(users, ({ many }) => ({
   repos: many(repos),
-  subscription: one(userSubscriptions, {
-    fields: [users.id],
-    references: [userSubscriptions.userId],
-  }),
-  usageRecords: many(usageRecords),
 }));
 
 export const reposRelations = relations(repos, ({ one, many }) => ({
@@ -293,7 +223,6 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
     references: [repos.id],
   }),
   executions: many(executions),
-  usageRecords: many(usageRecords),
   workerJobs: many(workerJobs),
 }));
 
@@ -327,32 +256,6 @@ export const workerEventsRelations = relations(workerEvents, ({ one }) => ({
   }),
 }));
 
-export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
-  subscriptions: many(userSubscriptions),
-}));
-
-export const userSubscriptionsRelations = relations(userSubscriptions, ({ one }) => ({
-  user: one(users, {
-    fields: [userSubscriptions.userId],
-    references: [users.id],
-  }),
-  plan: one(subscriptionPlans, {
-    fields: [userSubscriptions.planId],
-    references: [subscriptionPlans.id],
-  }),
-}));
-
-export const usageRecordsRelations = relations(usageRecords, ({ one }) => ({
-  user: one(users, {
-    fields: [usageRecords.userId],
-    references: [users.id],
-  }),
-  task: one(tasks, {
-    fields: [usageRecords.taskId],
-    references: [tasks.id],
-  }),
-}));
-
 // =============================================================================
 // Type Exports
 // =============================================================================
@@ -379,10 +282,6 @@ export type StatusHistoryEntry = {
   userId?: string;
 };
 
-// Billing mode values
-export const billingModes = ["byok", "managed"] as const;
-export type BillingMode = (typeof billingModes)[number];
-
 // AI provider values
 export const aiProviders = ["anthropic", "openai", "gemini"] as const;
 export type AiProvider = (typeof aiProviders)[number];
@@ -402,14 +301,6 @@ export type Execution = typeof executions.$inferSelect;
 export type NewExecution = typeof executions.$inferInsert;
 export type ExecutionEvent = typeof executionEvents.$inferSelect;
 export type NewExecutionEvent = typeof executionEvents.$inferInsert;
-
-// Subscription types
-export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
-export type NewSubscriptionPlan = typeof subscriptionPlans.$inferInsert;
-export type UserSubscription = typeof userSubscriptions.$inferSelect;
-export type NewUserSubscription = typeof userSubscriptions.$inferInsert;
-export type UsageRecord = typeof usageRecords.$inferSelect;
-export type NewUsageRecord = typeof usageRecords.$inferInsert;
 
 // Worker history types
 export const workerJobPhases = ["brainstorming", "planning", "executing"] as const;

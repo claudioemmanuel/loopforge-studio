@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, users, executions, userSubscriptions } from "@/lib/db";
-import { eq, and, gte, count, ne } from "drizzle-orm";
+import { db, tasks, users, executions } from "@/lib/db";
+import { eq, and } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
@@ -93,10 +93,6 @@ export async function POST(
   }
 
   // Determine AI provider and API key based on billing mode
-  let apiKey: string;
-  let finalProvider: AiProvider;
-  let finalModel: string;
-
   // Find a valid provider with an API key configured
   const findConfiguredProvider = (): AiProvider | null => {
     const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
@@ -116,97 +112,20 @@ export async function POST(
     return null;
   };
 
-  if (user.billingMode === "byok") {
-    // BYOK: User needs at least one API key configured
-    const configuredProvider = findConfiguredProvider();
-    if (!configuredProvider) {
-      return handleError(Errors.noProviderConfigured());
-    }
-
-    const encryptedKey = getProviderApiKey(user, configuredProvider);
-    if (!encryptedKey) {
-      return handleError(Errors.authError(configuredProvider));
-    }
-
-    apiKey = decryptApiKey(encryptedKey);
-    finalProvider = configuredProvider;
-    finalModel = getPreferredModel(user, configuredProvider);
-  } else if (user.billingMode === "managed") {
-    // Managed: Check subscription status
-    const subscription = await db.query.userSubscriptions.findFirst({
-      where: and(
-        eq(userSubscriptions.userId, session.user.id),
-        eq(userSubscriptions.status, "active")
-      ),
-      with: { plan: true },
-    });
-
-    if (!subscription) {
-      // No active subscription - return 402 with subscription URL
-      return NextResponse.json(
-        {
-          error: "Subscription required",
-          code: "SUBSCRIPTION_REQUIRED",
-          subscriptionUrl: "/subscription",
-        },
-        { status: 402 }
-      );
-    }
-
-    // Check usage against plan limits using COUNT() for efficiency
-    const periodStart = subscription.currentPeriodStart;
-    const [countResult] = await db
-      .select({ count: count() })
-      .from(executions)
-      .innerJoin(tasks, eq(executions.taskId, tasks.id))
-      .where(
-        and(
-          eq(tasks.repoId, task.repoId),
-          gte(executions.createdAt, periodStart),
-          eq(executions.status, "completed")
-        )
-      );
-
-    const taskCount = countResult.count;
-    const limit = subscription.plan.taskLimit;
-    const graceLimit = Math.floor(limit * (1 + subscription.plan.gracePercent / 100));
-
-    if (taskCount >= graceLimit) {
-      return NextResponse.json(
-        {
-          error: "Task limit exceeded",
-          code: "LIMIT_EXCEEDED",
-          usage: { current: taskCount, limit, graceLimit },
-          upgradeUrl: "/subscription",
-        },
-        { status: 402 }
-      );
-    }
-
-    // Use app's API key for managed users (always uses Anthropic)
-    const appApiKey = process.env.APP_ANTHROPIC_API_KEY;
-    if (!appApiKey) {
-      console.error("APP_ANTHROPIC_API_KEY not configured");
-      return NextResponse.json(
-        { error: "Service configuration error" },
-        { status: 500 }
-      );
-    }
-
-    apiKey = appApiKey;
-    finalProvider = "anthropic";
-    finalModel = getPreferredModel(user, "anthropic");
-  } else {
-    // User hasn't completed onboarding with billing mode
-    return NextResponse.json(
-      {
-        error: "Please complete onboarding",
-        code: "ONBOARDING_INCOMPLETE",
-        onboardingUrl: "/onboarding",
-      },
-      { status: 400 }
-    );
+  // BYOK only: User needs at least one API key configured
+  const configuredProvider = findConfiguredProvider();
+  if (!configuredProvider) {
+    return handleError(Errors.noProviderConfigured());
   }
+
+  const encryptedKey = getProviderApiKey(user, configuredProvider);
+  if (!encryptedKey) {
+    return handleError(Errors.authError(configuredProvider));
+  }
+
+  const apiKey = decryptApiKey(encryptedKey);
+  const finalProvider = configuredProvider;
+  const finalModel = getPreferredModel(user, configuredProvider);
 
   try {
     const branch = `loopforge/${task.id.slice(0, 8)}`;

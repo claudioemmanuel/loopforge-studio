@@ -19,8 +19,6 @@ import {
   Info,
   Shield,
   Key,
-  CreditCard,
-  Zap,
 } from "lucide-react";
 import { LoopforgeLogo } from "@/components/loopforge-logo";
 
@@ -43,15 +41,13 @@ interface GitHubRepo {
 }
 
 type FilterType = "all" | "public" | "private" | "org";
-type BillingMode = "byok" | "managed";
-type Step = "repos" | "billing" | "apikey";
+type Step = "repos" | "apikey";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("repos");
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [selectedRepos, setSelectedRepos] = useState<Set<number>>(new Set());
-  const [billingMode, setBillingMode] = useState<BillingMode | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetchingRepos, setFetchingRepos] = useState(true);
@@ -147,56 +143,15 @@ export default function OnboardingPage() {
     });
   };
 
-  const handleContinueToModeSelection = () => {
+  const handleContinueToApiKey = () => {
     if (selectedRepos.size === 0) {
       setError("Please select at least one repository");
       return;
     }
-    setStep("billing");
+    setStep("apikey");
   };
 
-  const handleSelectBillingMode = (mode: BillingMode) => {
-    setBillingMode(mode);
-    if (mode === "byok") {
-      setStep("apikey");
-    } else {
-      // For managed mode, complete onboarding directly
-      handleCompleteManaged();
-    }
-  };
-
-  const handleCompleteManaged = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const selectedReposList = repos.filter((r) => selectedRepos.has(r.id));
-
-      const res = await fetch("/api/onboarding/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          repos: selectedReposList,
-          billingMode: "managed",
-          apiKey: null,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to complete onboarding");
-      }
-
-      await res.json();
-      router.push("/dashboard?welcome=true");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCompleteBYOK = async () => {
+  const handleComplete = async () => {
     if (!apiKey) {
       setError("Please enter your Anthropic API key");
       return;
@@ -213,7 +168,6 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           repos: selectedReposList,
-          billingMode: "byok",
           apiKey,
         }),
       });
@@ -248,8 +202,7 @@ export default function OnboardingPage() {
 
   const getStepNumber = () => {
     if (step === "repos") return 1;
-    if (step === "billing") return 2;
-    return 3;
+    return 2;
   };
 
   // Show loading state while checking for existing repos
@@ -296,7 +249,7 @@ export default function OnboardingPage() {
             </div>
             <div className="h-px flex-1 bg-border" />
 
-            {/* Step 2: Billing Mode */}
+            {/* Step 2: API Key */}
             <div className="flex items-center gap-2">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
@@ -305,34 +258,17 @@ export default function OnboardingPage() {
                     : "bg-muted text-muted-foreground"
                 }`}
               >
-                {getStepNumber() > 2 ? <Check className="w-4 h-4" /> : "2"}
-              </div>
-              <span className="text-sm hidden sm:inline">Setup</span>
-            </div>
-            <div className="h-px flex-1 bg-border" />
-
-            {/* Step 3: API Key (only for BYOK) */}
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  getStepNumber() >= 3
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                3
+                2
               </div>
               <span className="text-sm hidden sm:inline">API Key</span>
             </div>
           </div>
           <CardTitle>
             {step === "repos" && "Select Repositories"}
-            {step === "billing" && "Choose How to Use Loopforge"}
             {step === "apikey" && "Configure Your API Key"}
           </CardTitle>
           <CardDescription>
             {step === "repos" && "Choose which repositories to connect with Loopforge"}
-            {step === "billing" && "Select your preferred billing option"}
             {step === "apikey" && "Enter your Anthropic API key for AI-powered coding"}
           </CardDescription>
         </CardHeader>
@@ -475,7 +411,7 @@ export default function OnboardingPage() {
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
-                  <Button onClick={handleContinueToModeSelection} disabled={selectedRepos.size === 0}>
+                  <Button onClick={handleContinueToApiKey} disabled={selectedRepos.size === 0}>
                     Continue
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
@@ -484,104 +420,7 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 2: Billing Mode Selection */}
-          {step === "billing" && (
-            <div className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {/* BYOK Option */}
-                <button
-                  onClick={() => handleSelectBillingMode("byok")}
-                  disabled={loading}
-                  className="p-6 text-left rounded-xl border-2 hover:border-primary/50 hover:bg-muted/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-950 flex items-center justify-center">
-                      <Key className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">Bring Your Own Key</h3>
-                      <p className="text-sm text-green-600 dark:text-green-400 font-medium">Free forever</p>
-                    </div>
-                  </div>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Use your own Anthropic API key</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Pay only for API usage (~$0.01-0.10/task)</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Unlimited tasks</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Full control over your API spend</span>
-                    </li>
-                  </ul>
-                </button>
-
-                {/* Managed Option */}
-                <button
-                  onClick={() => handleSelectBillingMode("managed")}
-                  disabled={loading}
-                  className="p-6 text-left rounded-xl border-2 hover:border-primary/50 hover:bg-muted/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed relative"
-                >
-                  <div className="absolute -top-2 -right-2 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-medium rounded-full">
-                    Simple
-                  </div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-950 flex items-center justify-center">
-                      <CreditCard className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">Managed Subscription</h3>
-                      <p className="text-sm text-muted-foreground">Starting at $39/mo</p>
-                    </div>
-                  </div>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <Zap className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                      <span>No API key needed - we handle it</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Zap className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                      <span>Fixed monthly pricing</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Zap className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                      <span>Pro: 30 tasks/mo | Team: 100 tasks/mo</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <Zap className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                      <span>Pay when you run your first task</span>
-                    </li>
-                  </ul>
-                </button>
-              </div>
-
-              {loading && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">Setting up your account...</span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between pt-4 border-t">
-                <Button variant="ghost" onClick={() => setStep("repos")} disabled={loading}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-                <div className="text-sm text-muted-foreground">
-                  {selectedRepos.size} {selectedRepos.size === 1 ? "repository" : "repositories"} selected
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: API Key Entry (BYOK only) */}
+          {/* Step 2: API Key Entry */}
           {step === "apikey" && (
             <div className="space-y-6">
               <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg">
@@ -593,7 +432,7 @@ export default function OnboardingPage() {
                     </div>
                     <p className="text-sm text-blue-800 dark:text-blue-200">
                       Loopforge uses Claude AI to analyze your code and generate commits.
-                      With BYOK, you pay Anthropic directly for API usage.
+                      You pay Anthropic directly for API usage.
                     </p>
                     <p className="text-sm text-blue-700 dark:text-blue-300">
                       Typical cost: ~$0.01-0.10 per task depending on codebase size.
@@ -683,11 +522,11 @@ export default function OnboardingPage() {
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t">
-                <Button variant="ghost" onClick={() => setStep("billing")} disabled={loading}>
+                <Button variant="ghost" onClick={() => setStep("repos")} disabled={loading}>
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button onClick={handleCompleteBYOK} disabled={!apiKey || loading}>
+                <Button onClick={handleComplete} disabled={!apiKey || loading}>
                   {loading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
