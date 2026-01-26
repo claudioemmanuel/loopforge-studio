@@ -130,6 +130,23 @@ Track your AI-assisted development:
 
 ---
 
+## Screenshots
+
+> **Note:** Screenshots coming soon! We're preparing visual examples of the Kanban board, brainstorm panel, and analytics dashboard.
+
+<!-- Uncomment when screenshots are available:
+![Kanban Board](./docs/images/kanban.png)
+*Drag-and-drop task management with intelligent workflow columns*
+
+![Brainstorm Panel](./docs/images/brainstorm.png)
+*Interactive AI chat for discussing implementation approaches*
+
+![Analytics Dashboard](./docs/images/analytics.png)
+*Track task completion metrics and token usage*
+-->
+
+---
+
 ## Requirements
 
 Before you begin, you need:

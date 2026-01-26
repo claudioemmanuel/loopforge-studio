@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { ProcessingPhase } from "@/lib/db/schema";
+import { clientLogger } from "@/lib/logger";
 
 export interface CardProcessingState {
   taskId: string;
@@ -17,7 +18,11 @@ export interface CardProcessingState {
 }
 
 export interface ProcessingEvent {
-  type: "processing_start" | "processing_update" | "processing_complete" | "processing_error";
+  type:
+    | "processing_start"
+    | "processing_update"
+    | "processing_complete"
+    | "processing_error";
   data: CardProcessingState;
   timestamp: string;
 }
@@ -37,11 +42,13 @@ interface UseCardProcessingReturn {
 }
 
 export function useCardProcessing(
-  options: UseCardProcessingOptions = {}
+  options: UseCardProcessingOptions = {},
 ): UseCardProcessingReturn {
   const { enabled = true, onProcessingComplete, onProcessingError } = options;
 
-  const [processingCards, setProcessingCards] = useState<Map<string, CardProcessingState>>(new Map());
+  const [processingCards, setProcessingCards] = useState<
+    Map<string, CardProcessingState>
+  >(new Map());
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -53,7 +60,10 @@ export function useCardProcessing(
     if (!enabled) return;
 
     // Prevent duplicate connections (Strict Mode protection)
-    if (isConnecting.current || (eventSourceRef.current?.readyState === EventSource.OPEN)) {
+    if (
+      isConnecting.current ||
+      eventSourceRef.current?.readyState === EventSource.OPEN
+    ) {
       return;
     }
     isConnecting.current = true;
@@ -130,7 +140,9 @@ export function useCardProcessing(
 
           for (const worker of workers) {
             // Check if task is in an active processing phase
-            if (["brainstorming", "planning", "executing"].includes(worker.status)) {
+            if (
+              ["brainstorming", "planning", "executing"].includes(worker.status)
+            ) {
               processingTasks.set(worker.taskId, {
                 taskId: worker.taskId,
                 taskTitle: worker.taskTitle,
@@ -150,7 +162,7 @@ export function useCardProcessing(
           }
         }
       } catch (err) {
-        console.error("Failed to parse event:", err);
+        clientLogger.error("Failed to parse event", { error: err });
       }
     };
 
@@ -160,7 +172,10 @@ export function useCardProcessing(
       eventSource.close();
 
       // Exponential backoff reconnection
-      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+      const delay = Math.min(
+        1000 * Math.pow(2, reconnectAttempts.current),
+        30000,
+      );
       reconnectAttempts.current++;
 
       if (reconnectAttempts.current <= 5) {
@@ -189,12 +204,12 @@ export function useCardProcessing(
 
   const isProcessing = useCallback(
     (taskId: string) => processingCards.has(taskId),
-    [processingCards]
+    [processingCards],
   );
 
   const getProcessingState = useCallback(
     (taskId: string) => processingCards.get(taskId),
-    [processingCards]
+    [processingCards],
   );
 
   return {
@@ -236,7 +251,7 @@ export function useSlideAnimation() {
 
   const isSliding = useCallback(
     (taskId: string) => slidingCards.has(taskId),
-    [slidingCards]
+    [slidingCards],
   );
 
   // Cleanup on unmount

@@ -10,34 +10,34 @@
 # @maintainers with your GitHub username or team name.
 
 # Default owners for everything in the repo
-# * @maintainers
+* @claudioemmanuel
 
 # Frontend components
-# /components/ @maintainers
-# /app/ @maintainers
+/components/ @claudioemmanuel
+/app/ @claudioemmanuel
 
 # API routes
-# /app/api/ @maintainers
+/app/api/ @claudioemmanuel
 
 # Database schema changes
-# /lib/db/ @maintainers
-# /drizzle/ @maintainers
+/lib/db/ @claudioemmanuel
+/drizzle/ @claudioemmanuel
 
 # AI-related code
-# /lib/ai/ @maintainers
+/lib/ai/ @claudioemmanuel
 
 # Infrastructure and CI/CD
-# /.github/ @maintainers
-# /docker* @maintainers
-# *.yml @maintainers
-# *.yaml @maintainers
+/.github/ @claudioemmanuel
+/docker* @claudioemmanuel
+*.yml @claudioemmanuel
+*.yaml @claudioemmanuel
 
 # Configuration files
-# package.json @maintainers
-# tsconfig.json @maintainers
-# next.config.* @maintainers
+package.json @claudioemmanuel
+tsconfig.json @claudioemmanuel
+next.config.* @claudioemmanuel
 
 # Tests
-# /__tests__/ @maintainers
-# *.test.ts @maintainers
-# *.test.tsx @maintainers
+/__tests__/ @claudioemmanuel
+*.test.ts @claudioemmanuel
+*.test.tsx @claudioemmanuel

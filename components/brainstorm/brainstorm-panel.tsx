@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { clientLogger } from "@/lib/logger";
 import {
   X,
   Send,
@@ -70,8 +71,12 @@ export function BrainstormPanel({
   const [initializing, setInitializing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isRestored, setIsRestored] = useState(false);
-  const [currentPreview, setCurrentPreview] = useState<BrainstormPreview | null>(null);
-  const [repoContext, setRepoContext] = useState<{ techStack: string[]; fileStructure: string[] } | null>(null);
+  const [currentPreview, setCurrentPreview] =
+    useState<BrainstormPreview | null>(null);
+  const [repoContext, setRepoContext] = useState<{
+    techStack: string[];
+    fileStructure: string[];
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -96,7 +101,11 @@ export function BrainstormPanel({
         const data = await res.json();
 
         // Check if we have existing messages to restore
-        if (data.isRestored && data.existingMessages && data.existingMessages.length > 0) {
+        if (
+          data.isRestored &&
+          data.existingMessages &&
+          data.existingMessages.length > 0
+        ) {
           // Restore full conversation history
           const restoredMessages: ChatMessage[] = data.existingMessages.map(
             (msg: { role: "user" | "assistant"; content: string }) => {
@@ -116,7 +125,7 @@ export function BrainstormPanel({
                 }
               }
               return { role: "user" as const, content: msg.content };
-            }
+            },
           );
 
           // Add a welcome back message at the start if we're restoring
@@ -162,11 +171,12 @@ export function BrainstormPanel({
         }
       }
     } catch (error) {
-      console.error("Init error:", error);
+      clientLogger.error("Brainstorm init error", { error });
       setMessages([
         {
           role: "assistant",
-          content: "Connection error. Please check your internet and try again.",
+          content:
+            "Connection error. Please check your internet and try again.",
         },
       ]);
     } finally {
@@ -207,7 +217,9 @@ export function BrainstormPanel({
       const res = await fetch(`/api/tasks/${taskId}/brainstorm/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isChoice ? { choice: content } : { message: content }),
+        body: JSON.stringify(
+          isChoice ? { choice: content } : { message: content },
+        ),
       });
 
       if (res.ok) {
@@ -240,7 +252,7 @@ export function BrainstormPanel({
         }
       }
     } catch (error) {
-      console.error("Chat error:", error);
+      clientLogger.error("Brainstorm chat error", { error });
       setMessages((prev) => [
         ...prev,
         {
@@ -274,7 +286,7 @@ export function BrainstormPanel({
         ]);
       }
     } catch (error) {
-      console.error("Finalize error:", error);
+      clientLogger.error("Brainstorm finalize error", { error });
     } finally {
       setLoading(false);
     }
@@ -303,7 +315,7 @@ export function BrainstormPanel({
           }
         }
       } catch (error) {
-        console.error("Save error:", error);
+        clientLogger.error("Brainstorm save error", { error });
         // Still close even if save fails
       } finally {
         setSaving(false);
@@ -327,7 +339,7 @@ export function BrainstormPanel({
         className={cn(
           "fixed top-0 right-0 h-full w-full sm:w-[400px] bg-card border-l shadow-xl z-50",
           "flex flex-col",
-          "animate-in slide-in-from-right fade-in duration-500 ease-out"
+          "animate-in slide-in-from-right fade-in duration-500 ease-out",
         )}
       >
         {/* Saving Overlay */}
@@ -387,7 +399,7 @@ export function BrainstormPanel({
                 key={i}
                 className={cn(
                   "flex flex-col gap-2",
-                  msg.role === "user" ? "items-end" : "items-start"
+                  msg.role === "user" ? "items-end" : "items-start",
                 )}
               >
                 <div
@@ -395,60 +407,68 @@ export function BrainstormPanel({
                     "max-w-[85%] rounded-2xl px-4 py-2.5",
                     msg.role === "user"
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
+                      : "bg-muted",
                   )}
                 >
-                  <p className="text-sm whitespace-pre-wrap">{renderFormattedText(msg.content)}</p>
+                  <p className="text-sm whitespace-pre-wrap">
+                    {renderFormattedText(msg.content)}
+                  </p>
                 </div>
 
                 {/* Options */}
-                {msg.role === "assistant" && msg.options && msg.options.length > 0 && (
-                  <div className="flex flex-col gap-1.5 w-full max-w-[85%]">
-                    {msg.options.map((opt, j) => (
-                      <button
-                        key={j}
-                        onClick={() => sendMessage(opt.label, true)}
-                        disabled={loading || i !== messages.length - 1}
-                        className={cn(
-                          "text-left px-3 py-2 rounded-lg text-sm border transition-colors",
-                          i === messages.length - 1
-                            ? "hover:bg-muted/80 hover:border-primary/50 cursor-pointer"
-                            : "opacity-50 cursor-not-allowed",
-                          "disabled:opacity-50 disabled:cursor-not-allowed"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {msg.role === "assistant" &&
+                  msg.options &&
+                  msg.options.length > 0 && (
+                    <div className="flex flex-col gap-1.5 w-full max-w-[85%]">
+                      {msg.options.map((opt, j) => (
+                        <button
+                          key={j}
+                          onClick={() => sendMessage(opt.label, true)}
+                          disabled={loading || i !== messages.length - 1}
+                          className={cn(
+                            "text-left px-3 py-2 rounded-lg text-sm border transition-colors",
+                            i === messages.length - 1
+                              ? "hover:bg-muted/80 hover:border-primary/50 cursor-pointer"
+                              : "opacity-50 cursor-not-allowed",
+                            "disabled:opacity-50 disabled:cursor-not-allowed",
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                 {/* Suggest Complete */}
-                {msg.role === "assistant" && msg.suggestComplete && i === messages.length - 1 && (
-                  <div className="flex gap-2 mt-2">
-                    <Button
-                      size="sm"
-                      onClick={handleFinalize}
-                      disabled={loading}
-                      className="gap-1.5"
-                    >
-                      {loading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="w-4 h-4" />
-                      )}
-                      Save & Continue
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => sendMessage("I'd like to continue refining")}
-                      disabled={loading}
-                    >
-                      Keep Refining
-                    </Button>
-                  </div>
-                )}
+                {msg.role === "assistant" &&
+                  msg.suggestComplete &&
+                  i === messages.length - 1 && (
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        onClick={handleFinalize}
+                        disabled={loading}
+                        className="gap-1.5"
+                      >
+                        {loading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4" />
+                        )}
+                        Save & Continue
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          sendMessage("I'd like to continue refining")
+                        }
+                        disabled={loading}
+                      >
+                        Keep Refining
+                      </Button>
+                    </div>
+                  )}
               </div>
             ))
           )}
@@ -467,7 +487,9 @@ export function BrainstormPanel({
                 </span>
               </summary>
               <div className="px-4 pb-3 text-xs space-y-2 max-h-40 overflow-y-auto">
-                <p><strong>Summary:</strong> {currentPreview.summary}</p>
+                <p>
+                  <strong>Summary:</strong> {currentPreview.summary}
+                </p>
                 {currentPreview.requirements.length > 0 && (
                   <div>
                     <strong>Requirements:</strong>
@@ -502,7 +524,7 @@ export function BrainstormPanel({
               className={cn(
                 "flex-1 px-3 py-2 rounded-lg border bg-background text-sm",
                 "focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
+                "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             />
             <Button
