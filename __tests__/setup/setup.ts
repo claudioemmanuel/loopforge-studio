@@ -21,18 +21,6 @@ beforeAll(async () => {
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     DO $$ BEGIN
-      CREATE TYPE billing_cycle AS ENUM ('monthly', 'yearly');
-    EXCEPTION WHEN duplicate_object THEN null; END $$;
-
-    DO $$ BEGIN
-      CREATE TYPE subscription_status AS ENUM ('active', 'canceled', 'past_due', 'trialing');
-    EXCEPTION WHEN duplicate_object THEN null; END $$;
-
-    DO $$ BEGIN
-      CREATE TYPE billing_mode AS ENUM ('byok', 'managed');
-    EXCEPTION WHEN duplicate_object THEN null; END $$;
-
-    DO $$ BEGIN
       CREATE TYPE ai_provider AS ENUM ('anthropic', 'openai', 'gemini');
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
@@ -55,8 +43,6 @@ beforeAll(async () => {
       gemini_api_key_iv TEXT,
       encrypted_github_token TEXT,
       github_token_iv TEXT,
-      billing_mode billing_mode,
-      stripe_customer_id TEXT,
       preferred_anthropic_model TEXT DEFAULT 'claude-sonnet-4-20250514',
       preferred_openai_model TEXT DEFAULT 'gpt-4o',
       preferred_gemini_model TEXT DEFAULT 'gemini-2.5-pro',
@@ -128,47 +114,6 @@ beforeAll(async () => {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE IF NOT EXISTS subscription_plans (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      name TEXT NOT NULL UNIQUE,
-      display_name TEXT NOT NULL,
-      price_monthly INTEGER NOT NULL,
-      price_yearly INTEGER NOT NULL,
-      stripe_price_monthly TEXT,
-      stripe_price_yearly TEXT,
-      task_limit INTEGER NOT NULL,
-      grace_percent INTEGER NOT NULL DEFAULT 10,
-      features JSONB,
-      is_active BOOLEAN NOT NULL DEFAULT true,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS user_subscriptions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      plan_id UUID NOT NULL REFERENCES subscription_plans(id),
-      stripe_subscription_id TEXT,
-      stripe_customer_id TEXT,
-      billing_cycle billing_cycle NOT NULL DEFAULT 'monthly',
-      current_period_start TIMESTAMP NOT NULL,
-      current_period_end TIMESTAMP NOT NULL,
-      status subscription_status NOT NULL DEFAULT 'active',
-      cancel_at_period_end BOOLEAN NOT NULL DEFAULT false,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS usage_records (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
-      period_start TIMESTAMP NOT NULL,
-      input_tokens INTEGER NOT NULL DEFAULT 0,
-      output_tokens INTEGER NOT NULL DEFAULT 0,
-      cost_cents INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW()
-    );
   `);
 });
 

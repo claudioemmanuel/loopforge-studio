@@ -1,12 +1,15 @@
-# Loopforge Makefile
-# ====================
-# Convenience commands for development and deployment
+# Loopforge Studio Makefile
+# ==========================
+# Convenience commands for local development
 
-.PHONY: help install dev build test docker-dev docker-build docker-up docker-down docker-logs clean
+.PHONY: help start install dev build test docker-dev docker-build docker-up docker-down docker-logs clean
 
 # Default target
 help:
-	@echo "Loopforge - AI-Powered Development Platform"
+	@echo "Loopforge Studio - AI-Powered Development Platform"
+	@echo ""
+	@echo "Quick Start:"
+	@echo "  make start        One-command setup (recommended)"
 	@echo ""
 	@echo "Development:"
 	@echo "  make install      Install dependencies"
@@ -27,11 +30,13 @@ help:
 	@echo "  make docker-up    Start all containers"
 	@echo "  make docker-down  Stop all containers"
 	@echo "  make docker-logs  View container logs"
-	@echo "  make docker-prod  Start with production config"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make clean        Remove build artifacts"
-	@echo "  make gen-secret   Generate secrets for .env"
+
+# One-command setup
+start:
+	./scripts/start.sh
 
 # Development
 install:
@@ -74,16 +79,13 @@ docker-build:
 
 docker-up:
 	docker compose up -d
-	@echo "Loopforge started at http://localhost:3000"
+	@echo "Loopforge Studio started at http://localhost:3000"
 
 docker-down:
 	docker compose down
 
 docker-logs:
 	docker compose logs -f
-
-docker-prod:
-	docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 docker-clean:
 	docker compose down -v --rmi local
@@ -94,7 +96,3 @@ clean:
 	rm -rf node_modules
 	rm -rf coverage
 	rm -f *.db
-
-gen-secret:
-	@echo "NEXTAUTH_SECRET=$$(openssl rand -base64 32)"
-	@echo "ENCRYPTION_KEY=$$(openssl rand -hex 32)"

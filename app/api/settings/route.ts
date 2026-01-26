@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, users } from "@/lib/db";
+import { db, users, repos } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { format } from "date-fns";
 
@@ -11,45 +11,24 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Consolidate queries: fetch user with repos and subscription in one query
-  // This reduces N+1 pattern from 4 sequential queries to 1
+  // Fetch user data
   const user = await db.query.users.findFirst({
     where: eq(users.id, session.user.id),
-    with: {
-      repos: true,
-      subscription: {
-        with: { plan: true },
-      },
-    },
   });
 
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const userRepos = user.repos || [];
-
-  // Get subscription if managed user
-  let subscription = null;
-  if (user.billingMode === "managed" && user.subscription) {
-    const sub = user.subscription;
-    // Only fetch task count if we have repos and subscription
-    const repoIds = userRepos.map(r => r.id);
-    const periodTasks = repoIds.length > 0
-      ? await db.query.tasks.findMany({
-          where: (tasks, { inArray, and, gte }) => and(
-            inArray(tasks.repoId, repoIds),
-            gte(tasks.createdAt, sub.currentPeriodStart)
-          ),
-        })
-      : [];
-    subscription = {
-      plan: sub.plan?.displayName || "Unknown",
-      usage: periodTasks.filter(t => t.status === "done").length,
-      limit: sub.plan?.taskLimit || 30,
-      nextBilling: format(sub.currentPeriodEnd, "MMM d, yyyy"),
-    };
-  }
+  // Fetch user repos
+  const userRepos = await db
+    .select({
+      id: repos.id,
+      fullName: repos.fullName,
+      isPrivate: repos.isPrivate,
+    })
+    .from(repos)
+    .where(eq(repos.userId, session.user.id));
 
   // Mask API keys if present
   const anthropicKeyMasked = user.encryptedApiKey
@@ -81,15 +60,10 @@ export async function GET() {
       openai: user.preferredOpenaiModel || "gpt-4o",
       gemini: user.preferredGeminiModel || "gemini-2.5-pro",
     },
-    subscription,
     github: {
       username: user.username,
       connectedAt: format(user.createdAt, "MMMM yyyy"),
     },
-    repos: userRepos.map(r => ({
-      id: r.id,
-      fullName: r.fullName,
-      isPrivate: r.isPrivate,
-    })),
+    repos: userRepos,
   });
 }

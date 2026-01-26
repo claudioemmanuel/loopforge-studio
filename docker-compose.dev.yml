@@ -7,7 +7,7 @@ services:
   # ===========================================
   postgres:
     image: postgres:16-alpine
-    container_name: loopforge-postgres-dev
+    container_name: loopforge-studio-postgres-dev
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -23,14 +23,14 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - loopforge-dev
+      - loopforge-studio-dev
 
   # ===========================================
   # Redis - Job queue backend
   # ===========================================
   redis:
     image: redis:7-alpine
-    container_name: loopforge-redis-dev
+    container_name: loopforge-studio-redis-dev
     ports:
       - "6379:6379"
     volumes:
@@ -41,7 +41,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - loopforge-dev
+      - loopforge-studio-dev
 
   # ===========================================
   # Next.js Web Application (dev with hot reload)
@@ -50,7 +50,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: loopforge-web-dev
+    container_name: loopforge-studio-web-dev
     ports:
       - "3000:3000"
     environment:
@@ -73,7 +73,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - loopforge-dev
+      - loopforge-studio-dev
     command: npx next dev
 
   # ===========================================
@@ -83,7 +83,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: loopforge-worker-dev
+    container_name: loopforge-studio-worker-dev
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/loopforge
@@ -99,7 +99,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - loopforge-dev
+      - loopforge-studio-dev
     command: npx tsx --watch workers/execution-worker.ts
 
   # ===========================================
@@ -119,7 +119,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - loopforge-dev
+      - loopforge-studio-dev
 
 volumes:
   postgres-dev-data:
@@ -130,5 +130,5 @@ volumes:
     driver: local
 
 networks:
-  loopforge-dev:
+  loopforge-studio-dev:
     driver: bridge

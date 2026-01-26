@@ -19,7 +19,7 @@ import { LoopforgeLogo } from "@/components/loopforge-logo";
 const STEPS = [
   {
     id: "welcome",
-    title: "Welcome to Loopforge",
+    title: "Welcome to Loopforge Studio",
     subtitle: "AI-Powered Development",
     description: "Transform your ideas into code with autonomous AI agents that understand your codebase and execute tasks directly.",
     icon: null, // Use LoopforgeLogo component instead
@@ -53,7 +53,7 @@ const STEPS = [
     id: "permissions",
     title: "Repository Access",
     subtitle: "What we access and why",
-    description: "Your code is handled securely. Here's exactly what Loopforge does with your repositories:",
+    description: "Your code is handled securely. Here's exactly what Loopforge Studio does with your repositories:",
     icon: Shield,
     content: (
       <div className="space-y-4 mt-6">
@@ -87,7 +87,7 @@ const STEPS = [
     id: "workflow",
     title: "How It Works",
     subtitle: "From idea to implementation",
-    description: "The Loopforge workflow is designed to give you control while automating the tedious parts:",
+    description: "The Loopforge Studio workflow is designed to give you control while automating the tedious parts:",
     icon: GitBranch,
     content: (
       <div className="space-y-3 mt-6">

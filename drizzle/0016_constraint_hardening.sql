@@ -47,13 +47,13 @@ CHECK (grace_percent >= 0 AND grace_percent <= 100);
 
 -- Prevent multiple active subscriptions per user
 -- (user can have canceled subscriptions but only one active)
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_user_active_subscription
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_active_subscription
 ON user_subscriptions(user_id)
 WHERE status = 'active';
 
 -- Branch uniqueness within repo (prevent branch name conflicts)
 -- Only applies when branch is set
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_task_branch_unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_branch_unique
 ON tasks(repo_id, branch)
 WHERE branch IS NOT NULL;
 
