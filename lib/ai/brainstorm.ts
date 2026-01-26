@@ -1,5 +1,6 @@
 import type { AIClient } from "./client";
 import { extractJSON } from "./brainstorm-chat";
+import { aiLogger } from "@/lib/logger";
 
 export interface BrainstormResult {
   summary: string;
@@ -11,7 +12,7 @@ export interface BrainstormResult {
 export async function brainstormTask(
   client: AIClient,
   title: string,
-  description: string | null
+  description: string | null,
 ): Promise<BrainstormResult> {
   const prompt = `You are a senior software engineer helping to brainstorm a coding task.
 
@@ -36,9 +37,20 @@ Format your response as JSON with this structure:
 
 Respond only with valid JSON, no additional text.`;
 
-  const text = await client.chat(
-    [{ role: "user", content: prompt }],
-    { maxTokens: 2048 }
+  const text = await client.chat([{ role: "user", content: prompt }], {
+    maxTokens: 2048,
+  });
+
+  // Log response info for debugging
+  aiLogger.debug(
+    {
+      responseLength: text.length,
+      startsWithCodeBlock: text.trim().startsWith("```"),
+      endsWithCodeBlock: text.trim().endsWith("```"),
+      firstChars: text.substring(0, 50),
+      lastChars: text.substring(Math.max(0, text.length - 50)),
+    },
+    "AI brainstorm response received",
   );
 
   // Use robust JSON extraction that handles multiple formats
@@ -48,12 +60,18 @@ Respond only with valid JSON, no additional text.`;
     // Validate and return with defaults for missing fields
     const data = parsed as Record<string, unknown>;
     return {
-      summary: typeof data.summary === "string" ? data.summary : `Analysis of: ${title}`,
+      summary:
+        typeof data.summary === "string"
+          ? data.summary
+          : `Analysis of: ${title}`,
       requirements: Array.isArray(data.requirements) ? data.requirements : [],
-      considerations: Array.isArray(data.considerations) ? data.considerations : [],
-      suggestedApproach: typeof data.suggestedApproach === "string"
-        ? data.suggestedApproach
-        : "Further analysis needed",
+      considerations: Array.isArray(data.considerations)
+        ? data.considerations
+        : [],
+      suggestedApproach:
+        typeof data.suggestedApproach === "string"
+          ? data.suggestedApproach
+          : "Further analysis needed",
     };
   }
 
@@ -62,12 +80,16 @@ Respond only with valid JSON, no additional text.`;
 
   // Check if it looks like the AI tried to respond but JSON was malformed
   if (cleanedText.includes("{") || cleanedText.includes("summary")) {
-    console.error("[brainstorm] Failed to parse AI response as JSON:", cleanedText.substring(0, 200));
+    aiLogger.error(
+      { responsePreview: cleanedText.substring(0, 200) },
+      "Failed to parse AI response as JSON",
+    );
     return {
       summary: "The AI response could not be parsed. Please try again.",
       requirements: [],
       considerations: [],
-      suggestedApproach: "Retry the brainstorming step or try with a different AI model.",
+      suggestedApproach:
+        "Retry the brainstorming step or try with a different AI model.",
     };
   }
 

@@ -3,7 +3,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Search,
@@ -19,8 +25,11 @@ import {
   Info,
   Shield,
   Key,
+  ChevronDown,
 } from "lucide-react";
 import { LoopforgeLogo } from "@/components/loopforge-logo";
+import { AnthropicIcon, OpenAIIcon, GeminiIcon } from "@/components/providers";
+import { cn } from "@/lib/utils";
 
 interface GitHubRepo {
   id: number;
@@ -42,6 +51,186 @@ interface GitHubRepo {
 
 type FilterType = "all" | "public" | "private" | "org";
 type Step = "repos" | "apikey";
+type Provider = "anthropic" | "openai" | "gemini";
+
+interface ModelOption {
+  id: string;
+  name: string;
+  description: string;
+  recommended?: boolean;
+}
+
+interface ProviderConfig {
+  id: Provider;
+  name: string;
+  displayName: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
+  placeholder: string;
+  docsUrl: string;
+  color: string;
+  bgColor: string;
+  models: ModelOption[];
+}
+
+const providers: ProviderConfig[] = [
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    displayName: "Claude",
+    icon: AnthropicIcon,
+    placeholder: "sk-ant-api03-...",
+    docsUrl: "https://console.anthropic.com/settings/keys",
+    color: "text-[#D4A574]",
+    bgColor: "bg-[#D4A574]/10",
+    models: [
+      {
+        id: "claude-sonnet-4-20250514",
+        name: "Claude Sonnet 4",
+        description: "Balanced performance and speed",
+        recommended: true,
+      },
+      {
+        id: "claude-opus-4-20250514",
+        name: "Claude Opus 4",
+        description: "Most capable model",
+      },
+      {
+        id: "claude-haiku-3-20240307",
+        name: "Claude Haiku 3",
+        description: "Fastest responses",
+      },
+    ],
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    displayName: "GPT-4",
+    icon: OpenAIIcon,
+    placeholder: "sk-proj-...",
+    docsUrl: "https://platform.openai.com/api-keys",
+    color: "text-[#10A37F]",
+    bgColor: "bg-[#10A37F]/10",
+    models: [
+      {
+        id: "gpt-4o",
+        name: "GPT-4o",
+        description: "Latest flagship model",
+        recommended: true,
+      },
+      {
+        id: "gpt-4-turbo",
+        name: "GPT-4 Turbo",
+        description: "Previous flagship",
+      },
+      {
+        id: "gpt-4o-mini",
+        name: "GPT-4o Mini",
+        description: "Faster, more affordable",
+      },
+    ],
+  },
+  {
+    id: "gemini",
+    name: "Google",
+    displayName: "Gemini",
+    icon: GeminiIcon,
+    placeholder: "AIza...",
+    docsUrl: "https://aistudio.google.com/app/api-keys",
+    color: "text-[#4285F4]",
+    bgColor: "bg-[#4285F4]/10",
+    models: [
+      {
+        id: "gemini-2.5-pro",
+        name: "Gemini 2.5 Pro",
+        description: "Most capable model",
+        recommended: true,
+      },
+      {
+        id: "gemini-2.5-flash",
+        name: "Gemini 2.5 Flash",
+        description: "Fast and efficient",
+      },
+      {
+        id: "gemini-2.0-flash",
+        name: "Gemini 2.0 Flash",
+        description: "Cost-effective multimodal",
+      },
+    ],
+  },
+];
+
+function ModelDropdown({
+  provider,
+  selectedModel,
+  onSelect,
+}: {
+  provider: ProviderConfig;
+  selectedModel: string;
+  onSelect: (model: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const currentModel =
+    provider.models.find((m) => m.id === selectedModel) || provider.models[0];
+
+  const handleSelect = (modelId: string) => {
+    onSelect(modelId);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg border bg-background",
+          "hover:bg-muted/50 transition-colors",
+          open && "ring-2 ring-primary/20",
+        )}
+      >
+        <span className="truncate">{currentModel.name}</span>
+        <ChevronDown
+          className={cn(
+            "w-4 h-4 ml-2 flex-shrink-0 transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 mt-1 w-full rounded-lg border bg-popover shadow-lg">
+            {provider.models.map((model) => (
+              <button
+                key={model.id}
+                type="button"
+                onClick={() => handleSelect(model.id)}
+                className={cn(
+                  "w-full px-3 py-2 text-left hover:bg-muted/50 first:rounded-t-lg last:rounded-b-lg",
+                  model.id === selectedModel && "bg-muted",
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{model.name}</span>
+                  {model.recommended && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                      Recommended
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {model.description}
+                </p>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -55,6 +244,24 @@ export default function OnboardingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [checkingExistingRepos, setCheckingExistingRepos] = useState(true);
+  const [selectedProvider, setSelectedProvider] =
+    useState<Provider>("anthropic");
+  const [selectedModel, setSelectedModel] = useState<string>(
+    "claude-sonnet-4-20250514",
+  );
+
+  const currentProvider = providers.find((p) => p.id === selectedProvider)!;
+
+  const handleProviderChange = (providerId: Provider) => {
+    setSelectedProvider(providerId);
+    // Reset to the recommended model for this provider
+    const provider = providers.find((p) => p.id === providerId)!;
+    const recommendedModel =
+      provider.models.find((m) => m.recommended) || provider.models[0];
+    setSelectedModel(recommendedModel.id);
+    // Clear API key when switching providers
+    setApiKey("");
+  };
 
   // Check if user already has configured repos - if so, skip onboarding
   useEffect(() => {
@@ -109,7 +316,8 @@ export default function OnboardingPage() {
         searchQuery === "" ||
         repo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         repo.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (repo.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+        (repo.description?.toLowerCase().includes(searchQuery.toLowerCase()) ??
+          false);
 
       const matchesFilter =
         filter === "all" ||
@@ -120,7 +328,10 @@ export default function OnboardingPage() {
       return matchesSearch && matchesFilter;
     });
 
-    const groups: Record<string, { owner: GitHubRepo["owner"]; repos: GitHubRepo[] }> = {};
+    const groups: Record<
+      string,
+      { owner: GitHubRepo["owner"]; repos: GitHubRepo[] }
+    > = {};
     filtered.forEach((repo) => {
       if (!groups[repo.owner.login]) {
         groups[repo.owner.login] = { owner: repo.owner, repos: [] };
@@ -153,7 +364,7 @@ export default function OnboardingPage() {
 
   const handleComplete = async () => {
     if (!apiKey) {
-      setError("Please enter your Anthropic API key");
+      setError(`Please enter your ${currentProvider.name} API key`);
       return;
     }
 
@@ -169,6 +380,8 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           repos: selectedReposList,
           apiKey,
+          provider: selectedProvider,
+          model: selectedModel,
         }),
       });
 
@@ -210,7 +423,12 @@ export default function OnboardingPage() {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-background to-secondary/30">
         <div className="mb-6 flex flex-col items-center">
-          <LoopforgeLogo size="lg" animate={true} showSparks={true} showText={false} />
+          <LoopforgeLogo
+            size="lg"
+            animate={true}
+            showSparks={true}
+            showText={false}
+          />
           <h1 className="text-3xl font-serif font-bold tracking-tight !-mt-2">
             <span className="text-primary">Loop</span>forge
           </h1>
@@ -226,7 +444,12 @@ export default function OnboardingPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-background to-secondary/30">
       <div className="mb-6 flex flex-col items-center">
-        <LoopforgeLogo size="lg" animate={true} showSparks={true} showText={false} />
+        <LoopforgeLogo
+          size="lg"
+          animate={true}
+          showSparks={true}
+          showText={false}
+        />
         <h1 className="text-3xl font-serif font-bold tracking-tight !-mt-2">
           <span className="text-primary">Loop</span>forge
         </h1>
@@ -265,11 +488,13 @@ export default function OnboardingPage() {
           </div>
           <CardTitle>
             {step === "repos" && "Select Repositories"}
-            {step === "apikey" && "Configure Your API Key"}
+            {step === "apikey" && "Configure Your AI Provider"}
           </CardTitle>
           <CardDescription>
-            {step === "repos" && "Choose which repositories to connect with Loopforge"}
-            {step === "apikey" && "Enter your Anthropic API key for AI-powered coding"}
+            {step === "repos" &&
+              "Choose which repositories to connect with Loopforge"}
+            {step === "apikey" &&
+              "Choose an AI provider and enter your API key"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -293,24 +518,26 @@ export default function OnboardingPage() {
                   />
                 </div>
                 <div className="flex gap-1">
-                  {(["all", "public", "private", "org"] as FilterType[]).map((f) => (
-                    <Button
-                      key={f}
-                      variant={filter === f ? "secondary" : "ghost"}
-                      size="sm"
-                      onClick={() => setFilter(f)}
-                      className="capitalize"
-                    >
-                      {f === "org" ? (
-                        <Building2 className="w-4 h-4 mr-1" />
-                      ) : f === "private" ? (
-                        <Lock className="w-4 h-4 mr-1" />
-                      ) : f === "public" ? (
-                        <Globe className="w-4 h-4 mr-1" />
-                      ) : null}
-                      {f}
-                    </Button>
-                  ))}
+                  {(["all", "public", "private", "org"] as FilterType[]).map(
+                    (f) => (
+                      <Button
+                        key={f}
+                        variant={filter === f ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => setFilter(f)}
+                        className="capitalize"
+                      >
+                        {f === "org" ? (
+                          <Building2 className="w-4 h-4 mr-1" />
+                        ) : f === "private" ? (
+                          <Lock className="w-4 h-4 mr-1" />
+                        ) : f === "public" ? (
+                          <Globe className="w-4 h-4 mr-1" />
+                        ) : null}
+                        {f}
+                      </Button>
+                    ),
+                  )}
                 </div>
               </div>
 
@@ -334,7 +561,9 @@ export default function OnboardingPage() {
                           alt={owner.login}
                           className="w-5 h-5 rounded-full"
                         />
-                        <span className="text-sm font-medium">{owner.login}</span>
+                        <span className="text-sm font-medium">
+                          {owner.login}
+                        </span>
                         {owner.type === "Organization" && (
                           <Building2 className="w-4 h-4 text-muted-foreground" />
                         )}
@@ -354,7 +583,9 @@ export default function OnboardingPage() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-medium truncate">{repo.name}</span>
+                                  <span className="font-medium truncate">
+                                    {repo.name}
+                                  </span>
                                   {repo.private ? (
                                     <Lock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                                   ) : (
@@ -379,7 +610,9 @@ export default function OnboardingPage() {
                                       {repo.stargazers_count}
                                     </span>
                                   )}
-                                  <span>Updated {formatDate(repo.updated_at)}</span>
+                                  <span>
+                                    Updated {formatDate(repo.updated_at)}
+                                  </span>
                                 </div>
                               </div>
                               <div
@@ -389,7 +622,9 @@ export default function OnboardingPage() {
                                     : "border-muted-foreground/30"
                                 }`}
                               >
-                                {selectedRepos.has(repo.id) && <Check className="w-3 h-3" />}
+                                {selectedRepos.has(repo.id) && (
+                                  <Check className="w-3 h-3" />
+                                )}
                               </div>
                             </div>
                           </button>
@@ -407,11 +642,17 @@ export default function OnboardingPage() {
                     : `${selectedRepos.size} ${selectedRepos.size === 1 ? "repository" : "repositories"} selected`}
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="ghost" onClick={() => router.push("/welcome")}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => router.push("/welcome")}
+                  >
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
-                  <Button onClick={handleContinueToApiKey} disabled={selectedRepos.size === 0}>
+                  <Button
+                    onClick={handleContinueToApiKey}
+                    disabled={selectedRepos.size === 0}
+                  >
                     Continue
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
@@ -420,9 +661,10 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* Step 2: API Key Entry */}
+          {/* Step 2: Provider Selection & API Key Entry */}
           {step === "apikey" && (
             <div className="space-y-6">
+              {/* Info Banner */}
               <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg">
                 <div className="flex gap-3">
                   <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -431,84 +673,147 @@ export default function OnboardingPage() {
                       Why do I need an API key?
                     </div>
                     <p className="text-sm text-blue-800 dark:text-blue-200">
-                      Loopforge uses Claude AI to analyze your code and generate commits.
-                      You pay Anthropic directly for API usage.
+                      Loopforge uses AI to analyze your code and generate
+                      commits. You pay the AI provider directly for API usage.
                     </p>
                     <p className="text-sm text-blue-700 dark:text-blue-300">
-                      Typical cost: ~$0.01-0.10 per task depending on codebase size.
+                      Typical cost: ~$0.01-0.10 per task depending on codebase
+                      size.
                     </p>
                   </div>
                 </div>
               </div>
 
+              {/* Step 1: Choose Provider */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
                     1
                   </div>
-                  <h3 className="font-medium">Open Anthropic Console</h3>
+                  <h3 className="font-medium">Choose your AI provider</h3>
                 </div>
-                <div className="ml-8 space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Go to the Anthropic Console and sign in or create an account.
-                  </p>
-                  <Button variant="outline" size="sm" asChild>
-                    <a
-                      href="https://console.anthropic.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2"
-                    >
-                      Open Anthropic Console
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </Button>
+                <div className="ml-8 grid grid-cols-3 gap-3">
+                  {providers.map((provider) => {
+                    const IconComponent = provider.icon;
+                    const isSelected = selectedProvider === provider.id;
+                    return (
+                      <button
+                        key={provider.id}
+                        type="button"
+                        onClick={() => handleProviderChange(provider.id)}
+                        className={cn(
+                          "p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2",
+                          isSelected
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
+                            : "border-border hover:border-primary/50 hover:bg-muted/50",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-lg flex items-center justify-center",
+                            provider.bgColor,
+                          )}
+                        >
+                          <IconComponent className={provider.color} size={22} />
+                        </div>
+                        <div className="text-center">
+                          <div className="font-medium text-sm">
+                            {provider.name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {provider.displayName}
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                            <Check className="w-3 h-3" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
+              {/* Step 2: Get API Key */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
                     2
                   </div>
-                  <h3 className="font-medium">Create an API Key</h3>
+                  <h3 className="font-medium">
+                    Get your {currentProvider.name} API key
+                  </h3>
                 </div>
-                <div className="ml-8 space-y-2">
+                <div className="ml-8 space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    Navigate to <strong>Settings</strong> → <strong>API Keys</strong> → <strong>Create Key</strong>
+                    Go to the {currentProvider.name} console to create an API
+                    key.
                   </p>
+                  <Button variant="outline" size="sm" asChild>
+                    <a
+                      href={currentProvider.docsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2"
+                    >
+                      Open {currentProvider.name} Console
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </Button>
                   <div className="p-3 bg-muted rounded-lg">
                     <div className="flex items-center gap-2 text-sm">
                       <Key className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Suggested name:</span>
-                      <code className="px-1.5 py-0.5 bg-background rounded text-sm font-mono">Loopforge</code>
+                      <span className="text-muted-foreground">
+                        Suggested key name:
+                      </span>
+                      <code className="px-1.5 py-0.5 bg-background rounded text-sm font-mono">
+                        Loopforge
+                      </code>
                     </div>
                   </div>
                 </div>
               </div>
 
+              {/* Step 3: Enter API Key & Select Model */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
                     3
                   </div>
-                  <h3 className="font-medium">Paste your API Key</h3>
+                  <h3 className="font-medium">Enter your API key</h3>
                 </div>
-                <div className="ml-8 space-y-3">
-                  <Input
-                    id="apiKey"
-                    type="password"
-                    placeholder="sk-ant-api03-..."
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                  />
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Shield className="w-4 h-4 text-green-600 dark:text-green-500" />
-                    <span>Your API key is encrypted with AES-256-GCM before storage</span>
+                <div className="ml-8 space-y-4">
+                  <div className="space-y-2">
+                    <Input
+                      id="apiKey"
+                      type="password"
+                      placeholder={currentProvider.placeholder}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                    />
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Shield className="w-4 h-4 text-green-600 dark:text-green-500" />
+                      <span>
+                        Your API key is encrypted with AES-256-GCM before
+                        storage
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Model Selection */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Model</label>
+                    <ModelDropdown
+                      provider={currentProvider}
+                      selectedModel={selectedModel}
+                      onSelect={setSelectedModel}
+                    />
                   </div>
                 </div>
               </div>
 
+              {/* Selected Repos Summary */}
               <div className="p-3 bg-muted/50 rounded-lg">
                 <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
                   Selected Repositories
@@ -521,8 +826,13 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
+              {/* Navigation */}
               <div className="flex items-center justify-between pt-2 border-t">
-                <Button variant="ghost" onClick={() => setStep("repos")} disabled={loading}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setStep("repos")}
+                  disabled={loading}
+                >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>

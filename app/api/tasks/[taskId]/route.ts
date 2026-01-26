@@ -4,14 +4,20 @@ import { db, tasks, users, executions } from "@/lib/db";
 import { eq, and, ne } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
-import type { TaskStatus, AiProvider, User, StatusHistoryEntry } from "@/lib/db/schema";
+import type {
+  TaskStatus,
+  AiProvider,
+  User,
+  StatusHistoryEntry,
+} from "@/lib/db/schema";
 import { getDefaultModel } from "@/lib/ai/client";
 import { handleError, Errors } from "@/lib/errors";
+import { apiLogger } from "@/lib/logger";
 
 // Helper to get API key for a specific provider
 function getProviderApiKey(
   user: User,
-  provider: AiProvider
+  provider: AiProvider,
 ): { encrypted: string; iv: string } | null {
   switch (provider) {
     case "anthropic":
@@ -21,12 +27,18 @@ function getProviderApiKey(
       return null;
     case "openai":
       if (user.openaiEncryptedApiKey && user.openaiApiKeyIv) {
-        return { encrypted: user.openaiEncryptedApiKey, iv: user.openaiApiKeyIv };
+        return {
+          encrypted: user.openaiEncryptedApiKey,
+          iv: user.openaiApiKeyIv,
+        };
       }
       return null;
     case "gemini":
       if (user.geminiEncryptedApiKey && user.geminiApiKeyIv) {
-        return { encrypted: user.geminiEncryptedApiKey, iv: user.geminiApiKeyIv };
+        return {
+          encrypted: user.geminiEncryptedApiKey,
+          iv: user.geminiApiKeyIv,
+        };
       }
       return null;
     default:
@@ -50,7 +62,7 @@ function getPreferredModel(user: User, provider: AiProvider): string {
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;
@@ -73,7 +85,7 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;
@@ -109,10 +121,12 @@ export async function PATCH(
   if (body.description !== undefined) updates.description = body.description;
   if (body.status !== undefined) updates.status = body.status;
   if (body.priority !== undefined) updates.priority = body.priority;
-  if (body.brainstormResult !== undefined) updates.brainstormResult = body.brainstormResult;
+  if (body.brainstormResult !== undefined)
+    updates.brainstormResult = body.brainstormResult;
   if (body.planContent !== undefined) updates.planContent = body.planContent;
   if (body.branch !== undefined) updates.branch = body.branch;
-  if (body.autonomousMode !== undefined) updates.autonomousMode = body.autonomousMode;
+  if (body.autonomousMode !== undefined)
+    updates.autonomousMode = body.autonomousMode;
 
   // Record status change in history
   if (body.status !== undefined && body.status !== task.status) {
@@ -143,14 +157,15 @@ export async function PATCH(
   }
 
   // Check if status is changing to "executing" - auto-queue execution
-  const isMovingToExecuting = body.status === "executing" && task.status !== "executing";
+  const isMovingToExecuting =
+    body.status === "executing" && task.status !== "executing";
 
   if (isMovingToExecuting) {
     // Validate task has a plan
     if (!task.planContent) {
       return NextResponse.json(
         { error: "Task must have a plan to execute" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -169,7 +184,10 @@ export async function PATCH(
       const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
 
       // First try the user's preferred provider
-      if (user.preferredProvider && getProviderApiKey(user, user.preferredProvider)) {
+      if (
+        user.preferredProvider &&
+        getProviderApiKey(user, user.preferredProvider)
+      ) {
         return user.preferredProvider;
       }
 
@@ -210,8 +228,8 @@ export async function PATCH(
         .where(
           and(
             eq(tasks.id, taskId),
-            ne(tasks.status, "executing") // Only claim if not already executing
-          )
+            ne(tasks.status, "executing"), // Only claim if not already executing
+          ),
         )
         .returning({ id: tasks.id });
 
@@ -219,7 +237,7 @@ export async function PATCH(
       if (claimResult.length === 0) {
         return NextResponse.json(
           { error: "Task is already executing" },
-          { status: 409 }
+          { status: 409 },
         );
       }
 
@@ -257,11 +275,7 @@ export async function PATCH(
         jobId: job.id,
       });
     } catch (error) {
-      console.error("Execution error:", {
-        taskId,
-        error,
-        timestamp: new Date().toISOString(),
-      });
+      apiLogger.error({ taskId, error }, "Execution error");
 
       // Revert status on error (only if we set it to executing)
       await db
@@ -270,8 +284,8 @@ export async function PATCH(
         .where(
           and(
             eq(tasks.id, taskId),
-            eq(tasks.status, "executing") // Only revert if we set it
-          )
+            eq(tasks.status, "executing"), // Only revert if we set it
+          ),
         );
 
       return handleError(error);
@@ -293,7 +307,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;

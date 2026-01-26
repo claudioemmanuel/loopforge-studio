@@ -3,10 +3,11 @@ import { auth } from "@/lib/auth";
 import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getConversation } from "@/lib/ai";
+import { apiLogger } from "@/lib/logger";
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;
@@ -44,7 +45,11 @@ export async function POST(
 
     // Save brainstorm result if we have a preview
     if (conversation.currentPreview) {
-      updateData.brainstormResult = JSON.stringify(conversation.currentPreview, null, 2);
+      updateData.brainstormResult = JSON.stringify(
+        conversation.currentPreview,
+        null,
+        2,
+      );
     }
 
     // Save conversation messages
@@ -52,10 +57,7 @@ export async function POST(
       updateData.brainstormConversation = JSON.stringify(conversation.messages);
     }
 
-    await db
-      .update(tasks)
-      .set(updateData)
-      .where(eq(tasks.id, taskId));
+    await db.update(tasks).set(updateData).where(eq(tasks.id, taskId));
 
     // Keep conversation in memory (don't delete)
     // This allows continuing the conversation if user reopens
@@ -68,13 +70,13 @@ export async function POST(
     return NextResponse.json({
       success: true,
       saved: true,
-      task: updatedTask
+      task: updatedTask,
     });
   } catch (error) {
-    console.error("Brainstorm save error:", error);
+    apiLogger.error({ taskId, error }, "Brainstorm save error");
     return NextResponse.json(
       { error: "Failed to save brainstorm progress." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

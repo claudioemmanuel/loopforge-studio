@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
 import { db } from "@/lib/db";
 import { tasks, type TaskStatus, type ProcessingPhase } from "@/lib/db/schema";
+import { workerLogger } from "@/lib/logger";
 
 export interface WorkerEventData {
   taskId: string;
@@ -39,7 +40,11 @@ export interface ProcessingEventData {
 }
 
 export interface ProcessingEvent {
-  type: "processing_start" | "processing_update" | "processing_complete" | "processing_error";
+  type:
+    | "processing_start"
+    | "processing_update"
+    | "processing_complete"
+    | "processing_error";
   data: ProcessingEventData;
   timestamp: string;
 }
@@ -88,15 +93,18 @@ function getPublisher(): Redis {
  */
 export async function publishWorkerEvent(
   userId: string,
-  event: WorkerEvent
+  event: WorkerEvent,
 ): Promise<void> {
   try {
     const redis = getPublisher();
     const channel = `worker-events:${userId}`;
     await redis.publish(channel, JSON.stringify(event));
-    console.log(`[worker-events] Published ${event.type} for task ${event.data.taskId}`);
+    workerLogger.debug(
+      { eventType: event.type, taskId: event.data.taskId },
+      "Published worker event",
+    );
   } catch (error) {
-    console.error("[worker-events] Failed to publish event:", error);
+    workerLogger.error({ error }, "Failed to publish worker event");
   }
 }
 
@@ -105,7 +113,7 @@ export async function publishWorkerEvent(
  */
 export function calculateProgressFromStatus(
   status: TaskStatus,
-  currentStep?: string
+  currentStep?: string,
 ): number {
   const progressMap: Record<TaskStatus, number> = {
     todo: 0,
@@ -143,12 +151,14 @@ export function createWorkerUpdateEvent(
     currentAction?: string;
     error?: string;
     completedAt?: Date;
-  } = {}
+  } = {},
 ): WorkerEvent {
   const eventType =
-    status === "done" ? "worker_complete" :
-    status === "stuck" ? "worker_stuck" :
-    "worker_update";
+    status === "done"
+      ? "worker_complete"
+      : status === "stuck"
+        ? "worker_stuck"
+        : "worker_update";
 
   return {
     type: eventType,
@@ -193,7 +203,7 @@ export function createProcessingEvent(
     statusText?: string;
     progress?: number;
     error?: string;
-  } = {}
+  } = {},
 ): ProcessingEvent {
   // Determine progress based on type if not provided
   let progress = options.progress ?? 0;
@@ -204,7 +214,8 @@ export function createProcessingEvent(
   }
 
   // Use default status text based on phase if not provided
-  const statusText = options.statusText ?? phaseStatusMessages[processingPhase][0];
+  const statusText =
+    options.statusText ?? phaseStatusMessages[processingPhase][0];
 
   return {
     type,
@@ -230,11 +241,12 @@ export function createProcessingEvent(
  */
 export async function publishProcessingEvent(
   userId: string,
-  event: ProcessingEvent
+  event: ProcessingEvent,
 ): Promise<void> {
   try {
     // Persist progress to database for recovery on page refresh
-    await db.update(tasks)
+    await db
+      .update(tasks)
       .set({
         processingProgress: event.data.progress,
         processingStatusText: event.data.statusText,
@@ -245,8 +257,15 @@ export async function publishProcessingEvent(
     const redis = getPublisher();
     const channel = `worker-events:${userId}`;
     await redis.publish(channel, JSON.stringify(event));
-    console.log(`[processing-events] Published ${event.type} for task ${event.data.taskId} (${event.data.processingPhase})`);
+    workerLogger.debug(
+      {
+        eventType: event.type,
+        taskId: event.data.taskId,
+        phase: event.data.processingPhase,
+      },
+      "Published processing event",
+    );
   } catch (error) {
-    console.error("[processing-events] Failed to publish event:", error);
+    workerLogger.error({ error }, "Failed to publish processing event");
   }
 }

@@ -12,6 +12,7 @@ import { decryptGithubToken } from "@/lib/crypto";
 import { scanRepoViaGitHub } from "@/lib/github/repo-scanner";
 import { handleError, Errors } from "@/lib/errors";
 import { withTask, getAIClientConfig } from "@/lib/api";
+import { apiLogger } from "@/lib/logger";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   // This endpoint is for refinement only - task must already have a brainstorm result
@@ -19,7 +20,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   if (!task.brainstormResult) {
     return NextResponse.json(
       { error: "No brainstorm result found. Use /brainstorm/generate first." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -29,9 +30,13 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   }
 
   try {
-    console.log("[brainstorm/init] Creating AI client for provider:", config.provider);
-    const client = await createAIClient(config.provider, config.apiKey, config.model);
-    console.log("[brainstorm/init] AI client created successfully");
+    apiLogger.debug({ provider: config.provider }, "Creating AI client");
+    const client = await createAIClient(
+      config.provider,
+      config.apiKey,
+      config.model,
+    );
+    apiLogger.debug("AI client created successfully");
 
     // Scan repository via GitHub API for actual context
     let repoContext: RepoContext;
@@ -42,37 +47,40 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
           iv: user.githubTokenIv,
         });
         const [owner, repoName] = task.repo.fullName.split("/");
-        console.log(`[brainstorm/init] Scanning repo: ${task.repo.fullName}`);
+        apiLogger.debug({ repo: task.repo.fullName }, "Scanning repo");
         const githubContext = await scanRepoViaGitHub(
           githubToken,
           owner,
           repoName,
-          task.repo.defaultBranch || "main"
+          task.repo.defaultBranch || "main",
         );
-        console.log(`[brainstorm/init] Tech stack detected: ${githubContext.techStack.join(", ")}`);
+        apiLogger.debug(
+          { techStack: githubContext.techStack },
+          "Tech stack detected",
+        );
         repoContext = {
           techStack: githubContext.techStack,
           fileStructure: githubContext.fileStructure,
           configFiles: githubContext.configFiles,
         };
       } catch (error) {
-        console.error("[brainstorm/init] GitHub scan failed:", error);
+        apiLogger.error({ error }, "GitHub scan failed");
         repoContext = { techStack: [], fileStructure: [], configFiles: [] };
       }
     } else {
-      console.log("[brainstorm/init] No GitHub token, using empty context");
+      apiLogger.debug("No GitHub token, using empty context");
       repoContext = { techStack: [], fileStructure: [], configFiles: [] };
     }
 
     // Check if conversation already exists in memory
     const existingConversation = getConversation(taskId);
     if (existingConversation && existingConversation.messages.length > 0) {
-      console.log("[brainstorm/init] Found existing conversation in memory, returning it");
+      apiLogger.debug({ taskId }, "Found existing conversation in memory");
 
       // Get the last assistant message to extract options
       const lastAssistantMsg = [...existingConversation.messages]
         .reverse()
-        .find(m => m.role === "assistant");
+        .find((m) => m.role === "assistant");
 
       let lastOptions = undefined;
       if (lastAssistantMsg) {
@@ -99,9 +107,11 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
 
     // Check if conversation is persisted in database
     if (task.brainstormConversation) {
-      console.log("[brainstorm/init] Found persisted conversation in database, restoring it");
+      apiLogger.debug({ taskId }, "Found persisted conversation in database");
       try {
-        const persistedMessages: ChatMessage[] = JSON.parse(task.brainstormConversation);
+        const persistedMessages: ChatMessage[] = JSON.parse(
+          task.brainstormConversation,
+        );
 
         // Parse existing brainstorm result for the preview
         let currentPreview = undefined;
@@ -124,7 +134,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
         // Get the last assistant message to extract options
         const lastAssistantMsg = [...persistedMessages]
           .reverse()
-          .find(m => m.role === "assistant");
+          .find((m) => m.role === "assistant");
 
         let lastOptions = undefined;
         if (lastAssistantMsg) {
@@ -151,7 +161,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
           isRestored: true,
         });
       } catch (parseError) {
-        console.log("[brainstorm/init] Failed to parse persisted conversation:", parseError);
+        apiLogger.warn(
+          { parseError },
+          "Failed to parse persisted conversation",
+        );
         // Fall through to create new conversation
       }
     }
@@ -159,25 +172,25 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     // Parse existing brainstorm result for refinement
     // Note: task.brainstormResult is guaranteed to exist due to guard at top of function
     let existingBrainstorm: ExistingBrainstormContext | undefined;
-    console.log("[brainstorm/init] Parsing existing brainstorm result for refinement");
+    apiLogger.debug("Parsing existing brainstorm result for refinement");
     try {
       existingBrainstorm = JSON.parse(task.brainstormResult);
-      console.log("[brainstorm/init] Existing brainstorm parsed successfully");
+      apiLogger.debug("Existing brainstorm parsed successfully");
     } catch (parseError) {
-      console.log("[brainstorm/init] Failed to parse existing brainstorm:", parseError);
+      apiLogger.warn({ parseError }, "Failed to parse existing brainstorm");
       // If parsing fails, still allow refinement but without context
     }
 
     // Initialize refinement conversation with AI
-    console.log("[brainstorm/init] Starting refinement session");
+    apiLogger.debug({ taskId }, "Starting refinement session");
     const initialResponse = await initializeBrainstorm(
       client,
       task.title,
       task.description,
       repoContext,
-      existingBrainstorm
+      existingBrainstorm,
     );
-    console.log("[brainstorm/init] initializeBrainstorm completed");
+    apiLogger.debug({ taskId }, "initializeBrainstorm completed");
 
     // Store conversation in memory
     setConversation(taskId, {
@@ -203,7 +216,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       isRestored: false,
     });
   } catch (error) {
-    console.error("Brainstorm init error:", error);
+    apiLogger.error({ error }, "Brainstorm init error");
     return handleError(error);
   }
 });

@@ -17,11 +17,7 @@ import {
 } from "lucide-react";
 import { useSettings } from "../settings-context";
 import { cn } from "@/lib/utils";
-import {
-  AnthropicIcon,
-  OpenAIIcon,
-  GeminiIcon,
-} from "@/components/providers";
+import { AnthropicIcon, OpenAIIcon, GeminiIcon } from "@/components/providers";
 
 type Provider = "anthropic" | "openai" | "gemini";
 
@@ -108,7 +104,7 @@ const providers: ProviderConfig[] = [
     displayName: "Gemini",
     icon: GeminiIcon,
     placeholder: "AIza...",
-    docsUrl: "https://console.cloud.google.com/apis/credentials",
+    docsUrl: "https://aistudio.google.com/app/api-keys",
     color: "text-[#4285F4]",
     bgColor: "bg-[#4285F4]/10",
     models: [
@@ -146,7 +142,8 @@ function ModelDropdown({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const currentModel = provider.models.find((m) => m.id === selectedModel) || provider.models[0];
+  const currentModel =
+    provider.models.find((m) => m.id === selectedModel) || provider.models[0];
 
   const handleSelect = async (modelId: string) => {
     if (modelId === selectedModel) {
@@ -183,14 +180,19 @@ function ModelDropdown({
           "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg border bg-background",
           "hover:bg-muted/50 transition-colors",
           disabled && "opacity-50 cursor-not-allowed",
-          open && "ring-2 ring-primary/20"
+          open && "ring-2 ring-primary/20",
         )}
       >
         <span className="truncate">{currentModel.name}</span>
         {loading ? (
           <Loader2 className="w-4 h-4 animate-spin ml-2 flex-shrink-0" />
         ) : (
-          <ChevronDown className={cn("w-4 h-4 ml-2 flex-shrink-0 transition-transform", open && "rotate-180")} />
+          <ChevronDown
+            className={cn(
+              "w-4 h-4 ml-2 flex-shrink-0 transition-transform",
+              open && "rotate-180",
+            )}
+          />
         )}
       </button>
 
@@ -205,7 +207,7 @@ function ModelDropdown({
                 onClick={() => handleSelect(model.id)}
                 className={cn(
                   "w-full px-3 py-2 text-left hover:bg-muted/50 first:rounded-t-lg last:rounded-b-lg",
-                  model.id === selectedModel && "bg-muted"
+                  model.id === selectedModel && "bg-muted",
                 )}
               >
                 <div className="flex items-center gap-2">
@@ -216,7 +218,9 @@ function ModelDropdown({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">{model.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  {model.description}
+                </p>
               </button>
             ))}
           </div>
@@ -304,7 +308,7 @@ function ProviderCard({
           <div
             className={cn(
               "w-10 h-10 rounded-lg flex items-center justify-center",
-              provider.bgColor
+              provider.bgColor,
             )}
           >
             <IconComponent className={provider.color} size={22} />
@@ -461,7 +465,9 @@ function ProviderCard({
 
       {/* Model Selection */}
       <div className="mt-4 pt-3 border-t">
-        <label className="text-xs text-muted-foreground mb-1.5 block">Model</label>
+        <label className="text-xs text-muted-foreground mb-1.5 block">
+          Model
+        </label>
         <ModelDropdown
           provider={provider}
           selectedModel={selectedModel}
@@ -474,7 +480,8 @@ function ProviderCard({
 }
 
 export default function IntegrationsPage() {
-  const { github, repos, apiKeys, modelPreferences, preferredProvider } = useSettings();
+  const { github, repos, apiKeys, modelPreferences, preferredProvider } =
+    useSettings();
   const router = useRouter();
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [savingProvider, setSavingProvider] = useState(false);
@@ -510,9 +517,8 @@ export default function IntegrationsPage() {
     return null;
   };
 
-  const [localPreferredProvider, setLocalPreferredProvider] = useState<Provider | null>(
-    getInitialPreferredProvider()
-  );
+  const [localPreferredProvider, setLocalPreferredProvider] =
+    useState<Provider | null>(getInitialPreferredProvider());
 
   const handleProviderChange = async (provider: Provider) => {
     // Don't allow selecting a provider that doesn't have an API key
@@ -554,7 +560,10 @@ export default function IntegrationsPage() {
     }
   };
 
-  const handleApiKeyUpdate = async (provider: Provider, newMaskedKey: string | null) => {
+  const handleApiKeyUpdate = async (
+    provider: Provider,
+    newMaskedKey: string | null,
+  ) => {
     setLocalApiKeys((prev) => ({ ...prev, [provider]: newMaskedKey }));
 
     // If this is a new API key and no provider is selected, auto-select this one
@@ -582,7 +591,7 @@ export default function IntegrationsPage() {
       // Find another configured provider to select
       const configuredProviders: Provider[] = ["anthropic", "openai", "gemini"];
       const otherConfigured = configuredProviders.find(
-        (p) => p !== provider && localApiKeys[p]
+        (p) => p !== provider && localApiKeys[p],
       );
 
       if (otherConfigured) {
@@ -623,8 +632,8 @@ export default function IntegrationsPage() {
         </div>
 
         <p className="text-sm text-muted-foreground mb-4">
-          Configure API keys and select models for AI-powered tasks. Your keys are
-          encrypted and stored securely.
+          Configure API keys and select models for AI-powered tasks. Your keys
+          are encrypted and stored securely.
         </p>
 
         {/* Default Provider Selector */}
@@ -633,7 +642,8 @@ export default function IntegrationsPage() {
             <div>
               <h4 className="font-medium text-sm">Default AI Provider</h4>
               <p className="text-xs text-muted-foreground mt-0.5">
-                This provider will be used for brainstorming, planning, and executing tasks
+                This provider will be used for brainstorming, planning, and
+                executing tasks
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -649,18 +659,27 @@ export default function IntegrationsPage() {
                       type="button"
                       onClick={() => handleProviderChange(provider.id)}
                       disabled={savingProvider || !hasKey}
-                      title={!hasKey ? `Configure ${provider.name} API key first` : `Use ${provider.name}`}
+                      title={
+                        !hasKey
+                          ? `Configure ${provider.name} API key first`
+                          : `Use ${provider.name}`
+                      }
                       className={cn(
                         "px-2 sm:px-3 py-2 flex items-center gap-1.5 sm:gap-2 transition-all duration-200 border-r last:border-r-0 whitespace-nowrap",
                         isSelected
                           ? "bg-primary text-primary-foreground shadow-sm font-medium"
                           : hasKey
-                          ? "hover:bg-muted/50 active:bg-muted"
-                          : "opacity-50 cursor-not-allowed"
+                            ? "hover:bg-muted/50 active:bg-muted"
+                            : "opacity-50 cursor-not-allowed",
                       )}
                     >
-                      <IconComponent size={16} className={isSelected ? "" : provider.color} />
-                      <span className="text-xs font-medium">{provider.name}</span>
+                      <IconComponent
+                        size={16}
+                        className={isSelected ? "" : provider.color}
+                      />
+                      <span className="text-xs font-medium">
+                        {provider.name}
+                      </span>
                     </button>
                   );
                 })}
@@ -676,7 +695,9 @@ export default function IntegrationsPage() {
               provider={provider}
               maskedKey={localApiKeys[provider.id]}
               selectedModel={localModelPreferences[provider.id]}
-              onApiKeyUpdate={(newKey) => handleApiKeyUpdate(provider.id, newKey)}
+              onApiKeyUpdate={(newKey) =>
+                handleApiKeyUpdate(provider.id, newKey)
+              }
               onModelUpdate={(model) => handleModelUpdate(provider.id, model)}
             />
           ))}
@@ -694,7 +715,9 @@ export default function IntegrationsPage() {
 
       {/* GitHub Connection */}
       <div className="p-6 rounded-xl border bg-card">
-        <h3 className="font-serif font-semibold tracking-tight mb-4">GitHub Connection</h3>
+        <h3 className="font-serif font-semibold tracking-tight mb-4">
+          GitHub Connection
+        </h3>
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
             <Check className="w-4 h-4" />
@@ -707,7 +730,9 @@ export default function IntegrationsPage() {
             Connected: {github.connectedAt}
           </p>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline">Reconnect</Button>
+            <Button size="sm" variant="outline">
+              Reconnect
+            </Button>
             <Button size="sm" variant="outline" className="text-destructive">
               Revoke Access
             </Button>
@@ -718,8 +743,12 @@ export default function IntegrationsPage() {
       {/* Connected Repositories */}
       <div className="p-6 rounded-xl border bg-card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-serif font-semibold tracking-tight">Connected Repositories</h3>
-          <Button size="sm" variant="outline">+ Add Repos</Button>
+          <h3 className="font-serif font-semibold tracking-tight">
+            Connected Repositories
+          </h3>
+          <Button size="sm" variant="outline">
+            + Add Repos
+          </Button>
         </div>
         {repos.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
@@ -764,10 +793,13 @@ export default function IntegrationsPage() {
         <div className="flex items-center gap-2 mb-4">
           <Bell className="w-4 h-4" />
           <h3 className="font-serif font-semibold tracking-tight">Webhooks</h3>
-          <span className="text-xs bg-muted px-2 py-0.5 rounded">Coming Soon</span>
+          <span className="text-xs bg-muted px-2 py-0.5 rounded">
+            Coming Soon
+          </span>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Configure webhooks to notify external services when tasks complete or encounter errors.
+          Configure webhooks to notify external services when tasks complete or
+          encounter errors.
         </p>
         <Button size="sm" variant="outline" disabled>
           Notify me when available

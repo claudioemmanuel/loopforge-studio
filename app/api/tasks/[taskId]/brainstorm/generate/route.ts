@@ -13,10 +13,11 @@ import type { AiProvider, User } from "@/lib/db/schema";
 import { handleError, Errors } from "@/lib/errors";
 import { queueAutonomousFlow } from "@/lib/queue";
 import { scanRepoViaGitHub, getTestCoverageContext } from "@/lib/github";
+import { apiLogger } from "@/lib/logger";
 
 function getProviderApiKey(
   user: User,
-  provider: AiProvider
+  provider: AiProvider,
 ): { encrypted: string; iv: string } | null {
   switch (provider) {
     case "anthropic":
@@ -59,7 +60,7 @@ function getPreferredModel(user: User, provider: AiProvider): string {
  */
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;
@@ -80,7 +81,10 @@ export async function POST(
 
   // Check if autonomous mode is enabled
   if (task.autonomousMode) {
-    console.log("[brainstorm/generate] Autonomous mode enabled, queueing autonomous flow");
+    apiLogger.info(
+      { taskId },
+      "Autonomous mode enabled, queueing autonomous flow",
+    );
 
     // ATOMIC: Claim the processing slot first to prevent race conditions
     // This UPDATE only succeeds if processingPhase is NULL (not already processing)
@@ -95,16 +99,19 @@ export async function POST(
       .where(
         and(
           eq(tasks.id, taskId),
-          isNull(tasks.processingPhase) // Only claim if not already processing
-        )
+          isNull(tasks.processingPhase), // Only claim if not already processing
+        ),
       )
       .returning();
 
     // If no rows were updated, another request already claimed the slot
     if (claimResult.length === 0) {
       return NextResponse.json(
-        { error: "Task is already processing", phase: task.processingPhase || "unknown" },
-        { status: 409 }
+        {
+          error: "Task is already processing",
+          phase: task.processingPhase || "unknown",
+        },
+        { status: 409 },
       );
     }
 
@@ -135,10 +142,10 @@ export async function POST(
         })
         .where(eq(tasks.id, taskId));
 
-      console.error("[brainstorm/generate] Failed to queue autonomous flow:", error);
+      apiLogger.error({ taskId, error }, "Failed to queue autonomous flow");
       return NextResponse.json(
         { error: "Failed to start autonomous flow" },
-        { status: 500 }
+        { status: 500 },
       );
     }
   }
@@ -156,7 +163,10 @@ export async function POST(
   const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
   let aiProvider: AiProvider | null = null;
 
-  if (user.preferredProvider && getProviderApiKey(user, user.preferredProvider)) {
+  if (
+    user.preferredProvider &&
+    getProviderApiKey(user, user.preferredProvider)
+  ) {
     aiProvider = user.preferredProvider;
   } else {
     for (const provider of providers) {
@@ -177,16 +187,16 @@ export async function POST(
   }
 
   try {
-    console.log("[brainstorm/generate] Decrypting API key for provider:", aiProvider);
+    apiLogger.debug({ provider: aiProvider }, "Decrypting API key");
     const apiKey = decryptApiKey(encryptedKey);
 
-    console.log("[brainstorm/generate] Getting preferred model");
+    apiLogger.debug("Getting preferred model");
     const model = getPreferredModel(user, aiProvider);
-    console.log("[brainstorm/generate] Using model:", model);
+    apiLogger.debug({ model }, "Using model");
 
-    console.log("[brainstorm/generate] Creating AI client");
+    apiLogger.debug("Creating AI client");
     const client = await createAIClient(aiProvider, apiKey, model);
-    console.log("[brainstorm/generate] AI client created successfully");
+    apiLogger.debug("AI client created successfully");
 
     // Scan repository via GitHub API for real context
     let repoContext: RepoContext;
@@ -194,7 +204,7 @@ export async function POST(
 
     if (user.encryptedGithubToken && user.githubTokenIv) {
       try {
-        console.log("[brainstorm/generate] Scanning repository via GitHub API");
+        apiLogger.debug("Scanning repository via GitHub API");
         const githubToken = decryptGithubToken({
           encrypted: user.encryptedGithubToken,
           iv: user.githubTokenIv,
@@ -205,7 +215,7 @@ export async function POST(
           githubToken,
           owner,
           repoName,
-          task.repo.defaultBranch || "main"
+          task.repo.defaultBranch || "main",
         );
 
         repoContext = {
@@ -220,13 +230,16 @@ export async function POST(
           testCoverageContext = getTestCoverageContext(githubContext);
         }
 
-        console.log("[brainstorm/generate] Repository scanned:", {
-          techStack: repoContext.techStack.length,
-          files: repoContext.fileStructure.length,
-          testFiles: githubContext.testFiles.length,
-        });
+        apiLogger.debug(
+          {
+            techStack: repoContext.techStack.length,
+            files: repoContext.fileStructure.length,
+            testFiles: githubContext.testFiles.length,
+          },
+          "Repository scanned",
+        );
       } catch (error) {
-        console.error("[brainstorm/generate] GitHub scan failed, using defaults:", error);
+        apiLogger.error({ error }, "GitHub scan failed, using defaults");
         repoContext = {
           techStack: [],
           fileStructure: [],
@@ -234,7 +247,7 @@ export async function POST(
         };
       }
     } else {
-      console.log("[brainstorm/generate] No GitHub token, using empty context");
+      apiLogger.debug("No GitHub token, using empty context");
       repoContext = {
         techStack: [],
         fileStructure: [],
@@ -255,16 +268,19 @@ export async function POST(
       .where(
         and(
           eq(tasks.id, taskId),
-          isNull(tasks.processingPhase) // Only claim if not already processing
-        )
+          isNull(tasks.processingPhase), // Only claim if not already processing
+        ),
       )
       .returning();
 
     // If no rows were updated, another request already claimed the slot
     if (claimResult.length === 0) {
       return NextResponse.json(
-        { error: "Task is already processing", phase: task.processingPhase || "unknown" },
-        { status: 409 }
+        {
+          error: "Task is already processing",
+          phase: task.processingPhase || "unknown",
+        },
+        { status: 409 },
       );
     }
 
@@ -274,14 +290,14 @@ export async function POST(
       ? `${task.description || ""}${testCoverageContext}`
       : task.description;
 
-    console.log("[brainstorm/generate] Generating initial brainstorm");
+    apiLogger.debug({ taskId }, "Generating initial brainstorm");
     const brainstormResult = await generateInitialBrainstorm(
       client,
       task.title,
       enrichedDescription,
-      repoContext
+      repoContext,
     );
-    console.log("[brainstorm/generate] Brainstorm generated successfully");
+    apiLogger.debug({ taskId }, "Brainstorm generated successfully");
 
     // Update task with result and clear processing state
     const [updatedTask] = await db
@@ -296,11 +312,11 @@ export async function POST(
       .where(eq(tasks.id, taskId))
       .returning();
 
-    console.log("[brainstorm/generate] Task updated successfully");
+    apiLogger.debug({ taskId }, "Task updated successfully");
 
     return NextResponse.json(updatedTask);
   } catch (error) {
-    console.error("Brainstorm generate error:", error);
+    apiLogger.error({ taskId, error }, "Brainstorm generate error");
 
     // Clear processing state on error to allow retry
     await db

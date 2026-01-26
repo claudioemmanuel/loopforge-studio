@@ -2,8 +2,15 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
 
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL environment variable is required. " +
+      "Please set it in your .env file. See .env.example for reference.",
+  );
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/loopforge",
+  connectionString: process.env.DATABASE_URL,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,

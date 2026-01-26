@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+# Check for common secret patterns in staged files
+if git diff --cached --name-only | xargs grep -l -E "(sk-ant-|ghp_|gho_|GITHUB_CLIENT_SECRET=.{10,})" 2>/dev/null; then
+  echo "ERROR: Potential secrets detected in staged files!"
+  exit 1
+fi

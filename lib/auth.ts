@@ -3,6 +3,7 @@ import GitHub from "next-auth/providers/github";
 import { db, users } from "./db";
 import { eq } from "drizzle-orm";
 import { encryptGithubToken, decryptGithubToken } from "./crypto";
+import { authLogger } from "@/lib/logger";
 
 /** GitHub OAuth profile shape as returned by the GitHub provider */
 interface GitHubProfile {
@@ -12,6 +13,10 @@ interface GitHubProfile {
   email?: string | null;
   avatar_url?: string | null;
 }
+
+// Check if running on localhost (HTTP) - secure cookies don't work over HTTP
+const isLocalhost = process.env.NEXTAUTH_URL?.startsWith("http://localhost");
+const useSecureCookies = process.env.NODE_ENV === "production" && !isLocalhost;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
@@ -23,14 +28,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === "production"
+      name: useSecureCookies
         ? "__Secure-authjs.session-token"
         : "authjs.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: useSecureCookies,
       },
     },
   },
@@ -83,7 +88,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             username,
             email: user.email || null,
             avatarUrl: user.image || null,
-            encryptedGithubToken: encryptedToken?.encrypted || existingUser.encryptedGithubToken,
+            encryptedGithubToken:
+              encryptedToken?.encrypted || existingUser.encryptedGithubToken,
             githubTokenIv: encryptedToken?.iv || existingUser.githubTokenIv,
             updatedAt: new Date(),
           })
@@ -100,7 +106,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (dbUser) {
           session.user.id = dbUser.id;
           session.user.githubId = dbUser.githubId;
-          session.user.onboardingCompleted = dbUser.onboardingCompleted ?? false;
+          session.user.onboardingCompleted =
+            dbUser.onboardingCompleted ?? false;
         }
       }
       return session;
@@ -133,7 +140,9 @@ declare module "next-auth" {
 }
 
 // Helper function to get decrypted GitHub token for a user
-export async function getUserGithubToken(userId: string): Promise<string | null> {
+export async function getUserGithubToken(
+  userId: string,
+): Promise<string | null> {
   const dbUser = await db.query.users.findFirst({
     where: eq(users.id, userId),
   });
@@ -148,7 +157,7 @@ export async function getUserGithubToken(userId: string): Promise<string | null>
       iv: dbUser.githubTokenIv,
     });
   } catch (error) {
-    console.error("Failed to decrypt GitHub token:", error);
+    authLogger.error({ error }, "Failed to decrypt GitHub token");
     return null;
   }
 }

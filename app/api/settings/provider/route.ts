@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { aiProviders, type AiProvider } from "@/lib/db/schema";
+import { apiLogger } from "@/lib/logger";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -17,10 +18,7 @@ export async function POST(request: Request) {
 
     // Validate provider
     if (!provider || !aiProviders.includes(provider)) {
-      return NextResponse.json(
-        { error: "Invalid provider" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
     }
 
     // Update user's preferred provider
@@ -34,10 +32,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, provider });
   } catch (error) {
-    console.error("Failed to update provider:", error);
+    apiLogger.error({ error }, "Failed to update provider");
     return NextResponse.json(
       { error: "Failed to update provider" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -62,10 +60,10 @@ export async function GET(request: Request) {
       provider: user.preferredProvider || "anthropic",
     });
   } catch (error) {
-    console.error("Failed to get provider:", error);
+    apiLogger.error({ error }, "Failed to get provider");
     return NextResponse.json(
       { error: "Failed to get provider" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

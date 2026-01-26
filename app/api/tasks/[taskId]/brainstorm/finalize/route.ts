@@ -3,10 +3,11 @@ import { auth } from "@/lib/auth";
 import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getConversation, deleteConversation } from "@/lib/ai";
+import { apiLogger } from "@/lib/logger";
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;
@@ -30,7 +31,7 @@ export async function POST(
   if (!conversation || !conversation.currentPreview) {
     return NextResponse.json(
       { error: "No brainstorm result to finalize" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -57,10 +58,10 @@ export async function POST(
 
     return NextResponse.json(updatedTask);
   } catch (error) {
-    console.error("Brainstorm finalize error:", error);
+    apiLogger.error({ taskId, error }, "Brainstorm finalize error");
     return NextResponse.json(
       { error: "Failed to finalize brainstorm. Please try again." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

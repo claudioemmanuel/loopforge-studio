@@ -27,6 +27,7 @@ cd loopforge-studio
 ```
 
 The script will:
+
 1. Check that Docker and other prerequisites are installed
 2. Prompt you for GitHub OAuth credentials (if not already configured)
 3. Generate required secrets (`NEXTAUTH_SECRET`, `ENCRYPTION_KEY`)
@@ -41,6 +42,7 @@ Once complete, open http://localhost:3000 and sign in with GitHub.
 > **⚠️ Important Security Notice**
 >
 > Each user must create their **own** GitHub OAuth App. Your Client Secret is sensitive - treat it like a password:
+>
 > - **Never** commit it to version control
 > - **Never** share it publicly or in issues/discussions
 > - **Never** use someone else's OAuth credentials
@@ -128,16 +130,19 @@ Your API key is encrypted at rest and never logged.
 ### Getting API Keys
 
 **Anthropic (Claude)**
+
 1. Go to [Anthropic Console](https://console.anthropic.com)
 2. Navigate to **Settings** → **API Keys**
 3. Click **"Create Key"**
 
 **OpenAI (GPT)**
+
 1. Go to [OpenAI Platform](https://platform.openai.com/api-keys)
 2. Click **"Create new secret key"**
 
 **Google (Gemini)**
-1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+1. Go to [Google AI Studio](https://aistudio.google.com/app/api-keys)
 2. Click **"Create API Key"**
 
 ---
@@ -147,12 +152,14 @@ Your API key is encrypted at rest and never logged.
 ### GitHub OAuth Errors
 
 **"redirect_uri_mismatch" error**
+
 - Verify the callback URL in your GitHub OAuth app matches exactly:
   ```
   http://localhost:3000/api/auth/callback/github
   ```
 
 **"Bad credentials" error**
+
 - Regenerate your GitHub Client Secret
 - Update `GITHUB_CLIENT_SECRET` in your `.env` file
 - Restart: `docker compose restart`
@@ -160,15 +167,18 @@ Your API key is encrypted at rest and never logged.
 ### Docker Issues
 
 **"Port already in use" error**
+
 ```bash
 # Check what's using port 3000
 lsof -i :3000
 ```
 
 **"Cannot connect to Docker daemon"**
+
 - Ensure Docker Desktop is running
 
 **Container keeps restarting**
+
 ```bash
 # Check container logs
 docker compose logs -f
@@ -180,6 +190,7 @@ docker compose down && docker compose build && docker compose up
 ### Database Issues
 
 **"Connection refused" error**
+
 ```bash
 # Ensure PostgreSQL container is running
 docker compose ps
@@ -189,6 +200,7 @@ docker compose logs db
 ```
 
 **Migration errors**
+
 ```bash
 # Run migrations manually
 docker compose exec web npm run db:migrate

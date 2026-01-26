@@ -7,11 +7,12 @@ import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
 import { getDefaultModel } from "@/lib/ai/client";
 import { handleError, Errors } from "@/lib/errors";
+import { apiLogger } from "@/lib/logger";
 
 // Helper to get API key for a specific provider
 function getProviderApiKey(
   user: User,
-  provider: AiProvider
+  provider: AiProvider,
 ): { encrypted: string; iv: string } | null {
   switch (provider) {
     case "anthropic":
@@ -21,12 +22,18 @@ function getProviderApiKey(
       return null;
     case "openai":
       if (user.openaiEncryptedApiKey && user.openaiApiKeyIv) {
-        return { encrypted: user.openaiEncryptedApiKey, iv: user.openaiApiKeyIv };
+        return {
+          encrypted: user.openaiEncryptedApiKey,
+          iv: user.openaiApiKeyIv,
+        };
       }
       return null;
     case "gemini":
       if (user.geminiEncryptedApiKey && user.geminiApiKeyIv) {
-        return { encrypted: user.geminiEncryptedApiKey, iv: user.geminiApiKeyIv };
+        return {
+          encrypted: user.geminiEncryptedApiKey,
+          iv: user.geminiApiKeyIv,
+        };
       }
       return null;
     default:
@@ -60,7 +67,7 @@ async function queueTaskExecution(
   userId: string,
   apiKey: string,
   provider: AiProvider,
-  model: string
+  model: string,
 ) {
   if (!task.planContent) {
     throw new Error("Task must have a plan to execute");
@@ -80,8 +87,8 @@ async function queueTaskExecution(
     .where(
       and(
         eq(tasks.id, task.id),
-        ne(tasks.status, "executing") // Only claim if not already executing
-      )
+        ne(tasks.status, "executing"), // Only claim if not already executing
+      ),
     )
     .returning({ id: tasks.id });
 
@@ -120,12 +127,16 @@ async function queueTaskExecution(
     // If queuing failed after claiming, reset the status
     await db
       .update(tasks)
-      .set({ status: task.status as "ready", branch: null, updatedAt: new Date() })
+      .set({
+        status: task.status as "ready",
+        branch: null,
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(tasks.id, task.id),
-          eq(tasks.status, "executing") // Only revert if we set it
-        )
+          eq(tasks.status, "executing"), // Only revert if we set it
+        ),
       );
     throw error;
   }
@@ -141,7 +152,7 @@ async function queueTaskExecution(
  */
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ taskId: string }> }
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   const session = await auth();
   const { taskId } = await params;
@@ -164,14 +175,14 @@ export async function POST(
   if (task.status === "executing") {
     return NextResponse.json(
       { error: "Cannot enable autonomous mode while executing" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (task.status === "done") {
     return NextResponse.json(
       { error: "Cannot enable autonomous mode for completed tasks" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -185,7 +196,7 @@ export async function POST(
     if (!task.planContent) {
       return NextResponse.json(
         { error: "Task must have a plan to execute" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -204,7 +215,10 @@ export async function POST(
       const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
 
       // First try the user's preferred provider
-      if (user.preferredProvider && getProviderApiKey(user, user.preferredProvider)) {
+      if (
+        user.preferredProvider &&
+        getProviderApiKey(user, user.preferredProvider)
+      ) {
         return user.preferredProvider;
       }
 
@@ -239,7 +253,7 @@ export async function POST(
         session.user.id,
         apiKey,
         finalProvider,
-        finalModel
+        finalModel,
       );
 
       const updatedTask = await db.query.tasks.findFirst({
@@ -253,11 +267,7 @@ export async function POST(
         autoStarted: true,
       });
     } catch (error) {
-      console.error("Execution error:", {
-        taskId,
-        error,
-        timestamp: new Date().toISOString(),
-      });
+      apiLogger.error({ taskId, error }, "Execution error");
 
       // Revert status on error
       await db

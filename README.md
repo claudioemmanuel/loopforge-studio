@@ -48,7 +48,7 @@ Get Loopforge Studio running with one command:
 
 ```bash
 # Clone the repository
-git clone https://github.com/claudioemmanuel/loopforge-studio-studio.git
+git clone https://github.com/claudioemmanuel/loopforge-studio.git
 cd loopforge-studio
 
 # Run the setup script (handles everything)
@@ -56,6 +56,7 @@ cd loopforge-studio
 ```
 
 The script will:
+
 - Check prerequisites (Docker, openssl)
 - Prompt for GitHub OAuth credentials (if not configured)
 - Generate required secrets automatically
@@ -73,15 +74,15 @@ Open http://localhost:3000, sign in with GitHub, and add your AI provider API ke
 
 Drag-and-drop task management with intelligent workflow columns:
 
-| Column | Description |
-|--------|-------------|
-| **Todo** | Tasks waiting to be started |
+| Column            | Description                                           |
+| ----------------- | ----------------------------------------------------- |
+| **Todo**          | Tasks waiting to be started                           |
 | **Brainstorming** | AI is analyzing your codebase and discussing approach |
-| **Planning** | Review the proposed implementation plan |
-| **Ready** | Approved and queued for execution |
-| **Executing** | AI is actively writing code |
-| **Done** | Completed tasks with commits pushed |
-| **Stuck** | Tasks requiring your intervention |
+| **Planning**      | Review the proposed implementation plan               |
+| **Ready**         | Approved and queued for execution                     |
+| **Executing**     | AI is actively writing code                           |
+| **Done**          | Completed tasks with commits pushed                   |
+| **Stuck**         | Tasks requiring your intervention                     |
 
 ### Interactive AI Brainstorming
 
@@ -96,11 +97,11 @@ Chat with the AI about your task before any code is written:
 
 Choose your preferred AI provider and model:
 
-| Provider | Models Available |
-|----------|-----------------|
-| **Anthropic** | Claude Sonnet 4, Claude Opus 4, Claude Haiku 3 |
-| **OpenAI** | GPT-4o, GPT-4 Turbo, GPT-4o Mini |
-| **Google** | Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash |
+| Provider      | Models Available                                   |
+| ------------- | -------------------------------------------------- |
+| **Anthropic** | Claude Sonnet 4, Claude Opus 4, Claude Haiku 3     |
+| **OpenAI**    | GPT-4o, GPT-4 Turbo, GPT-4o Mini                   |
+| **Google**    | Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash |
 
 ### GitHub Integration
 
@@ -147,19 +148,19 @@ That's it. PostgreSQL and Redis run inside Docker.
 
 Only 2 variables are required in your `.env` file:
 
-| Variable | Description | How to Get |
-|----------|-------------|------------|
-| `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID | [Create OAuth App](https://github.com/settings/developers) |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth App Client Secret | Same as above |
+| Variable               | Description                    | How to Get                                                 |
+| ---------------------- | ------------------------------ | ---------------------------------------------------------- |
+| `GITHUB_CLIENT_ID`     | GitHub OAuth App Client ID     | [Create OAuth App](https://github.com/settings/developers) |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth App Client Secret | Same as above                                              |
 
 ### Auto-Generated Secrets
 
 These are automatically created by `./scripts/init-secrets.sh`:
 
-| Variable | Description |
-|----------|-------------|
-| `NEXTAUTH_SECRET` | Session encryption key |
-| `ENCRYPTION_KEY` | AES-256-GCM key for token storage |
+| Variable          | Description                       |
+| ----------------- | --------------------------------- |
+| `NEXTAUTH_SECRET` | Session encryption key            |
+| `ENCRYPTION_KEY`  | AES-256-GCM key for token storage |
 
 ### GitHub OAuth App Setup
 
@@ -212,22 +213,22 @@ npm run worker
 
 ### Available Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm run worker` | Start background job worker |
-| `npm run test` | Run tests in watch mode |
-| `npm run test:run` | Run tests once |
-| `npm run lint` | Run ESLint |
+| Script             | Description                 |
+| ------------------ | --------------------------- |
+| `npm run dev`      | Start development server    |
+| `npm run build`    | Build for production        |
+| `npm run worker`   | Start background job worker |
+| `npm run test`     | Run tests in watch mode     |
+| `npm run test:run` | Run tests once              |
+| `npm run lint`     | Run ESLint                  |
 
 ### Database Commands
 
-| Script | Description |
-|--------|-------------|
+| Script                | Description                             |
+| --------------------- | --------------------------------------- |
 | `npm run db:generate` | Generate migrations from schema changes |
-| `npm run db:migrate` | Apply pending migrations |
-| `npm run db:studio` | Open Drizzle Studio (database GUI) |
+| `npm run db:migrate`  | Apply pending migrations                |
+| `npm run db:studio`   | Open Drizzle Studio (database GUI)      |
 
 ### Project Structure
 
@@ -259,16 +260,16 @@ loopforge-studio/
 
 ### Tech Stack
 
-| Technology | Purpose |
-|------------|---------|
-| Next.js 15 | React framework with App Router |
-| React 19 | UI library |
-| TypeScript | Type-safe JavaScript |
-| Tailwind CSS | Styling |
-| PostgreSQL | Database |
-| Redis + BullMQ | Background job processing |
-| Drizzle ORM | Type-safe database queries |
-| NextAuth.js v5 | Authentication |
+| Technology     | Purpose                         |
+| -------------- | ------------------------------- |
+| Next.js 15     | React framework with App Router |
+| React 19       | UI library                      |
+| TypeScript     | Type-safe JavaScript            |
+| Tailwind CSS   | Styling                         |
+| PostgreSQL     | Database                        |
+| Redis + BullMQ | Background job processing       |
+| Drizzle ORM    | Type-safe database queries      |
+| NextAuth.js v5 | Authentication                  |
 
 ### Architecture Overview
 
@@ -307,6 +308,7 @@ Loopforge Studio follows a task-driven architecture where AI work flows through 
 ```
 
 **Task Flow:**
+
 1. **Todo** → User creates task describing the work
 2. **Brainstorming** → AI analyzes codebase, user chats to refine approach
 3. **Planning** → AI generates step-by-step execution plan
