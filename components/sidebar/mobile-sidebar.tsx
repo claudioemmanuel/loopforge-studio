@@ -114,7 +114,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
           <Link href="/dashboard" className="flex items-center gap-2">
             <LoopforgeIcon size={32} />
             <span className="font-serif font-bold text-lg">
-              <span className="text-primary">Loop</span>forge
+              <span className="text-primary">Loopforge</span> Studio
             </span>
           </Link>
           <Button

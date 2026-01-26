@@ -14,7 +14,7 @@ export default function LoginPage() {
             <LoopforgeLogo size="xl" animate={true} showSparks={true} showText={false} />
           </div>
           <h1 className="text-3xl font-serif font-bold tracking-tight !-mt-4">
-            <span className="text-primary">Loop</span>forge
+            <span className="text-primary">Loopforge</span> Studio
           </h1>
           <CardDescription>
             Sign in to start building with AI-powered autonomous coding
@@ -36,7 +36,7 @@ export default function LoginPage() {
             Continue with GitHub
           </Button>
           <p className="text-xs text-center text-muted-foreground">
-            By signing in, you agree to give Loopforge access to your repositories
+            By signing in, you agree to give Loopforge Studio access to your repositories
           </p>
         </CardContent>
       </Card>

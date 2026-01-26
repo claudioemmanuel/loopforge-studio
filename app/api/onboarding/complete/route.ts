@@ -3,7 +3,6 @@ import { auth } from "@/lib/auth";
 import { db, users, repos } from "@/lib/db";
 import { encryptApiKey } from "@/lib/crypto";
 import { eq } from "drizzle-orm";
-import type { BillingMode } from "@/lib/db/schema";
 
 interface GitHubRepo {
   id: number;
@@ -18,8 +17,7 @@ interface CompleteOnboardingRequest {
   // Support both single repo (legacy) and multiple repos
   repo?: GitHubRepo;
   repos?: GitHubRepo[];
-  billingMode: BillingMode;
-  apiKey: string | null; // null for managed mode, required for BYOK
+  apiKey: string; // Required for BYOK (only mode now)
 }
 
 export async function POST(request: Request) {
@@ -31,7 +29,7 @@ export async function POST(request: Request) {
 
   try {
     const body: CompleteOnboardingRequest = await request.json();
-    const { repo, repos: reposList, billingMode, apiKey } = body;
+    const { repo, repos: reposList, apiKey } = body;
 
     // Normalize to array (support both single repo and multiple repos)
     const reposToAdd = reposList || (repo ? [repo] : []);
@@ -43,46 +41,25 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate billing mode
-    if (!billingMode || !["byok", "managed"].includes(billingMode)) {
+    // API key is required for BYOK (only mode)
+    if (!apiKey) {
       return NextResponse.json(
-        { error: "Invalid billing mode" },
+        { error: "API key is required" },
         { status: 400 }
       );
     }
 
-    // For BYOK mode, API key is required
-    if (billingMode === "byok" && !apiKey) {
-      return NextResponse.json(
-        { error: "API key is required for BYOK mode" },
-        { status: 400 }
-      );
-    }
-
-    // Update user based on billing mode
-    if (billingMode === "byok" && apiKey) {
-      const encrypted = encryptApiKey(apiKey);
-      await db
-        .update(users)
-        .set({
-          billingMode: "byok",
-          encryptedApiKey: encrypted.encrypted,
-          apiKeyIv: encrypted.iv,
-          onboardingCompleted: true,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, session.user.id));
-    } else {
-      // Managed mode - no API key needed
-      await db
-        .update(users)
-        .set({
-          billingMode: "managed",
-          onboardingCompleted: true,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, session.user.id));
-    }
+    // Update user with encrypted API key
+    const encrypted = encryptApiKey(apiKey);
+    await db
+      .update(users)
+      .set({
+        encryptedApiKey: encrypted.encrypted,
+        apiKeyIv: encrypted.iv,
+        onboardingCompleted: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, session.user.id));
 
     // Create repo records using atomic upsert to prevent race condition duplicates
     const repoIds: string[] = [];
@@ -127,7 +104,6 @@ export async function POST(request: Request) {
     return NextResponse.json({
       repoId: repoIds[0],
       repoIds,
-      billingMode,
       success: true,
     });
   } catch (error) {

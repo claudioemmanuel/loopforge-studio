@@ -12,7 +12,7 @@ export default function Home() {
             <LoopforgeLogo size="2xl" animate={true} showSparks={true} showText={false} />
           </div>
           <h1 className="text-5xl font-serif font-bold tracking-tight !-mt-6">
-            <span className="text-primary">Loop</span>forge
+            <span className="text-primary">Loopforge</span> Studio
           </h1>
           <p className="text-xl text-muted-foreground">
             Visual Kanban interface for <em className="font-serif">autonomous</em> AI coding
@@ -27,7 +27,7 @@ export default function Home() {
             Get Started
           </Link>
           <a
-            href="https://github.com/loopforge/loopforge"
+            href="https://github.com/claudioemmanuel/loopforge-studio"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-3 text-sm font-medium shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"

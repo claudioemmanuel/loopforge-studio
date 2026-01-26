@@ -1,7 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { encryptApiKey, decryptApiKey, generateEncryptionKey } from "@/lib/crypto";
 
 describe("Crypto Module", () => {
+  const testKey = "0".repeat(64); // 32 bytes in hex for testing
+  let originalKey: string | undefined;
+
+  beforeAll(() => {
+    originalKey = process.env.ENCRYPTION_KEY;
+    process.env.ENCRYPTION_KEY = testKey;
+  });
+
+  afterAll(() => {
+    if (originalKey !== undefined) {
+      process.env.ENCRYPTION_KEY = originalKey;
+    } else {
+      delete process.env.ENCRYPTION_KEY;
+    }
+  });
   describe("generateEncryptionKey", () => {
     it("should generate a 64-character hex string (32 bytes)", () => {
       const key = generateEncryptionKey();

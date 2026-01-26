@@ -1,0 +1,76 @@
+# GitHub Labels for Loopforge Studio
+# Apply these labels using: gh label create "name" --description "desc" --color "color"
+# Or use a tool like github-label-sync
+
+# Type labels
+- name: bug
+  color: d73a4a
+  description: Something isn't working
+
+- name: enhancement
+  color: a2eeef
+  description: New feature or request
+
+- name: documentation
+  color: 0075ca
+  description: Improvements or additions to documentation
+
+- name: question
+  color: d876e3
+  description: Further information is requested
+
+# Contributor labels
+- name: good first issue
+  color: 7057ff
+  description: Good for newcomers
+
+- name: help wanted
+  color: 008672
+  description: Extra attention is needed
+
+# Priority labels
+- name: "priority: high"
+  color: b60205
+  description: High priority issue
+
+- name: "priority: medium"
+  color: fbca04
+  description: Medium priority issue
+
+- name: "priority: low"
+  color: 0e8a16
+  description: Low priority issue
+
+# Area labels
+- name: "area: frontend"
+  color: 1d76db
+  description: Related to frontend/UI
+
+- name: "area: backend"
+  color: 5319e7
+  description: Related to backend/API
+
+- name: "area: ai"
+  color: f9d0c4
+  description: Related to AI integration
+
+- name: "area: github"
+  color: 333333
+  description: Related to GitHub integration
+
+- name: "area: docker"
+  color: 0db7ed
+  description: Related to Docker/deployment
+
+# Status labels
+- name: "status: blocked"
+  color: b60205
+  description: Blocked by another issue
+
+- name: "status: in progress"
+  color: fbca04
+  description: Currently being worked on
+
+- name: "status: needs review"
+  color: 0e8a16
+  description: Needs code review

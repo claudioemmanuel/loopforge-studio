@@ -251,8 +251,8 @@ export function LoopforgeLogo({
 
       {showText && (
         <span className="mt-1 text-xl font-bold tracking-tight">
-          <span className="text-primary">Loop</span>
-          <span className="text-foreground">forge</span>
+          <span className="text-primary">Loopforge</span>
+          <span className="text-foreground"> Studio</span>
         </span>
       )}
     </div>

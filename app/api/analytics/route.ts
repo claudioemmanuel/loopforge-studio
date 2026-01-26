@@ -5,8 +5,6 @@ import {
   getTaskMetrics,
   getTasksByStatus,
   getDailyCompletions,
-  getTokenUsage,
-  getCostBreakdown,
   getRepoActivity,
 } from "@/lib/api/analytics";
 
@@ -46,15 +44,11 @@ export async function GET(request: NextRequest) {
     taskMetrics,
     tasksByStatus,
     dailyCompletions,
-    tokenUsage,
-    costBreakdown,
     repoActivity,
   ] = await Promise.all([
     getTaskMetrics(session.user.id, dateRange),
     getTasksByStatus(session.user.id, dateRange),
     getDailyCompletions(session.user.id, dateRange),
-    getTokenUsage(session.user.id, dateRange),
-    getCostBreakdown(session.user.id, dateRange),
     getRepoActivity(session.user.id, dateRange),
   ]);
 
@@ -62,8 +56,6 @@ export async function GET(request: NextRequest) {
     taskMetrics,
     tasksByStatus,
     dailyCompletions,
-    tokenUsage,
-    costBreakdown,
     repoActivity,
     dateRange: { start: start.toISOString(), end: end.toISOString() },
   });

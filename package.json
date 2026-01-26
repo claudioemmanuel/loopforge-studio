@@ -1,13 +1,12 @@
 {
-  "name": "loopforge",
+  "name": "loopforge-studio",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "docker compose -f docker-compose.dev.yml up",
-    "dev:build": "docker compose -f docker-compose.dev.yml up --build",
-    "dev:down": "docker compose -f docker-compose.dev.yml down",
-    "dev:logs": "docker compose -f docker-compose.dev.yml logs -f",
-    "dev:local": "next dev",
+    "dev": "next dev",
+    "dev:docker": "docker compose -f docker-compose.dev.yml up",
+    "dev:docker:build": "docker compose -f docker-compose.dev.yml up --build",
+    "dev:docker:down": "docker compose -f docker-compose.dev.yml down",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -16,15 +15,9 @@
     "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:migrate:dev": "docker compose -f docker-compose.dev.yml exec web npm run db:migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx lib/db/seed.ts",
-    "worker": "tsx workers/execution-worker.ts",
-    "docker:build": "docker compose build",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f",
-    "docker:prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+    "worker": "tsx workers/execution-worker.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
@@ -56,7 +49,6 @@
     "react-dom": "^19.0.0",
     "recharts": "^3.6.0",
     "simple-git": "^3.27.0",
-    "stripe": "^20.2.0",
     "tailwind-merge": "^2.6.0",
     "ws": "^8.18.0",
     "zod": "^3.24.1"

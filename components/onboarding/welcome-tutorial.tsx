@@ -101,7 +101,7 @@ export function WelcomeTutorial({ onComplete }: WelcomeTutorialProps) {
               <LoopforgeLogo size="xl" animate showSparks />
             </div>
             <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight mb-2">
-              Welcome to <span className="text-primary">Loop</span>forge
+              Welcome to <span className="text-primary">Loopforge</span> Studio
             </h1>
             <p className="text-muted-foreground max-w-md">
               Your AI-powered development companion. Turn ideas into code with a simple workflow.
