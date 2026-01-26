@@ -24,7 +24,7 @@ jobs:
 
       - name: Wait for CI to complete
         id: wait-ci
-        uses: lewagon/wait-on-check-action@v1.3.4
+        uses: lewagon/wait-on-check-action@v1.5.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
