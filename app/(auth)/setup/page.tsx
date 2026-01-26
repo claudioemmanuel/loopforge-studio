@@ -2,8 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { clientLogger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { CheckCircle2, Copy, ExternalLink } from "lucide-react";
 import { LoopforgeLogo } from "@/components/loopforge-logo";
 
@@ -33,7 +40,7 @@ export default function SetupPage() {
         router.push("/login");
       }
     } catch (error) {
-      console.error("Failed to check setup status:", error);
+      clientLogger.error("Failed to check setup status", { error });
     } finally {
       setLoading(false);
     }
@@ -62,11 +69,14 @@ export default function SetupPage() {
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto">
-            <LoopforgeLogo size="xl" animate={true} showSparks={true} showText={true} />
+            <LoopforgeLogo
+              size="xl"
+              animate={true}
+              showSparks={true}
+              showText={true}
+            />
           </div>
-          <CardTitle className="text-2xl font-serif">
-            Platform Setup
-          </CardTitle>
+          <CardTitle className="text-2xl font-serif">Platform Setup</CardTitle>
           <CardDescription>
             Configure GitHub OAuth to enable user authentication
           </CardDescription>
@@ -118,7 +128,12 @@ export default function SetupPage() {
                   <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
                     Homepage URL
                   </div>
-                  <code className="text-sm">{status?.callbackUrl?.replace('/api/auth/callback/github', '') || 'http://localhost:3000'}</code>
+                  <code className="text-sm">
+                    {status?.callbackUrl?.replace(
+                      "/api/auth/callback/github",
+                      "",
+                    ) || "http://localhost:3000"}
+                  </code>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
@@ -126,12 +141,13 @@ export default function SetupPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <code className="text-sm flex-1 break-all">
-                      {status?.callbackUrl || 'http://localhost:3000/api/auth/callback/github'}
+                      {status?.callbackUrl ||
+                        "http://localhost:3000/api/auth/callback/github"}
                     </code>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => copyToClipboard(status?.callbackUrl || '')}
+                      onClick={() => copyToClipboard(status?.callbackUrl || "")}
                     >
                       {copied ? (
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -155,14 +171,16 @@ export default function SetupPage() {
             </div>
             <div className="ml-8 space-y-2">
               <p className="text-sm text-muted-foreground">
-                Copy the Client ID and Client Secret from GitHub and add them to your environment:
+                Copy the Client ID and Client Secret from GitHub and add them to
+                your environment:
               </p>
               <div className="p-4 bg-muted rounded-lg font-mono text-sm space-y-1">
                 <div>GITHUB_CLIENT_ID=your_client_id_here</div>
                 <div>GITHUB_CLIENT_SECRET=your_client_secret_here</div>
               </div>
               <p className="text-xs text-muted-foreground">
-                For Docker: Add these to your <code>.env</code> file and restart the containers.
+                For Docker: Add these to your <code>.env</code> file and restart
+                the containers.
               </p>
             </div>
           </div>
@@ -177,7 +195,8 @@ export default function SetupPage() {
             </div>
             <div className="ml-8 space-y-2">
               <p className="text-sm text-muted-foreground">
-                After adding the environment variables, restart Loopforge and refresh this page.
+                After adding the environment variables, restart Loopforge and
+                refresh this page.
               </p>
               <Button onClick={() => window.location.reload()}>
                 Check Configuration

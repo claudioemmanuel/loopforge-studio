@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { clientLogger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -163,7 +164,7 @@ function ModelDropdown({
         onSelect(modelId);
       }
     } catch (error) {
-      console.error("Failed to update model:", error);
+      clientLogger.error("Failed to update model", { error });
     } finally {
       setLoading(false);
       setOpen(false);
@@ -538,7 +539,7 @@ export default function IntegrationsPage() {
         setLocalPreferredProvider(provider);
       }
     } catch (error) {
-      console.error("Failed to update provider:", error);
+      clientLogger.error("Failed to update provider", { error });
     } finally {
       setSavingProvider(false);
     }
@@ -551,10 +552,10 @@ export default function IntegrationsPage() {
       if (res.ok) {
         router.refresh();
       } else {
-        console.error("Failed to disconnect repository");
+        clientLogger.error("Failed to disconnect repository");
       }
     } catch (error) {
-      console.error("Failed to disconnect repository:", error);
+      clientLogger.error("Failed to disconnect repository", { error });
     } finally {
       setDisconnecting(null);
     }
@@ -580,7 +581,7 @@ export default function IntegrationsPage() {
           setLocalPreferredProvider(provider);
         }
       } catch (error) {
-        console.error("Failed to set default provider:", error);
+        clientLogger.error("Failed to set default provider", { error });
       } finally {
         setSavingProvider(false);
       }
@@ -607,7 +608,7 @@ export default function IntegrationsPage() {
             setLocalPreferredProvider(otherConfigured);
           }
         } catch (error) {
-          console.error("Failed to update default provider:", error);
+          clientLogger.error("Failed to update default provider", { error });
         }
       } else {
         // No other providers configured, clear the selection

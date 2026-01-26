@@ -1,11 +1,20 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { clientLogger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
 
 interface ActivityEvent {
   id: string;
-  type: "thinking" | "file_read" | "file_write" | "command_run" | "commit" | "error" | "complete" | "stuck";
+  type:
+    | "thinking"
+    | "file_read"
+    | "file_write"
+    | "command_run"
+    | "commit"
+    | "error"
+    | "complete"
+    | "stuck";
   content: string;
   timestamp: Date;
 }
@@ -51,7 +60,7 @@ export function ActivityFeed({ executionId }: ActivityFeedProps) {
           setEvents(data);
         }
       } catch (error) {
-        console.error("Error fetching events:", error);
+        clientLogger.error("Error fetching events", { error });
       }
     };
 
@@ -78,7 +87,7 @@ export function ActivityFeed({ executionId }: ActivityFeedProps) {
           <span
             className={cn(
               "w-2 h-2 rounded-full",
-              isConnected ? "bg-green-500" : "bg-yellow-500 animate-pulse"
+              isConnected ? "bg-green-500" : "bg-yellow-500 animate-pulse",
             )}
           />
           <span className="text-xs text-muted-foreground">
@@ -98,7 +107,7 @@ export function ActivityFeed({ executionId }: ActivityFeedProps) {
               key={event.id}
               className={cn(
                 "p-3 bg-card rounded-lg border-l-4 text-sm",
-                eventColors[event.type]
+                eventColors[event.type],
               )}
             >
               <div className="flex items-center gap-2 mb-1">

@@ -39,6 +39,34 @@ npm run worker
 - Keep commits focused and atomic
 - Use clear, descriptive commit messages
 
+## Commit Messages
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear, consistent history:
+
+| Prefix      | Description                                     |
+| ----------- | ----------------------------------------------- |
+| `feat:`     | New features                                    |
+| `fix:`      | Bug fixes                                       |
+| `docs:`     | Documentation changes                           |
+| `refactor:` | Code refactoring (no functional change)         |
+| `test:`     | Test additions/changes                          |
+| `chore:`    | Maintenance tasks (deps, config)                |
+| `style:`    | Formatting, missing semicolons (no code change) |
+| `perf:`     | Performance improvements                        |
+
+**Examples:**
+
+```
+feat: add dark mode support to kanban board
+fix: resolve token refresh race condition
+docs: update API authentication guide
+refactor: extract task validation into shared utility
+test: add integration tests for brainstorm endpoint
+chore: update dependencies to latest versions
+```
+
+For breaking changes, add `!` after the type: `feat!: redesign task API`
+
 ## Pull Request Process
 
 1. Ensure all tests pass

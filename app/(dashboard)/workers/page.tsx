@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { clientLogger } from "@/lib/logger";
 import {
   Zap,
   AlertTriangle,
@@ -17,15 +18,23 @@ import {
   WorkerCardSkeleton,
   type WorkerCardData,
 } from "@/components/workers/worker-card";
-import { createDefaultTimeline, type TimelineStage } from "@/components/workers/worker-timeline";
-import { useWorkerEvents, type WorkerEventData } from "@/components/hooks/use-worker-events";
+import {
+  createDefaultTimeline,
+  type TimelineStage,
+} from "@/components/workers/worker-timeline";
+import {
+  useWorkerEvents,
+  type WorkerEventData,
+} from "@/components/hooks/use-worker-events";
 
 // Convert WorkerEventData to WorkerCardData
 function toWorkerCardData(worker: WorkerEventData): WorkerCardData {
   const status =
-    worker.status === "done" ? "completed" :
-    worker.status === "stuck" ? "stuck" :
-    "active";
+    worker.status === "done"
+      ? "completed"
+      : worker.status === "stuck"
+        ? "stuck"
+        : "active";
 
   const currentStage = worker.status as TimelineStage;
 
@@ -53,20 +62,16 @@ function toWorkerCardData(worker: WorkerEventData): WorkerCardData {
 }
 
 export default function WorkersPage() {
-  const {
-    workers,
-    activeCount,
-    stuckCount,
-    isConnected,
-    error,
-    refresh
-  } = useWorkerEvents();
+  const { workers, activeCount, stuckCount, isConnected, error, refresh } =
+    useWorkerEvents();
 
   // Get only active workers (processingPhase set or stuck status)
   const activeWorkers = useMemo(() => {
-    return workers.filter((worker) =>
-      ["brainstorming", "planning", "ready", "executing"].includes(worker.status) ||
-      worker.status === "stuck"
+    return workers.filter(
+      (worker) =>
+        ["brainstorming", "planning", "ready", "executing"].includes(
+          worker.status,
+        ) || worker.status === "stuck",
     );
   }, [workers]);
 
@@ -80,7 +85,7 @@ export default function WorkersPage() {
       await fetch(`/api/workers/${taskId}/retry`, { method: "POST" });
       refresh();
     } catch (err) {
-      console.error("Failed to retry worker:", err);
+      clientLogger.error("Failed to retry worker", { error: err });
     }
   };
 
@@ -89,7 +94,7 @@ export default function WorkersPage() {
       await fetch(`/api/workers/${taskId}/cancel`, { method: "POST" });
       refresh();
     } catch (err) {
-      console.error("Failed to cancel worker:", err);
+      clientLogger.error("Failed to cancel worker", { error: err });
     }
   };
 
@@ -113,7 +118,7 @@ export default function WorkersPage() {
             <span
               className={cn(
                 "w-2 h-2 rounded-full",
-                isConnected ? "bg-green-500" : "bg-amber-500 animate-pulse"
+                isConnected ? "bg-green-500" : "bg-amber-500 animate-pulse",
               )}
             />
             <span className="text-muted-foreground">
@@ -197,9 +202,12 @@ export default function WorkersPage() {
           <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
             <Zap className="w-6 h-6 text-muted-foreground" />
           </div>
-          <h3 className="font-medium text-foreground mb-1">No active workers</h3>
+          <h3 className="font-medium text-foreground mb-1">
+            No active workers
+          </h3>
           <p className="text-sm text-muted-foreground max-w-sm mb-4">
-            Tasks will appear here when they&apos;re being processed (brainstorming, planning, or executing).
+            Tasks will appear here when they&apos;re being processed
+            (brainstorming, planning, or executing).
           </p>
           <Link href="/workers/history">
             <Button variant="outline" size="sm" className="gap-2">
@@ -214,7 +222,10 @@ export default function WorkersPage() {
       {/* Quick link to history when there are active workers */}
       {workerCards.length > 0 && (
         <div className="mt-8 pt-6 border-t">
-          <Link href="/workers/history" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link
+            href="/workers/history"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
             <History className="w-4 h-4" />
             View execution history
             <ArrowRight className="w-3 h-3" />
