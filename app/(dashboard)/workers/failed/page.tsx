@@ -1,11 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  AlertTriangle,
-  RefreshCw,
-  Zap,
-} from "lucide-react";
+import { clientLogger } from "@/lib/logger";
+import { AlertTriangle, RefreshCw, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,13 +73,13 @@ export default function WorkersFailedPage() {
           setPage(pageNum);
         }
       } catch (err) {
-        console.error("Error fetching failed tasks:", err);
+        clientLogger.error("Error fetching failed tasks", { error: err });
       } finally {
         setLoading(false);
         setLoadingMore(false);
       }
     },
-    []
+    [],
   );
 
   // Load on mount
@@ -105,7 +102,7 @@ export default function WorkersFailedPage() {
       setItems((prev) => prev.filter((i) => i.taskId !== taskId));
       setTotal((prev) => Math.max(0, prev - 1));
     } catch (err) {
-      console.error("Failed to retry:", err);
+      clientLogger.error("Failed to retry task", { error: err });
     }
   };
 
@@ -138,7 +135,9 @@ export default function WorkersFailedPage() {
         <AlertTriangle className="w-5 h-5 text-destructive" />
         <div>
           <p className="text-2xl font-bold">{total}</p>
-          <p className="text-xs text-muted-foreground">Failed tasks requiring attention</p>
+          <p className="text-xs text-muted-foreground">
+            Failed tasks requiring attention
+          </p>
         </div>
       </div>
 
@@ -187,7 +186,9 @@ export default function WorkersFailedPage() {
             onClick={handleLoadMore}
             disabled={loadingMore}
           >
-            {loadingMore ? "Loading..." : `Load more (${items.length} of ${total})`}
+            {loadingMore
+              ? "Loading..."
+              : `Load more (${items.length} of ${total})`}
           </Button>
         </div>
       )}

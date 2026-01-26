@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { clientLogger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AlertTriangle, Download, Unplug, Trash2, Loader2 } from "lucide-react";
@@ -21,10 +22,10 @@ export default function DangerZonePage() {
         setShowDisconnectDialog(false);
         router.refresh();
       } else {
-        console.error("Failed to disconnect all repositories");
+        clientLogger.error("Failed to disconnect all repositories");
       }
     } catch (error) {
-      console.error("Failed to disconnect all repositories:", error);
+      clientLogger.error("Failed to disconnect all repositories", { error });
     } finally {
       setDisconnecting(false);
     }
@@ -35,7 +36,9 @@ export default function DangerZonePage() {
       <div className="p-6 rounded-xl border-2 border-destructive/50 bg-destructive/5">
         <div className="flex items-center gap-2 mb-4 text-destructive">
           <AlertTriangle className="w-5 h-5" />
-          <h3 className="font-serif font-semibold tracking-tight">Danger Zone</h3>
+          <h3 className="font-serif font-semibold tracking-tight">
+            Danger Zone
+          </h3>
         </div>
         <p className="text-sm text-muted-foreground mb-6">
           These actions are irreversible. Please proceed with caution.
