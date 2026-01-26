@@ -6,7 +6,8 @@ If you discover a security vulnerability in Loopforge Studio, please report it r
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Instead, please email security concerns to the maintainers or use GitHub's private vulnerability reporting feature.
+Instead, please email security@loopforge.dev or use GitHub's private vulnerability reporting feature at:
+https://github.com/claudioemmanuel/loopforge-studio/security/advisories/new
 
 ## What to Include
 
@@ -27,8 +28,8 @@ When reporting a vulnerability, please include:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.x     | :white_check_mark: |
-| < 1.0   | :x:                |
+| 0.1.x   | :white_check_mark: |
+| < 0.1   | :x:                |
 
 ## Security Best Practices
 

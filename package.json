@@ -17,7 +17,6 @@
     "nextjs",
     "self-hosted"
   ],
-  "private": true,
   "scripts": {
     "dev": "next dev",
     "dev:docker": "docker compose -f docker-compose.dev.yml up",

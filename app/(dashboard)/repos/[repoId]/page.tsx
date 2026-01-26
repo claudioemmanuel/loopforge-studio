@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { clientLogger } from "@/lib/logger";
 import { KanbanBoard } from "@/components/kanban";
 import { TaskModal, NewTaskModal } from "@/components/modals";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,11 @@ interface RepoData {
 const statConfig = {
   total: { label: "Total", icon: ListTodo, color: "text-muted-foreground" },
   inProgress: { label: "In Progress", icon: Zap, color: "text-primary" },
-  completed: { label: "Completed", icon: CheckCircle2, color: "text-emerald-500" },
+  completed: {
+    label: "Completed",
+    icon: CheckCircle2,
+    color: "text-emerald-500",
+  },
   stuck: { label: "Failed", icon: AlertTriangle, color: "text-red-500" },
 };
 
@@ -109,7 +114,9 @@ export default function RepoPage() {
   const prevTaskStatusesRef = useRef<Map<string, TaskStatus>>(new Map());
 
   // Ref to hold fetchData for use in callbacks (declared before hooks that use it)
-  const fetchDataRef = useRef<((signal?: AbortSignal) => Promise<void>) | null>(null);
+  const fetchDataRef = useRef<((signal?: AbortSignal) => Promise<void>) | null>(
+    null,
+  );
 
   // Slide animation hook
   const { triggerSlide, slidingCards } = useSlideAnimation();
@@ -117,54 +124,63 @@ export default function RepoPage() {
   // Card processing hook for async operations
   const { processingCards } = useCardProcessing({
     enabled: true,
-    onProcessingComplete: useCallback((state: { taskId: string; error?: string }) => {
-      // Refresh task data when processing completes
-      fetchDataRef.current?.();
-      // Trigger slide animation for the completed card
-      triggerSlide(state.taskId);
-    }, [triggerSlide]),
-    onProcessingError: useCallback((state: { taskId: string; error?: string }) => {
-      // Show error dialog
-      setErrorDialog({
-        open: true,
-        title: "Processing Failed",
-        description: state.error || "An error occurred during processing",
-        isApiKeyError: state.error?.includes("API key") || false,
-      });
-      // Refresh task data
-      fetchDataRef.current?.();
-    }, []),
+    onProcessingComplete: useCallback(
+      (state: { taskId: string; error?: string }) => {
+        // Refresh task data when processing completes
+        fetchDataRef.current?.();
+        // Trigger slide animation for the completed card
+        triggerSlide(state.taskId);
+      },
+      [triggerSlide],
+    ),
+    onProcessingError: useCallback(
+      (state: { taskId: string; error?: string }) => {
+        // Show error dialog
+        setErrorDialog({
+          open: true,
+          title: "Processing Failed",
+          description: state.error || "An error occurred during processing",
+          isApiKeyError: state.error?.includes("API key") || false,
+        });
+        // Refresh task data
+        fetchDataRef.current?.();
+      },
+      [],
+    ),
   });
 
-  const fetchData = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const fetchOptions = signal ? { signal } : {};
-      const [repoRes, tasksRes] = await Promise.all([
-        fetch(`/api/repos/${repoId}`, fetchOptions),
-        fetch(`/api/repos/${repoId}/tasks`, fetchOptions),
-      ]);
+  const fetchData = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const fetchOptions = signal ? { signal } : {};
+        const [repoRes, tasksRes] = await Promise.all([
+          fetch(`/api/repos/${repoId}`, fetchOptions),
+          fetch(`/api/repos/${repoId}/tasks`, fetchOptions),
+        ]);
 
-      // Check if aborted before processing results
-      if (signal?.aborted) return;
+        // Check if aborted before processing results
+        if (signal?.aborted) return;
 
-      if (repoRes.ok) {
-        setRepo(await repoRes.json());
+        if (repoRes.ok) {
+          setRepo(await repoRes.json());
+        }
+        if (tasksRes.ok) {
+          setTasks(await tasksRes.json());
+        }
+      } catch (error) {
+        // Ignore abort errors
+        if (error instanceof Error && error.name === "AbortError") return;
+        clientLogger.error("Error fetching data", { error });
+      } finally {
+        // Only update loading state if not aborted
+        if (!signal?.aborted) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
-      if (tasksRes.ok) {
-        setTasks(await tasksRes.json());
-      }
-    } catch (error) {
-      // Ignore abort errors
-      if (error instanceof Error && error.name === "AbortError") return;
-      console.error("Error fetching data:", error);
-    } finally {
-      // Only update loading state if not aborted
-      if (!signal?.aborted) {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    }
-  }, [repoId]);
+    },
+    [repoId],
+  );
 
   // Keep ref updated
   fetchDataRef.current = fetchData;
@@ -214,7 +230,7 @@ export default function RepoPage() {
   // Auto-open task modal from URL query parameter (e.g., from Workers page "View details")
   useEffect(() => {
     if (taskIdFromUrl && tasks.length > 0 && !selectedTask) {
-      const task = tasks.find(t => t.id === taskIdFromUrl);
+      const task = tasks.find((t) => t.id === taskIdFromUrl);
       if (task) {
         setSelectedTask(task);
         // Auto-open brainstorm panel for tasks in brainstorming status
@@ -229,7 +245,7 @@ export default function RepoPage() {
   const taskStats = useMemo(() => {
     const total = tasks.length;
     const inProgress = tasks.filter((t) =>
-      ["executing", "brainstorming", "planning", "ready"].includes(t.status)
+      ["executing", "brainstorming", "planning", "ready"].includes(t.status),
     ).length;
     const completed = tasks.filter((t) => t.status === "done").length;
     const stuck = tasks.filter((t) => t.status === "stuck").length;
@@ -241,14 +257,14 @@ export default function RepoPage() {
   const performTaskMove = async (
     taskId: string,
     newStatus: TaskStatus,
-    resetPhases: boolean = false
+    resetPhases: boolean = false,
   ) => {
     const currentTask = tasks.find((t) => t.id === taskId);
     if (!currentTask) return;
 
     // Optimistic update
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
     );
 
     try {
@@ -261,7 +277,9 @@ export default function RepoPage() {
       if (!res.ok) {
         // Revert to original status
         setTasks((prev) =>
-          prev.map((t) => (t.id === taskId ? { ...t, status: currentTask.status } : t))
+          prev.map((t) =>
+            t.id === taskId ? { ...t, status: currentTask.status } : t,
+          ),
         );
 
         const errorData = await res.json().catch(() => ({}));
@@ -269,20 +287,24 @@ export default function RepoPage() {
           open: true,
           title: newStatus === "executing" ? "Execution Failed" : "Move Failed",
           description: errorData.error || `Failed to move task to ${newStatus}`,
-          isApiKeyError: errorData.error?.includes("API key") || errorData.code === "NO_PROVIDER_CONFIGURED",
+          isApiKeyError:
+            errorData.error?.includes("API key") ||
+            errorData.code === "NO_PROVIDER_CONFIGURED",
         });
       } else {
         // Update with server response (includes execution info when moving to executing)
         const updatedTask = await res.json();
         setTasks((prev) =>
-          prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+          prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
         );
       }
     } catch (error) {
-      console.error("Error updating task:", error);
+      clientLogger.error("Error updating task", { error, taskId });
       // Revert on error
       setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: currentTask.status } : t))
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: currentTask.status } : t,
+        ),
       );
     }
   };
@@ -371,7 +393,7 @@ export default function RepoPage() {
 
   const handleTaskUpdated = (updatedTask: Task) => {
     setTasks((prev) =>
-      prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+      prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
     );
     setSelectedTask(updatedTask);
   };
@@ -383,11 +405,11 @@ export default function RepoPage() {
     try {
       const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
       if (!res.ok) {
-        console.error("Failed to delete task");
+        clientLogger.error("Failed to delete task", { taskId });
         fetchData(); // Revert on error
       }
     } catch (error) {
-      console.error("Error deleting task:", error);
+      clientLogger.error("Error deleting task", { error, taskId });
       fetchData(); // Revert on error
     }
   };
@@ -405,17 +427,21 @@ export default function RepoPage() {
           open: true,
           title: "Failed to Start",
           description: errorData.error || "Failed to start brainstorming",
-          isApiKeyError: errorData.error?.includes("API key") || errorData.code === "NO_PROVIDER_CONFIGURED",
+          isApiKeyError:
+            errorData.error?.includes("API key") ||
+            errorData.code === "NO_PROVIDER_CONFIGURED",
         });
         return;
       }
 
       // Optimistically update task status
       setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: "brainstorming" as TaskStatus } : t))
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: "brainstorming" as TaskStatus } : t,
+        ),
       );
     } catch (error) {
-      console.error("Error starting brainstorm:", error);
+      clientLogger.error("Error starting brainstorm", { error, taskId });
       setErrorDialog({
         open: true,
         title: "Failed to Start",
@@ -425,7 +451,10 @@ export default function RepoPage() {
     }
   };
 
-  const executeAdvanceAction = async (taskId: string, action: "plan" | "ready" | "execute") => {
+  const executeAdvanceAction = async (
+    taskId: string,
+    action: "plan" | "ready" | "execute",
+  ) => {
     // For plan action, use async endpoint (card locks immediately)
     if (action === "plan") {
       try {
@@ -439,18 +468,22 @@ export default function RepoPage() {
             open: true,
             title: "Failed to Start Planning",
             description: errorData.error || "Failed to start planning",
-            isApiKeyError: errorData.error?.includes("API key") || errorData.code === "NO_PROVIDER_CONFIGURED",
+            isApiKeyError:
+              errorData.error?.includes("API key") ||
+              errorData.code === "NO_PROVIDER_CONFIGURED",
           });
           return;
         }
 
         // Optimistically update task status
         setTasks((prev) =>
-          prev.map((t) => (t.id === taskId ? { ...t, status: "planning" as TaskStatus } : t))
+          prev.map((t) =>
+            t.id === taskId ? { ...t, status: "planning" as TaskStatus } : t,
+          ),
         );
         return;
       } catch (error) {
-        console.error("Error starting plan:", error);
+        clientLogger.error("Error starting plan", { error, taskId });
         setErrorDialog({
           open: true,
           title: "Failed to Start Planning",
@@ -462,12 +495,14 @@ export default function RepoPage() {
     }
 
     // For ready and execute actions, use existing synchronous endpoints
-    const endpoint = action === "ready"
-      ? `/api/tasks/${taskId}`
-      : `/api/tasks/${taskId}/execute`;
+    const endpoint =
+      action === "ready"
+        ? `/api/tasks/${taskId}`
+        : `/api/tasks/${taskId}/execute`;
 
     const method = action === "ready" ? "PATCH" : "POST";
-    const body = action === "ready" ? JSON.stringify({ status: "ready" }) : undefined;
+    const body =
+      action === "ready" ? JSON.stringify({ status: "ready" }) : undefined;
 
     try {
       const res = await fetch(endpoint, {
@@ -478,7 +513,7 @@ export default function RepoPage() {
       if (res.ok) {
         const updated = await res.json();
         setTasks((prev) =>
-          prev.map((t) => (t.id === updated.id ? updated : t))
+          prev.map((t) => (t.id === updated.id ? updated : t)),
         );
       } else {
         const errorData = await res.json().catch(() => ({}));
@@ -490,7 +525,7 @@ export default function RepoPage() {
         });
       }
     } catch (error) {
-      console.error("Error advancing task:", error);
+      clientLogger.error("Error advancing task", { error, taskId, action });
       setErrorDialog({
         open: true,
         title: "Action Failed",
@@ -523,7 +558,10 @@ export default function RepoPage() {
     });
   };
 
-  const handleTaskAdvance = async (taskId: string, action: "plan" | "ready" | "execute") => {
+  const handleTaskAdvance = async (
+    taskId: string,
+    action: "plan" | "ready" | "execute",
+  ) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
@@ -534,7 +572,8 @@ export default function RepoPage() {
     }
 
     // Show confirmation for "plan" and "execute"
-    const targetStatus: TaskStatus = action === "plan" ? "planning" : "executing";
+    const targetStatus: TaskStatus =
+      action === "plan" ? "planning" : "executing";
     setActionDialog({
       open: true,
       taskId,
@@ -588,7 +627,11 @@ export default function RepoPage() {
                 />
                 <span className="hidden sm:inline">Refresh</span>
               </Button>
-              <Button onClick={() => setShowNewTask(true)} size="sm" className="gap-2">
+              <Button
+                onClick={() => setShowNewTask(true)}
+                size="sm"
+                className="gap-2"
+              >
                 <Plus className="w-4 h-4" />
                 <span>New Task</span>
               </Button>
@@ -611,25 +654,25 @@ export default function RepoPage() {
 
             {/* Quick stats */}
             <div className="flex items-center gap-4 sm:gap-6">
-              {(Object.entries(taskStats) as [keyof typeof taskStats, number][]).map(
-                ([key, value]) => {
-                  const config = statConfig[key];
-                  const Icon = config.icon;
-                  return (
-                    <div key={key} className="flex items-center gap-2">
-                      <Icon className={cn("w-4 h-4", config.color)} />
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-semibold tabular-nums">
-                          {value}
-                        </span>
-                        <span className="text-xs text-muted-foreground hidden sm:inline">
-                          {config.label}
-                        </span>
-                      </div>
+              {(
+                Object.entries(taskStats) as [keyof typeof taskStats, number][]
+              ).map(([key, value]) => {
+                const config = statConfig[key];
+                const Icon = config.icon;
+                return (
+                  <div key={key} className="flex items-center gap-2">
+                    <Icon className={cn("w-4 h-4", config.color)} />
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-semibold tabular-nums">
+                        {value}
+                      </span>
+                      <span className="text-xs text-muted-foreground hidden sm:inline">
+                        {config.label}
+                      </span>
                     </div>
-                  );
-                }
-              )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -699,9 +742,7 @@ export default function RepoPage() {
       {/* Action Confirmation Dialog (for forward moves to action columns) */}
       <ConfirmActionDialog
         open={actionDialog.open}
-        onOpenChange={(open) =>
-          setActionDialog((prev) => ({ ...prev, open }))
-        }
+        onOpenChange={(open) => setActionDialog((prev) => ({ ...prev, open }))}
         taskTitle={actionDialog.taskTitle}
         fromStatus={actionDialog.fromStatus}
         toStatus={actionDialog.toStatus}

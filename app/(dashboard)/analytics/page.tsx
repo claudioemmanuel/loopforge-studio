@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { clientLogger } from "@/lib/logger";
 import { StatCard } from "@/components/dashboard";
 import {
   TasksByStatusChart,
@@ -10,7 +11,13 @@ import {
   RepoActivityTable,
 } from "@/components/analytics";
 import { Button } from "@/components/ui/button";
-import { ListTodo, CheckCircle2, TrendingUp, Clock, Download } from "lucide-react";
+import {
+  ListTodo,
+  CheckCircle2,
+  TrendingUp,
+  Clock,
+  Download,
+} from "lucide-react";
 
 type DateRange = "today" | "week" | "month" | "year";
 
@@ -59,7 +66,7 @@ export default function AnalyticsPage() {
           setData(await res.json());
         }
       } catch (error) {
-        console.error("Failed to fetch analytics:", error);
+        clientLogger.error("Failed to fetch analytics", { error });
       } finally {
         setLoading(false);
       }
@@ -69,7 +76,9 @@ export default function AnalyticsPage() {
 
   const handleExport = () => {
     if (!data) return;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -98,9 +107,12 @@ export default function AnalyticsPage() {
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">Analytics</h1>
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
+            Analytics
+          </h1>
           <p className="text-muted-foreground text-sm sm:text-base">
-            Track your <em className="font-serif">AI-powered</em> development metrics
+            Track your <em className="font-serif">AI-powered</em> development
+            metrics
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -119,7 +131,12 @@ export default function AnalyticsPage() {
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm" onClick={handleExport} className="w-full sm:w-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            className="w-full sm:w-auto"
+          >
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -145,9 +162,11 @@ export default function AnalyticsPage() {
         />
         <StatCard
           title="Avg Time"
-          value={data.taskMetrics.avgCompletionTimeMinutes
-            ? `${data.taskMetrics.avgCompletionTimeMinutes}min`
-            : "N/A"}
+          value={
+            data.taskMetrics.avgCompletionTimeMinutes
+              ? `${data.taskMetrics.avgCompletionTimeMinutes}min`
+              : "N/A"
+          }
           icon={Clock}
         />
       </div>
@@ -159,14 +178,18 @@ export default function AnalyticsPage() {
       </div>
 
       {/* AI Usage Section */}
-      <h2 className="text-xl font-serif font-semibold tracking-tight mb-4">AI Usage</h2>
+      <h2 className="text-xl font-serif font-semibold tracking-tight mb-4">
+        AI Usage
+      </h2>
       <div className="grid gap-4 md:grid-cols-2 mb-8">
         <TokenUsageChart data={data.tokenUsage} />
         <CostBreakdown data={data.costBreakdown} />
       </div>
 
       {/* Repository Activity */}
-      <h2 className="text-xl font-serif font-semibold tracking-tight mb-4">Repository Activity</h2>
+      <h2 className="text-xl font-serif font-semibold tracking-tight mb-4">
+        Repository Activity
+      </h2>
       <RepoActivityTable data={data.repoActivity} />
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { clientLogger } from "@/lib/logger";
 import {
   History,
   RefreshCw,
@@ -127,13 +128,13 @@ export default function WorkersHistoryPage() {
           setPage(pageNum);
         }
       } catch (err) {
-        console.error("Error fetching history:", err);
+        clientLogger.error("Error fetching history", { error: err });
       } finally {
         setLoading(false);
         setLoadingMore(false);
       }
     },
-    [filters]
+    [filters],
   );
 
   // Fetch repos for filter dropdown
@@ -143,10 +144,15 @@ export default function WorkersHistoryPage() {
         const res = await fetch("/api/repos");
         if (res.ok) {
           const data = await res.json();
-          setRepos(data.map((r: { id: string; name: string }) => ({ id: r.id, name: r.name })));
+          setRepos(
+            data.map((r: { id: string; name: string }) => ({
+              id: r.id,
+              name: r.name,
+            })),
+          );
         }
       } catch (err) {
-        console.error("Error fetching repos:", err);
+        clientLogger.error("Error fetching repos", { error: err });
       }
     }
     fetchRepos();
@@ -170,7 +176,7 @@ export default function WorkersHistoryPage() {
       await fetch(`/api/workers/${taskId}/retry`, { method: "POST" });
       fetchHistory(1);
     } catch (err) {
-      console.error("Failed to retry:", err);
+      clientLogger.error("Failed to retry task", { error: err });
     }
   };
 
@@ -178,7 +184,10 @@ export default function WorkersHistoryPage() {
   const avgDuration = useMemo(() => {
     const itemsWithDuration = items.filter((i) => i.duration !== undefined);
     if (itemsWithDuration.length === 0) return 0;
-    return itemsWithDuration.reduce((sum, i) => sum + (i.duration || 0), 0) / itemsWithDuration.length;
+    return (
+      itemsWithDuration.reduce((sum, i) => sum + (i.duration || 0), 0) /
+      itemsWithDuration.length
+    );
   }, [items]);
 
   return (
@@ -288,8 +297,8 @@ export default function WorkersHistoryPage() {
           </div>
           <h3 className="font-medium text-foreground mb-1">No history yet</h3>
           <p className="text-sm text-muted-foreground max-w-sm">
-            Completed brainstorming, planning, and execution jobs will appear here
-            with details about their processing.
+            Completed brainstorming, planning, and execution jobs will appear
+            here with details about their processing.
           </p>
         </div>
       )}
@@ -311,7 +320,9 @@ export default function WorkersHistoryPage() {
             onClick={handleLoadMore}
             disabled={loadingMore}
           >
-            {loadingMore ? "Loading..." : `Load more (${items.length} of ${stats.total})`}
+            {loadingMore
+              ? "Loading..."
+              : `Load more (${items.length} of ${stats.total})`}
           </Button>
         </div>
       )}

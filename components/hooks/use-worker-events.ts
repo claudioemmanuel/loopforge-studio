@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { TaskStatus } from "@/lib/db/schema";
+import { clientLogger } from "@/lib/logger";
 
 export interface WorkerEventData {
   taskId: string;
@@ -41,7 +42,7 @@ interface UseWorkerEventsReturn {
 }
 
 export function useWorkerEvents(
-  options: UseWorkerEventsOptions = {}
+  options: UseWorkerEventsOptions = {},
 ): UseWorkerEventsReturn {
   const { enabled = true, onWorkerComplete, onWorkerStuck } = options;
 
@@ -57,7 +58,10 @@ export function useWorkerEvents(
     if (!enabled) return;
 
     // Prevent duplicate connections (Strict Mode protection)
-    if (isConnecting.current || (eventSourceRef.current?.readyState === EventSource.OPEN)) {
+    if (
+      isConnecting.current ||
+      eventSourceRef.current?.readyState === EventSource.OPEN
+    ) {
       return;
     }
     isConnecting.current = true;
@@ -82,36 +86,49 @@ export function useWorkerEvents(
         const workerEvent: WorkerEvent = JSON.parse(event.data);
 
         // Helper to ensure worker data has required fields with defaults
-        const normalizeWorkerData = (data: WorkerEventData): WorkerEventData => ({
+        const normalizeWorkerData = (
+          data: WorkerEventData,
+        ): WorkerEventData => ({
           ...data,
           taskTitle: data.taskTitle || "Processing...",
           repoName: data.repoName || "Unknown",
           progress: data.progress ?? 0,
-          currentAction: data.currentAction || getDefaultStatusText(data.status),
+          currentAction:
+            data.currentAction || getDefaultStatusText(data.status),
         });
 
         // Helper to get default status text
         function getDefaultStatusText(status: TaskStatus): string {
           switch (status) {
-            case "brainstorming": return "Starting brainstorm...";
-            case "planning": return "Starting plan generation...";
-            case "executing": return "Starting execution...";
-            default: return undefined as unknown as string;
+            case "brainstorming":
+              return "Starting brainstorm...";
+            case "planning":
+              return "Starting plan generation...";
+            case "executing":
+              return "Starting execution...";
+            default:
+              return undefined as unknown as string;
           }
         }
 
         switch (workerEvent.type) {
           case "worker_list":
             // Initial list of workers - normalize data to ensure required fields
-            const normalizedList = (workerEvent.data as WorkerEventData[]).map(normalizeWorkerData);
+            const normalizedList = (workerEvent.data as WorkerEventData[]).map(
+              normalizeWorkerData,
+            );
             setWorkers(normalizedList);
             break;
 
           case "worker_update":
             // Update a single worker - normalize data
-            const updateData = normalizeWorkerData(workerEvent.data as WorkerEventData);
+            const updateData = normalizeWorkerData(
+              workerEvent.data as WorkerEventData,
+            );
             setWorkers((prev) => {
-              const index = prev.findIndex((w) => w.taskId === updateData.taskId);
+              const index = prev.findIndex(
+                (w) => w.taskId === updateData.taskId,
+              );
               if (index >= 0) {
                 const updated = [...prev];
                 updated[index] = updateData;
@@ -123,27 +140,29 @@ export function useWorkerEvents(
             break;
 
           case "worker_complete":
-            const completeData = normalizeWorkerData(workerEvent.data as WorkerEventData);
+            const completeData = normalizeWorkerData(
+              workerEvent.data as WorkerEventData,
+            );
             setWorkers((prev) =>
               prev.map((w) =>
-                w.taskId === completeData.taskId ? completeData : w
-              )
+                w.taskId === completeData.taskId ? completeData : w,
+              ),
             );
             onWorkerComplete?.(completeData);
             break;
 
           case "worker_stuck":
-            const stuckData = normalizeWorkerData(workerEvent.data as WorkerEventData);
+            const stuckData = normalizeWorkerData(
+              workerEvent.data as WorkerEventData,
+            );
             setWorkers((prev) =>
-              prev.map((w) =>
-                w.taskId === stuckData.taskId ? stuckData : w
-              )
+              prev.map((w) => (w.taskId === stuckData.taskId ? stuckData : w)),
             );
             onWorkerStuck?.(stuckData);
             break;
         }
       } catch (err) {
-        console.error("Failed to parse worker event:", err);
+        clientLogger.error("Failed to parse worker event", { error: err });
       }
     };
 
@@ -153,14 +172,19 @@ export function useWorkerEvents(
       eventSource.close();
 
       // Exponential backoff reconnection
-      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+      const delay = Math.min(
+        1000 * Math.pow(2, reconnectAttempts.current),
+        30000,
+      );
       reconnectAttempts.current++;
 
       if (reconnectAttempts.current <= 5) {
         setError("Connection lost. Reconnecting...");
         reconnectTimeoutRef.current = setTimeout(connect, delay);
       } else {
-        setError("Unable to connect to worker events. Please refresh the page.");
+        setError(
+          "Unable to connect to worker events. Please refresh the page.",
+        );
       }
     };
   }, [enabled, onWorkerComplete, onWorkerStuck]);
@@ -186,7 +210,7 @@ export function useWorkerEvents(
   }, [connect]);
 
   const activeCount = workers.filter((w) =>
-    ["brainstorming", "planning", "ready", "executing"].includes(w.status)
+    ["brainstorming", "planning", "ready", "executing"].includes(w.status),
   ).length;
 
   const stuckCount = workers.filter((w) => w.status === "stuck").length;
@@ -205,7 +229,7 @@ export function useWorkerEvents(
 // Calculate progress percentage from status
 export function calculateProgress(
   status: TaskStatus,
-  currentStep?: string
+  currentStep?: string,
 ): number {
   const progressMap: Record<TaskStatus, number> = {
     todo: 0,
