@@ -73,7 +73,7 @@
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.2.0",
-    "@types/node": "^22.12.0",
+    "@types/node": "^25.0.10",
     "@types/pg": "^8.16.0",
     "@types/react": "^19.0.6",
     "@types/react-dom": "^19.0.3",
@@ -82,7 +82,7 @@
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.2",
     "eslint": "^9.18.0",
-    "eslint-config-next": "^15.1.6",
+    "eslint-config-next": "^16.1.4",
     "husky": "^9.1.7",
     "jsdom": "^27.4.0",
     "lint-staged": "^16.2.7",
@@ -92,7 +92,7 @@
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.4"
+    "vitest": "^4.0.18"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
