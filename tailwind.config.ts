@@ -68,12 +68,29 @@ const config: Config = {
       animation: {
         "gradient-rotate": "gradient-rotate 3s linear infinite",
         "slide-to-lane": "slide-to-lane 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "fade-up": "fade-up 0.6s ease-out forwards",
+        float: "float 3s ease-in-out infinite",
+        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
       },
       keyframes: {
         "slide-to-lane": {
           "0%": { opacity: "0.8", transform: "translateX(-20px) scale(0.98)" },
           "50%": { transform: "translateX(5px) scale(1.01)" },
           "100%": { opacity: "1", transform: "translateX(0) scale(1)" },
+        },
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(20px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
+        "glow-pulse": {
+          "0%, 100%": {
+            boxShadow: "0 10px 25px -3px hsl(var(--primary) / 0.25)",
+          },
+          "50%": { boxShadow: "0 10px 40px -3px hsl(var(--primary) / 0.4)" },
         },
       },
     },

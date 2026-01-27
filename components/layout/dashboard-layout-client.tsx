@@ -10,11 +10,15 @@ import {
   MobileSidebar,
 } from "@/components/sidebar/index";
 
+import type { IndexingStatus } from "@/lib/db/schema";
+
 interface SidebarRepo {
   id: string;
   name: string;
   fullName: string;
   taskCount: number;
+  isCloned: boolean;
+  indexingStatus: IndexingStatus;
 }
 
 interface DashboardLayoutClientProps {

@@ -17,8 +17,16 @@ beforeAll(async () => {
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     DO $$ BEGIN
-      CREATE TYPE execution_event_type AS ENUM ('thinking', 'file_read', 'file_write', 'command_run', 'commit', 'error', 'complete', 'stuck');
+      CREATE TYPE execution_event_type AS ENUM ('thinking', 'file_read', 'file_write', 'command_run', 'commit', 'error', 'complete', 'stuck', 'setup_start', 'repo_clone', 'repo_update', 'branch_create', 'branch_checkout', 'setup_complete');
     EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    -- Add new event types if enum already exists
+    DO $$ BEGIN ALTER TYPE execution_event_type ADD VALUE IF NOT EXISTS 'setup_start'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN ALTER TYPE execution_event_type ADD VALUE IF NOT EXISTS 'repo_clone'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN ALTER TYPE execution_event_type ADD VALUE IF NOT EXISTS 'repo_update'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN ALTER TYPE execution_event_type ADD VALUE IF NOT EXISTS 'branch_create'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN ALTER TYPE execution_event_type ADD VALUE IF NOT EXISTS 'branch_checkout'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN ALTER TYPE execution_event_type ADD VALUE IF NOT EXISTS 'setup_complete'; EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     DO $$ BEGIN
       CREATE TYPE ai_provider AS ENUM ('anthropic', 'openai', 'gemini');
@@ -26,6 +34,11 @@ beforeAll(async () => {
 
     DO $$ BEGIN
       CREATE TYPE processing_phase AS ENUM ('brainstorming', 'planning', 'executing');
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    -- Create billing_mode enum if not exists
+    DO $$ BEGIN
+      CREATE TYPE billing_mode AS ENUM ('byok', 'managed');
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     -- Create tables if they don't exist
@@ -47,10 +60,20 @@ beforeAll(async () => {
       preferred_openai_model TEXT DEFAULT 'gpt-4o',
       preferred_gemini_model TEXT DEFAULT 'gemini-2.5-pro',
       preferred_provider ai_provider DEFAULT 'anthropic',
+      billing_mode billing_mode,
+      stripe_customer_id TEXT,
       onboarding_completed BOOLEAN DEFAULT false,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
+
+    -- Add billing columns if they don't exist
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_mode billing_mode;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+
+    DO $$ BEGIN
+      CREATE TYPE indexing_status AS ENUM ('pending', 'indexing', 'indexed', 'failed');
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     CREATE TABLE IF NOT EXISTS repos (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -61,9 +84,41 @@ beforeAll(async () => {
       default_branch TEXT NOT NULL DEFAULT 'main',
       clone_url TEXT NOT NULL,
       is_private BOOLEAN NOT NULL DEFAULT false,
+      local_path TEXT,
+      is_cloned BOOLEAN NOT NULL DEFAULT false,
+      cloned_at TIMESTAMP,
+      indexing_status indexing_status NOT NULL DEFAULT 'pending',
+      indexed_at TIMESTAMP,
+      -- P0: Test configuration
+      test_command TEXT,
+      test_timeout INTEGER DEFAULT 300000,
+      tests_enabled BOOLEAN DEFAULT true,
+      -- P0: PR configuration
+      pr_title_template TEXT DEFAULT '[LoopForge] {{title}}',
+      pr_target_branch TEXT,
+      pr_draft_default BOOLEAN DEFAULT false,
+      pr_reviewers JSONB,
+      pr_labels JSONB,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
+
+    -- Add new columns if they don't exist (for existing test databases)
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS local_path TEXT;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS is_cloned BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS cloned_at TIMESTAMP;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS indexing_status indexing_status NOT NULL DEFAULT 'pending';
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS indexed_at TIMESTAMP;
+    -- P0: Test configuration columns
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS test_command TEXT;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS test_timeout INTEGER DEFAULT 300000;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS tests_enabled BOOLEAN DEFAULT true;
+    -- P0: PR configuration columns
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS pr_title_template TEXT DEFAULT '[LoopForge] {{title}}';
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS pr_target_branch TEXT;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS pr_draft_default BOOLEAN DEFAULT false;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS pr_reviewers JSONB;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS pr_labels JSONB;
 
     CREATE TABLE IF NOT EXISTS tasks (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -83,14 +138,26 @@ beforeAll(async () => {
       processing_status_text TEXT,
       processing_progress INTEGER DEFAULT 0,
       status_history JSONB DEFAULT '[]'::jsonb,
+      -- P0: PR configuration overrides
+      pr_target_branch TEXT,
+      pr_draft BOOLEAN,
+      pr_url TEXT,
+      pr_number INTEGER,
+      -- Task dependencies
+      blocked_by_ids JSONB DEFAULT '[]',
+      auto_execute_when_unblocked BOOLEAN DEFAULT false,
+      dependency_priority INTEGER DEFAULT 0,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
 
-    -- Add status_history column if it doesn't exist (for existing test databases)
-    DO $$ BEGIN
-      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS status_history JSONB DEFAULT '[]'::jsonb;
-    EXCEPTION WHEN undefined_table THEN null; END $$;
+    -- Add columns if they don't exist (for existing test databases)
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS status_history JSONB DEFAULT '[]'::jsonb;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pr_url TEXT;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pr_number INTEGER;
+    -- P0: PR configuration overrides
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pr_target_branch TEXT;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pr_draft BOOLEAN;
 
     CREATE TABLE IF NOT EXISTS executions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -102,8 +169,16 @@ beforeAll(async () => {
       error_message TEXT,
       logs_path TEXT,
       commits JSONB,
+      branch TEXT,
+      pr_url TEXT,
+      pr_number INTEGER,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
+
+    -- Add new execution columns if they don't exist
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS branch TEXT;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS pr_url TEXT;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS pr_number INTEGER;
 
     CREATE TABLE IF NOT EXISTS execution_events (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -113,6 +188,97 @@ beforeAll(async () => {
       metadata JSONB,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS repo_index (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      repo_id UUID NOT NULL UNIQUE REFERENCES repos(id) ON DELETE CASCADE,
+      file_count INTEGER,
+      symbol_count INTEGER,
+      tech_stack JSONB,
+      entry_points JSONB,
+      dependencies JSONB,
+      file_index JSONB,
+      symbol_index JSONB,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    -- Add unique constraint on repos if not exists
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'repos_user_github_unique'
+      ) THEN
+        ALTER TABLE repos ADD CONSTRAINT repos_user_github_unique UNIQUE (user_id, github_repo_id);
+      END IF;
+    END $$;
+
+    -- =========================================
+    -- Kanban Enhancement Tables
+    -- =========================================
+
+    -- Add task status 'review' if not exists
+    DO $$ BEGIN ALTER TYPE task_status ADD VALUE IF NOT EXISTS 'review'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    -- Create activity_event_category enum if not exists
+    DO $$ BEGIN
+      CREATE TYPE activity_event_category AS ENUM ('ai_action', 'git', 'system', 'test', 'review');
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    -- Add dependency columns to tasks table
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS blocked_by_ids JSONB DEFAULT '[]';
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS auto_execute_when_unblocked BOOLEAN DEFAULT false;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS dependency_priority INTEGER DEFAULT 0;
+
+    -- Create activity_events table
+    CREATE TABLE IF NOT EXISTS activity_events (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
+      repo_id UUID REFERENCES repos(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      execution_id UUID REFERENCES executions(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      event_category activity_event_category NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT,
+      metadata JSONB,
+      created_at TIMESTAMP DEFAULT now() NOT NULL
+    );
+
+    -- Create activity_summaries table
+    CREATE TABLE IF NOT EXISTS activity_summaries (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      repo_id UUID REFERENCES repos(id) ON DELETE CASCADE,
+      date TIMESTAMP NOT NULL,
+      tasks_completed INTEGER DEFAULT 0,
+      tasks_failed INTEGER DEFAULT 0,
+      commits INTEGER DEFAULT 0,
+      files_changed INTEGER DEFAULT 0,
+      tokens_used INTEGER DEFAULT 0,
+      summary_text TEXT,
+      created_at TIMESTAMP DEFAULT now() NOT NULL
+    );
+
+    -- Create task_dependencies junction table
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      blocked_by_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT now() NOT NULL,
+      CONSTRAINT task_dependencies_unique UNIQUE(task_id, blocked_by_id)
+    );
+
+    -- Create indexes for activity tables
+    CREATE INDEX IF NOT EXISTS activity_events_task_id_idx ON activity_events(task_id);
+    CREATE INDEX IF NOT EXISTS activity_events_repo_id_idx ON activity_events(repo_id);
+    CREATE INDEX IF NOT EXISTS activity_events_user_id_idx ON activity_events(user_id);
+    CREATE INDEX IF NOT EXISTS activity_events_created_at_idx ON activity_events(created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS activity_summaries_user_id_idx ON activity_summaries(user_id);
+    CREATE INDEX IF NOT EXISTS activity_summaries_date_idx ON activity_summaries(date DESC);
+
+    CREATE INDEX IF NOT EXISTS task_dependencies_task_id_idx ON task_dependencies(task_id);
+    CREATE INDEX IF NOT EXISTS task_dependencies_blocked_by_id_idx ON task_dependencies(blocked_by_id);
 
   `);
 });

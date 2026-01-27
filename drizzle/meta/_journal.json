@@ -127,6 +127,48 @@
       "when": 1769990400000,
       "tag": "0017_cleanup_billing_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1770076800000,
+      "tag": "0018_add_setup_event_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1770163200000,
+      "tag": "0019_add_pr_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1770249600000,
+      "tag": "0020_add_repo_indexing",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1770336000000,
+      "tag": "0021_add_execution_pr_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1770422400000,
+      "tag": "0022_add_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1770508800000,
+      "tag": "0023_p0_features",
+      "breakpoints": true
     }
   ]
 }

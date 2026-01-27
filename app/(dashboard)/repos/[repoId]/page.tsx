@@ -31,12 +31,15 @@ import {
   RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
-import type { Task, TaskStatus } from "@/lib/db/schema";
+import { RepoStatusBadge } from "@/components/repo-status-indicator";
+import type { Task, TaskStatus, IndexingStatus } from "@/lib/db/schema";
 
 interface RepoData {
   id: string;
   name: string;
   fullName: string;
+  isCloned: boolean;
+  indexingStatus: IndexingStatus;
 }
 
 // Quick stats configuration
@@ -641,9 +644,17 @@ export default function RepoPage() {
           {/* Title and description */}
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
-                {repo?.name || "Repository"}
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
+                  {repo?.name || "Repository"}
+                </h1>
+                {repo && (
+                  <RepoStatusBadge
+                    isCloned={repo.isCloned}
+                    indexingStatus={repo.indexingStatus}
+                  />
+                )}
+              </div>
               {repo?.fullName && (
                 <div className="flex items-center gap-2 mt-1.5 text-muted-foreground">
                   <GitBranch className="w-4 h-4" />

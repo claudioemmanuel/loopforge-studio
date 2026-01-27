@@ -373,6 +373,7 @@ async function processAutonomousFlow(
       preferredModel: model,
       planContent: JSON.stringify(planResult),
       branch: branchName,
+      defaultBranch: task.repo.defaultBranch || "main",
       cloneUrl: repo.cloneUrl,
     };
 

@@ -30,3 +30,11 @@ export {
   type PlanJobData,
   type PlanJobResult,
 } from "./plan-queue";
+export {
+  indexingQueue,
+  queueIndexing,
+  getIndexingJobStatus,
+  createIndexingWorker,
+  type IndexingJobData,
+  type IndexingJobResult,
+} from "./indexing-queue";

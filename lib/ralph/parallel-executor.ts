@@ -29,6 +29,8 @@ import {
 import { executeTask } from "@/lib/agents/executor";
 import { executeReview } from "./review-gate";
 import { routeTaskToAgent } from "@/lib/agents/router";
+import { parseFileChanges, applyFileChanges } from "./file-writer";
+import { commitChanges } from "./git-operations";
 
 const DEFAULT_OPTIONS: ParallelExecutionOptions = {
   maxConcurrency: 3,
@@ -65,7 +67,7 @@ interface ExecutorContext {
  */
 export async function runParallelExecution(
   context: ExecutorContext,
-  executorOptions: ParallelExecutorOptions
+  executorOptions: ParallelExecutorOptions,
 ): Promise<ParallelExecutionResult> {
   const { client, onEvent, onProgress } = executorOptions;
   const options = { ...DEFAULT_OPTIONS, ...executorOptions.options };
@@ -164,7 +166,7 @@ export async function runParallelExecution(
 
     // Execute tasks in parallel
     const executionPromises = tasksToRun.map((taskNode) =>
-      executeTaskWithReview(taskNode, graph, context, client, options, onEvent)
+      executeTaskWithReview(taskNode, graph, context, client, options, onEvent),
     );
 
     const results = await Promise.all(executionPromises);
@@ -212,7 +214,8 @@ export async function runParallelExecution(
         markTaskFailed(graph, taskNode.id);
         taskNode.result = agentResult;
 
-        const reason = agentResult.error || reviewResult?.feedback || "Unknown failure";
+        const reason =
+          agentResult.error || reviewResult?.feedback || "Unknown failure";
         await onEvent({
           type: "error",
           content: `Task "${taskNode.step.title}" failed: ${reason}`,
@@ -252,7 +255,9 @@ export async function runParallelExecution(
 
   // Final status
   const finalProgress = getProgress(graph);
-  const success = finalProgress.failed === 0 && finalProgress.completed === finalProgress.total;
+  const success =
+    finalProgress.failed === 0 &&
+    finalProgress.completed === finalProgress.total;
 
   await onEvent({
     type: success ? "complete" : "stuck",
@@ -281,7 +286,7 @@ async function executeTaskWithReview(
   context: ExecutorContext,
   client: AIClient,
   options: ParallelExecutionOptions,
-  onEvent: (event: ExecutionEvent) => void | Promise<void>
+  onEvent: (event: ExecutionEvent) => void | Promise<void>,
 ): Promise<{
   agentResult: AgentResult;
   reviewResult?: ReviewResult;
@@ -343,7 +348,7 @@ async function executeTaskWithReview(
             timestamp: new Date(),
           });
         },
-      }
+      },
     );
 
     if (!reviewResult.passed) {
@@ -369,8 +374,68 @@ async function executeTaskWithReview(
       timestamp: new Date(),
     });
 
-    // TODO: Commit changes and return commit SHA
-    const commit = undefined; // Would be actual commit SHA after git operations
+    // Parse file changes from agent output and write to disk
+    const fileChanges = parseFileChanges(agentResult.output);
+    let commit: string | undefined;
+
+    if (fileChanges.length === 0) {
+      // Log warning when no file changes detected - helps diagnose parsing issues
+      await onEvent({
+        type: "thinking",
+        content: `No file changes detected in agent output for "${taskNode.step.title}". The AI may not have produced code in the expected format.`,
+        metadata: { outputLength: agentResult.output.length },
+        timestamp: new Date(),
+      });
+    }
+
+    if (fileChanges.length > 0) {
+      await onEvent({
+        type: "file_write",
+        content: `Writing ${fileChanges.length} file(s): ${fileChanges.map((f) => f.path).join(", ")}`,
+        timestamp: new Date(),
+      });
+
+      const writeResult = await applyFileChanges(
+        context.workingDir,
+        fileChanges,
+      );
+
+      if (writeResult.errors.length > 0) {
+        await onEvent({
+          type: "error",
+          content: `File write errors: ${writeResult.errors.map((e) => `${e.path}: ${e.error}`).join("; ")}`,
+          timestamp: new Date(),
+        });
+      }
+
+      if (writeResult.writtenFiles.length > 0) {
+        // Commit the changes
+        try {
+          const commitResult = await commitChanges(
+            context.workingDir,
+            `feat(${taskNode.step.id}): ${taskNode.step.title}`,
+            writeResult.writtenFiles,
+          );
+          commit = commitResult.sha;
+
+          await onEvent({
+            type: "commit",
+            content: `Committed ${commitResult.filesChanged} file(s)`,
+            metadata: {
+              commitSha: commitResult.sha,
+              filesChanged: commitResult.filesChanged,
+            },
+            timestamp: new Date(),
+          });
+        } catch (commitError) {
+          await onEvent({
+            type: "error",
+            content: `Commit failed: ${commitError instanceof Error ? commitError.message : "Unknown error"}`,
+            timestamp: new Date(),
+          });
+        }
+      }
+    }
 
     return { agentResult, reviewResult, commit };
   }
@@ -416,7 +481,11 @@ export function getExecutionSummary(result: ParallelExecutionResult): string {
   for (const [taskId, agentResult] of result.taskResults) {
     const status = agentResult.success ? "✅" : "❌";
     const review = result.reviewResults.get(taskId);
-    const reviewStatus = review ? (review.passed ? "✅ reviewed" : "❌ review failed") : "";
+    const reviewStatus = review
+      ? review.passed
+        ? "✅ reviewed"
+        : "❌ review failed"
+      : "";
 
     lines.push(`- ${status} ${taskId}: ${agentResult.agentId} ${reviewStatus}`);
 

@@ -23,13 +23,17 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LoopforgeIcon } from "@/components/loopforge-logo";
+import { RepoStatusDot } from "@/components/repo-status-indicator";
 import { useSidebar } from "./sidebar-context";
+import type { IndexingStatus } from "@/lib/db/schema";
 
 interface SidebarRepo {
   id: string;
   name: string;
   fullName: string;
   taskCount: number;
+  isCloned: boolean;
+  indexingStatus: IndexingStatus;
 }
 
 interface MobileSidebarProps {
@@ -75,7 +79,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
         closeSidebar();
       }
     },
-    [closeSidebar]
+    [closeSidebar],
   );
 
   useEffect(() => {
@@ -95,7 +99,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
       <div
         className={cn(
           "fixed inset-0 z-40 bg-black/50 md:hidden transition-opacity duration-300",
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
         onClick={closeSidebar}
         aria-hidden="true"
@@ -106,7 +110,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
         className={cn(
           "fixed top-0 left-0 z-50 h-full w-[280px] bg-card border-r flex flex-col md:hidden",
           "transform transition-transform duration-300 ease-out",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          isOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Header with close button */}
@@ -143,7 +147,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                   "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
                   isDashboardActive
                     ? "bg-primary/10 text-primary font-medium"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />
@@ -166,11 +170,15 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                             "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
                             isRepoActive
                               ? "bg-primary/10 text-primary font-medium"
-                              : "text-muted-foreground hover:text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
                           )}
                         >
-                          <GitBranch className="w-3.5 h-3.5" />
+                          <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
                           <span className="flex-1 truncate">{repo.name}</span>
+                          <RepoStatusDot
+                            isCloned={repo.isCloned}
+                            indexingStatus={repo.indexingStatus}
+                          />
                           {repo.taskCount > 0 && (
                             <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
                               {repo.taskCount}
@@ -207,13 +215,13 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                         : "text-muted-foreground hover:text-foreground",
                       item.href === "/workers/failed" &&
                         !isActive &&
-                        "text-amber-500/70 hover:text-amber-500"
+                        "text-amber-500/70 hover:text-amber-500",
                     )}
                   >
                     <Icon
                       className={cn(
                         "w-3.5 h-3.5",
-                        item.href === "/workers/failed" && "text-amber-500"
+                        item.href === "/workers/failed" && "text-amber-500",
                       )}
                     />
                     {item.label}
@@ -245,13 +253,13 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                         : "text-muted-foreground hover:text-foreground",
                       item.href === "/settings/danger-zone" &&
                         !isActive &&
-                        "text-red-500/70 hover:text-red-500"
+                        "text-red-500/70 hover:text-red-500",
                     )}
                   >
                     <Icon
                       className={cn(
                         "w-3.5 h-3.5",
-                        item.href === "/settings/danger-zone" && "text-red-500"
+                        item.href === "/settings/danger-zone" && "text-red-500",
                       )}
                     />
                     {item.label}
@@ -268,7 +276,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
               "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
               isAnalyticsActive
                 ? "bg-primary/10 text-primary font-medium"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             <BarChart3 className="w-4 h-4" />

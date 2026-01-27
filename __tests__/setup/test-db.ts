@@ -33,6 +33,15 @@ export async function closeTestPool() {
 export async function truncateAllTables() {
   const p = getTestPool();
   await p.query(`
-    TRUNCATE execution_events, executions, tasks, repos, users CASCADE;
+    TRUNCATE
+      task_dependencies,
+      activity_events,
+      activity_summaries,
+      execution_events,
+      executions,
+      tasks,
+      repos,
+      users
+    CASCADE;
   `);
 }
