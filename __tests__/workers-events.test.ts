@@ -60,14 +60,14 @@ describe("Worker Events Utilities", () => {
     });
 
     it("should return base progress if step format is invalid", () => {
-      expect(calculateProgressFromStatus("executing", "Working...")).toBe(80);
-      expect(calculateProgressFromStatus("executing", "Step X of Y")).toBe(80);
-      expect(calculateProgressFromStatus("executing", "")).toBe(80);
+      expect(calculateProgressFromStatus("executing", "Working...")).toBe(60);
+      expect(calculateProgressFromStatus("executing", "Step X of Y")).toBe(60);
+      expect(calculateProgressFromStatus("executing", "")).toBe(60);
     });
 
     it("should ignore currentStep for non-executing statuses", () => {
-      expect(calculateProgressFromStatus("brainstorming", "Step 1/4")).toBe(20);
-      expect(calculateProgressFromStatus("planning", "Step 2/4")).toBe(40);
+      expect(calculateProgressFromStatus("brainstorming", "Step 1/4")).toBe(15);
+      expect(calculateProgressFromStatus("planning", "Step 2/4")).toBe(30);
       expect(calculateProgressFromStatus("done", "Step 4/4")).toBe(100);
     });
 
@@ -179,10 +179,10 @@ describe("Worker Events Utilities", () => {
     it("should calculate correct progress for each status", () => {
       const statusTests: { status: TaskStatus; expectedProgress: number }[] = [
         { status: "todo", expectedProgress: 0 },
-        { status: "brainstorming", expectedProgress: 20 },
-        { status: "planning", expectedProgress: 40 },
-        { status: "ready", expectedProgress: 60 },
-        { status: "executing", expectedProgress: 80 },
+        { status: "brainstorming", expectedProgress: 15 },
+        { status: "planning", expectedProgress: 30 },
+        { status: "ready", expectedProgress: 45 },
+        { status: "executing", expectedProgress: 60 },
         { status: "done", expectedProgress: 100 },
         { status: "stuck", expectedProgress: 0 },
       ];
@@ -222,7 +222,7 @@ describe("Worker Events Utilities", () => {
           taskTitle: "Test task",
           repoName: "test-repo",
           status: "executing",
-          progress: 80,
+          progress: 60,
           updatedAt: new Date().toISOString(),
         },
         timestamp: new Date().toISOString(),
