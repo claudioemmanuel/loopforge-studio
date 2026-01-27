@@ -3,6 +3,7 @@ import { Hero } from "@/components/landing/hero";
 import { Features } from "@/components/landing/features";
 import { Workflow } from "@/components/landing/workflow";
 import { Integrations } from "@/components/landing/integrations";
+import { Comparison } from "@/components/landing/comparison";
 import { CTASection } from "@/components/landing/cta-section";
 import { Footer } from "@/components/landing/footer";
 
@@ -18,6 +19,7 @@ export default function Home() {
         <Features />
         <Workflow />
         <Integrations />
+        <Comparison />
         <CTASection />
       </main>
 
