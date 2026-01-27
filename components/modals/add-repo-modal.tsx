@@ -3,7 +3,15 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { RepoPicker, GitHubRepo } from "@/components/repo-picker";
+import { RepoSetupModal } from "@/components/modals/repo-setup-modal";
 import { X, FolderPlus, Loader2, AlertCircle } from "lucide-react";
+
+interface RepoNeedingSetup {
+  id: string;
+  name: string;
+  fullName: string;
+  suggestedPaths?: string[];
+}
 
 interface AddRepoModalProps {
   existingRepoGithubIds: Set<number>;
@@ -21,6 +29,10 @@ export function AddRepoModal({
   const [fetchingRepos, setFetchingRepos] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reposNeedingSetup, setReposNeedingSetup] = useState<
+    RepoNeedingSetup[]
+  >([]);
+  const [showSetupModal, setShowSetupModal] = useState(false);
 
   useEffect(() => {
     fetchRepos();
@@ -64,12 +76,68 @@ export function AddRepoModal({
         throw new Error(data.error || "Failed to add repositories");
       }
 
-      onSuccess();
+      const result = await res.json();
+
+      // Check which repos need local setup
+      const reposToSetup: RepoNeedingSetup[] = [];
+
+      for (const repoId of result.repoIds) {
+        try {
+          // Search for existing local clones
+          const verifyRes = await fetch(`/api/repos/${repoId}/verify-local`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ searchCommonPaths: true }),
+          });
+
+          if (verifyRes.ok) {
+            const verifyData = await verifyRes.json();
+
+            // Find the repo name from our selected list
+            const repoInfo = selectedReposList.find((r) =>
+              result.addedRepos.includes(r.full_name),
+            );
+
+            if (!verifyData.verified) {
+              // Repo not found locally, needs setup
+              reposToSetup.push({
+                id: repoId,
+                name: repoInfo?.name || "Unknown",
+                fullName: repoInfo?.full_name || "Unknown",
+                suggestedPaths: verifyData.suggestedPaths || [],
+              });
+            }
+          }
+        } catch {
+          // If verification fails, still add to setup list
+          const repoInfo = selectedReposList.find((r) =>
+            result.addedRepos.includes(r.full_name),
+          );
+          reposToSetup.push({
+            id: repoId,
+            name: repoInfo?.name || "Unknown",
+            fullName: repoInfo?.full_name || "Unknown",
+            suggestedPaths: [],
+          });
+        }
+      }
+
+      if (reposToSetup.length > 0) {
+        setReposNeedingSetup(reposToSetup);
+        setShowSetupModal(true);
+      } else {
+        onSuccess();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSetupComplete = () => {
+    setShowSetupModal(false);
+    onSuccess();
   };
 
   // Count new repos (not already connected)
@@ -166,6 +234,18 @@ export function AddRepoModal({
           </div>
         </div>
       </div>
+
+      {/* Repo Setup Modal */}
+      {showSetupModal && reposNeedingSetup.length > 0 && (
+        <RepoSetupModal
+          repos={reposNeedingSetup}
+          onClose={() => {
+            setShowSetupModal(false);
+            onSuccess();
+          }}
+          onComplete={handleSetupComplete}
+        />
+      )}
     </div>
   );
 }

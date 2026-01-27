@@ -62,7 +62,7 @@ async function queueTaskExecution(
     repoId: string;
     planContent: string | null;
     status: string;
-    repo: { cloneUrl: string };
+    repo: { cloneUrl: string; defaultBranch: string };
   },
   userId: string,
   apiKey: string,
@@ -119,6 +119,7 @@ async function queueTaskExecution(
       preferredModel: model,
       planContent: task.planContent,
       branch,
+      defaultBranch: task.repo.defaultBranch || "main",
       cloneUrl: task.repo.cloneUrl,
     });
 

@@ -2,37 +2,68 @@
 
 # ============================================
 # Worker Dockerfile for BullMQ execution worker
+# Multi-stage build for minimal production image
 # ============================================
-FROM node:22-alpine
+
+# ============================================
+# Base stage - shared dependencies
+# ============================================
+FROM node:22-alpine AS base
 
 # Install dependencies needed for native modules and git
 RUN apk add --no-cache libc6-compat python3 make g++ git
 
 WORKDIR /app
 
+# ============================================
+# Dependencies stage - install all dependencies
+# ============================================
+FROM base AS deps
+
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install dependencies
-RUN npm ci
+# Install all dependencies (including dev for tsx)
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
-# Copy source files
-COPY . .
+# ============================================
+# Runner stage - production image
+# ============================================
+FROM node:22-alpine AS runner
 
-# Build TypeScript
-RUN npm run build || true
+WORKDIR /app
 
-# Create non-root user
+# Install git (needed for git operations in worker) and curl (for health checks)
+RUN apk add --no-cache git curl
+
+# Set environment variables
+ENV NODE_ENV=production
+
+# Create non-root user for security
 RUN addgroup --system --gid 1001 worker
 RUN adduser --system --uid 1001 worker
+
+# Copy package files
+COPY package.json ./
+
+# Copy node_modules from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy worker source files (tsx runs TypeScript directly)
+COPY workers ./workers
+COPY lib ./lib
+COPY tsconfig.json ./
 
 # Create directories for data and repos
 RUN mkdir -p /app/data /app/repos && chown -R worker:worker /app
 
+# Switch to non-root user
 USER worker
 
-# Set environment
-ENV NODE_ENV=production
+# Health check - verify worker process is running
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD pgrep -f "execution-worker" || exit 1
 
-# Start the worker
-CMD ["npx", "tsx", "workers/execution-worker.ts"]
+# Start the worker using node with tsx loader (faster than npx tsx)
+CMD ["node", "--import", "tsx", "workers/execution-worker.ts"]

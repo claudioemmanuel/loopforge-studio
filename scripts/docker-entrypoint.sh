@@ -43,12 +43,12 @@ done
 
 log_success "Database is ready!"
 
-# Run migrations
-log_info "Running database migrations..."
-if npx drizzle-kit migrate; then
-  log_success "Migrations completed successfully"
+# Sync database schema
+log_info "Syncing database schema..."
+if npx drizzle-kit push --force; then
+  log_success "Schema sync completed successfully"
 else
-  log_error "Migration failed!"
+  log_error "Schema sync failed!"
   exit 1
 fi
 

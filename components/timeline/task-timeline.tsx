@@ -12,6 +12,7 @@ import {
   Play,
   CheckCircle2,
   AlertTriangle,
+  Eye,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import type { StatusHistoryEntry, TaskStatus } from "@/lib/db/schema";
@@ -61,6 +62,12 @@ const statusConfig: Record<
     color: "text-primary",
     bgColor: "bg-primary/10",
   },
+  review: {
+    icon: Eye,
+    label: "Review",
+    color: "text-cyan-600 dark:text-cyan-400",
+    bgColor: "bg-cyan-100 dark:bg-cyan-900/40",
+  },
   done: {
     icon: CheckCircle2,
     label: "Done",
@@ -104,15 +111,17 @@ function getTriggerLabel(triggeredBy: StatusHistoryEntry["triggeredBy"]) {
 export function TaskTimeline({ history, compact = false }: TaskTimelineProps) {
   // Sort by timestamp (newest first)
   const sortedHistory = [...history].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
 
   if (sortedHistory.length === 0) {
     return (
-      <div className={cn(
-        "flex flex-col items-center justify-center text-center",
-        compact ? "py-8" : "py-12"
-      )}>
+      <div
+        className={cn(
+          "flex flex-col items-center justify-center text-center",
+          compact ? "py-8" : "py-12",
+        )}
+      >
         <Clock className="w-8 h-8 text-muted-foreground/40 mb-3" />
         <p className="text-sm text-muted-foreground">No status changes yet</p>
         <p className="text-xs text-muted-foreground/70 mt-1">
@@ -135,17 +144,14 @@ export function TaskTimeline({ history, compact = false }: TaskTimelineProps) {
         return (
           <div
             key={`${entry.timestamp}-${entry.to}`}
-            className={cn(
-              "relative flex gap-4",
-              compact ? "pb-4" : "pb-6"
-            )}
+            className={cn("relative flex gap-4", compact ? "pb-4" : "pb-6")}
           >
             {/* Timeline connector line */}
             {!isLast && (
               <div
                 className={cn(
                   "absolute left-[15px] top-8 bottom-0 w-0.5 bg-border",
-                  compact ? "-bottom-2" : "-bottom-3"
+                  compact ? "-bottom-2" : "-bottom-3",
                 )}
               />
             )}
@@ -155,7 +161,7 @@ export function TaskTimeline({ history, compact = false }: TaskTimelineProps) {
               className={cn(
                 "relative z-10 flex items-center justify-center flex-shrink-0 rounded-full",
                 compact ? "w-8 h-8" : "w-8 h-8",
-                toConfig.bgColor
+                toConfig.bgColor,
               )}
             >
               <ToIcon className={cn("w-4 h-4", toConfig.color)} />

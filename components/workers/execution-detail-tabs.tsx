@@ -11,16 +11,13 @@ import {
   CheckCircle2,
   FileText,
   Clock,
-  Lightbulb,
-  Play,
-  Flag,
   Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExecutionEvent, Task, Execution } from "@/lib/db/schema";
 import type { ExecutionEventMetadata } from "@/lib/ralph/types";
 
-type TabId = "overview" | "timeline" | "files" | "commits";
+type TabId = "workflow" | "files" | "commits";
 
 interface Tab {
   id: TabId;
@@ -29,14 +26,16 @@ interface Tab {
 }
 
 const tabs: Tab[] = [
-  { id: "overview", label: "Overview", icon: Lightbulb },
-  { id: "timeline", label: "Timeline", icon: Clock },
+  { id: "workflow", label: "Workflow", icon: Clock },
   { id: "files", label: "Files", icon: FileText },
   { id: "commits", label: "Commits", icon: GitCommit },
 ];
 
 // Event icons mapping
-const eventIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+const eventIcons: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
   thinking: Brain,
   file_read: BookOpen,
   file_write: Edit3,
@@ -71,15 +70,6 @@ const eventTypeLabels: Record<string, string> = {
   stuck: "Failed",
 };
 
-type Phase = "brainstorming" | "planning" | "ready" | "executing" | "done";
-
-interface PhaseInfo {
-  phase: Phase;
-  status: "completed" | "current" | "pending";
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}
-
 function formatTime(date: Date): string {
   return date.toLocaleTimeString(undefined, {
     hour: "2-digit",
@@ -87,16 +77,6 @@ function formatTime(date: Date): string {
     second: "2-digit",
     hour12: false,
   });
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (mins < 60) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  const remainingMins = mins % 60;
-  return `${hours}h ${remainingMins}m`;
 }
 
 function formatEventContent(event: ExecutionEvent): string {
@@ -126,21 +106,20 @@ interface ExecutionDetailTabsProps {
 }
 
 export function ExecutionDetailTabs({
-  task,
+  task: _task,
   execution,
   events,
   className,
 }: ExecutionDetailTabsProps) {
-  const [activeTab, setActiveTab] = React.useState<TabId>("overview");
-  const [eventTypeFilter, setEventTypeFilter] = React.useState<string | null>(null);
+  const [activeTab, setActiveTab] = React.useState<TabId>("workflow");
+  const [eventTypeFilter, setEventTypeFilter] = React.useState<string | null>(
+    null,
+  );
 
   // Calculate stats
   const stats = React.useMemo(() => {
     const filesRead = new Set<string>();
     const filesWritten = new Set<string>();
-    const commandsRun: string[] = [];
-    let thinkingCount = 0;
-    let errorCount = 0;
 
     for (const event of events) {
       const metadata = event.metadata as ExecutionEventMetadata | null;
@@ -152,48 +131,14 @@ export function ExecutionDetailTabs({
         case "file_write":
           if (metadata?.filePath) filesWritten.add(metadata.filePath);
           break;
-        case "command_run":
-          if (metadata?.command) commandsRun.push(metadata.command);
-          break;
-        case "thinking":
-          thinkingCount++;
-          break;
-        case "error":
-          errorCount++;
-          break;
       }
     }
 
     return {
       filesRead: Array.from(filesRead),
       filesWritten: Array.from(filesWritten),
-      commandsRun,
-      thinkingCount,
-      errorCount,
-      totalEvents: events.length,
     };
   }, [events]);
-
-  // Get phases with status
-  const phases = React.useMemo<PhaseInfo[]>(() => {
-    const allPhases: Phase[] = ["brainstorming", "planning", "ready", "executing", "done"];
-    const phaseConfig: Record<Phase, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-      brainstorming: { label: "Brainstorming", icon: Lightbulb },
-      planning: { label: "Planning", icon: FileText },
-      ready: { label: "Ready", icon: CheckCircle2 },
-      executing: { label: "Executing", icon: Play },
-      done: { label: "Done", icon: Flag },
-    };
-
-    const taskStatus = task.status as Phase;
-    const currentIndex = allPhases.indexOf(taskStatus);
-
-    return allPhases.map((phase, index) => ({
-      phase,
-      status: index < currentIndex ? "completed" : index === currentIndex ? "current" : "pending",
-      ...phaseConfig[phase],
-    }));
-  }, [task.status]);
 
   // Filter events by type
   const filteredEvents = React.useMemo(() => {
@@ -206,14 +151,6 @@ export function ExecutionDetailTabs({
     const types = new Set(events.map((e) => e.eventType));
     return Array.from(types);
   }, [events]);
-
-  // Calculate duration
-  const duration = React.useMemo(() => {
-    if (!execution?.startedAt) return null;
-    const end = execution.completedAt || new Date();
-    const start = new Date(execution.startedAt);
-    return Math.floor((end.getTime() - start.getTime()) / 1000);
-  }, [execution]);
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -230,7 +167,7 @@ export function ExecutionDetailTabs({
                 "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
                 isActive
                   ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               <Icon className="w-4 h-4" />
@@ -242,98 +179,7 @@ export function ExecutionDetailTabs({
 
       {/* Tab content */}
       <div className="min-h-[300px]">
-        {activeTab === "overview" && (
-          <div className="space-y-6">
-            {/* Phase timeline */}
-            <div>
-              <h3 className="text-sm font-medium mb-3">Workflow Progress</h3>
-              <div className="flex items-center gap-2">
-                {phases.map((phase, index) => {
-                  const Icon = phase.icon;
-                  const isLast = index === phases.length - 1;
-
-                  return (
-                    <React.Fragment key={phase.phase}>
-                      <div
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium",
-                          phase.status === "completed" && "bg-primary/10 text-primary",
-                          phase.status === "current" && "bg-primary text-primary-foreground",
-                          phase.status === "pending" && "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        {phase.label}
-                      </div>
-                      {!isLast && (
-                        <div
-                          className={cn(
-                            "w-6 h-0.5",
-                            phase.status === "completed" ? "bg-primary" : "bg-muted"
-                          )}
-                        />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Summary stats */}
-            <div>
-              <h3 className="text-sm font-medium mb-3">Execution Summary</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-lg bg-muted/30 border">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-xs">Duration</span>
-                  </div>
-                  <p className="text-lg font-semibold">
-                    {duration ? formatDuration(duration) : "-"}
-                  </p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted/30 border">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <Edit3 className="w-4 h-4" />
-                    <span className="text-xs">Files Modified</span>
-                  </div>
-                  <p className="text-lg font-semibold">{stats.filesWritten.length}</p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted/30 border">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <Terminal className="w-4 h-4" />
-                    <span className="text-xs">Commands Run</span>
-                  </div>
-                  <p className="text-lg font-semibold">{stats.commandsRun.length}</p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted/30 border">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <GitCommit className="w-4 h-4" />
-                    <span className="text-xs">Commits</span>
-                  </div>
-                  <p className="text-lg font-semibold">{execution?.commits?.length || 0}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Error info */}
-            {execution?.errorMessage && (
-              <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-red-700 dark:text-red-400">Execution Error</p>
-                    <p className="text-sm text-red-600 dark:text-red-500 mt-1">
-                      {execution.errorMessage}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "timeline" && (
+        {activeTab === "workflow" && (
           <div className="space-y-4">
             {/* Filter bar */}
             <div className="flex items-center gap-2 flex-wrap">
@@ -344,7 +190,7 @@ export function ExecutionDetailTabs({
                   "px-2 py-1 rounded text-xs font-medium transition-colors",
                   !eventTypeFilter
                     ? "bg-primary text-primary-foreground"
-                    : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                    : "bg-muted hover:bg-muted/80 text-muted-foreground",
                 )}
               >
                 All ({events.length})
@@ -354,12 +200,14 @@ export function ExecutionDetailTabs({
                 return (
                   <button
                     key={type}
-                    onClick={() => setEventTypeFilter(type === eventTypeFilter ? null : type)}
+                    onClick={() =>
+                      setEventTypeFilter(type === eventTypeFilter ? null : type)
+                    }
                     className={cn(
                       "px-2 py-1 rounded text-xs font-medium transition-colors",
                       eventTypeFilter === type
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                        : "bg-muted hover:bg-muted/80 text-muted-foreground",
                     )}
                   >
                     {eventTypeLabels[type] || type} ({count})
@@ -378,7 +226,8 @@ export function ExecutionDetailTabs({
               ) : (
                 filteredEvents.map((event) => {
                   const EventIcon = eventIcons[event.eventType] || Brain;
-                  const colorClass = eventColors[event.eventType] || "text-muted-foreground";
+                  const colorClass =
+                    eventColors[event.eventType] || "text-muted-foreground";
                   const eventTime = new Date(event.createdAt);
 
                   return (
@@ -386,11 +235,14 @@ export function ExecutionDetailTabs({
                       key={event.id}
                       className="flex items-start gap-3 p-3 rounded-lg bg-muted/20 border"
                     >
-                      <EventIcon className={cn("w-4 h-4 shrink-0 mt-0.5", colorClass)} />
+                      <EventIcon
+                        className={cn("w-4 h-4 shrink-0 mt-0.5", colorClass)}
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-medium text-muted-foreground">
-                            {eventTypeLabels[event.eventType] || event.eventType}
+                            {eventTypeLabels[event.eventType] ||
+                              event.eventType}
                           </span>
                           <span className="text-[10px] text-muted-foreground/70 font-mono">
                             {formatTime(eventTime)}
@@ -417,7 +269,9 @@ export function ExecutionDetailTabs({
                 Files Modified ({stats.filesWritten.length})
               </h3>
               {stats.filesWritten.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No files were modified</p>
+                <p className="text-sm text-muted-foreground">
+                  No files were modified
+                </p>
               ) : (
                 <div className="space-y-1">
                   {stats.filesWritten.map((file) => (
@@ -440,7 +294,9 @@ export function ExecutionDetailTabs({
                 Files Read ({stats.filesRead.length})
               </h3>
               {stats.filesRead.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No files were read</p>
+                <p className="text-sm text-muted-foreground">
+                  No files were read
+                </p>
               ) : (
                 <div className="space-y-1 max-h-[300px] overflow-y-auto">
                   {stats.filesRead.map((file) => (
@@ -476,7 +332,8 @@ export function ExecutionDetailTabs({
                   const commitEvent = events.find(
                     (e) =>
                       e.eventType === "commit" &&
-                      (e.metadata as ExecutionEventMetadata | null)?.commitSha === sha
+                      (e.metadata as ExecutionEventMetadata | null)
+                        ?.commitSha === sha,
                   );
 
                   return (

@@ -25,7 +25,10 @@ interface KanbanBoardProps {
   onTaskClick: (task: Task) => void;
   onTaskDelete?: (taskId: string) => void;
   onTaskStart?: (taskId: string) => Promise<void>;
-  onTaskAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
+  onTaskAdvance?: (
+    taskId: string,
+    action: "plan" | "ready" | "execute",
+  ) => Promise<void>;
   onAddTask?: () => void;
   processingCards?: Map<string, CardProcessingState>;
   slidingCards?: Set<string>;
@@ -34,12 +37,25 @@ interface KanbanBoardProps {
 // Column definitions with workflow order
 const columns: { id: TaskStatus; title: string; description: string }[] = [
   { id: "todo", title: "To Do", description: "Tasks waiting to start" },
-  { id: "brainstorming", title: "Brainstorming", description: "AI generating ideas" },
-  { id: "planning", title: "Planning", description: "Creating execution plans" },
+  {
+    id: "brainstorming",
+    title: "Brainstorming",
+    description: "AI generating ideas",
+  },
+  {
+    id: "planning",
+    title: "Planning",
+    description: "Creating execution plans",
+  },
   { id: "ready", title: "Ready", description: "Ready to execute" },
   { id: "executing", title: "Executing", description: "AI working on code" },
+  { id: "review", title: "Review", description: "Changes ready for approval" },
   { id: "done", title: "Done", description: "Completed tasks" },
-  { id: "stuck", title: "Failed", description: "Tasks that encountered errors" },
+  {
+    id: "stuck",
+    title: "Failed",
+    description: "Tasks that encountered errors",
+  },
 ];
 
 // Measuring configuration for smoother animations
@@ -71,7 +87,7 @@ export function KanbanBoard({
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   // Memoized task grouping by status
@@ -88,7 +104,7 @@ export function KanbanBoard({
   // Get tasks for a specific status
   const getTasksByStatus = useCallback(
     (status: TaskStatus) => tasksByStatus.get(status) || [],
-    [tasksByStatus]
+    [tasksByStatus],
   );
 
   // Handle drag start - store active task for overlay
@@ -103,7 +119,7 @@ export function KanbanBoard({
         }
       }
     },
-    [tasks]
+    [tasks],
   );
 
   // Handle drag end - update task status
@@ -137,7 +153,7 @@ export function KanbanBoard({
         onTaskMove(taskId, overTask.status);
       }
     },
-    [tasks, onTaskMove]
+    [tasks, onTaskMove],
   );
 
   // Handle drag cancel
@@ -192,11 +208,7 @@ export function KanbanBoard({
       >
         {activeTask && (
           <div className="w-[276px]">
-            <KanbanCard
-              task={activeTask}
-              onClick={() => {}}
-              isDragOverlay
-            />
+            <KanbanCard task={activeTask} onClick={() => {}} isDragOverlay />
           </div>
         )}
       </DragOverlay>

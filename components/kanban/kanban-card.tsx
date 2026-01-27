@@ -20,7 +20,15 @@ import {
   Trash2,
   Loader2,
   Bot,
+  Eye,
+  Lock,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +47,10 @@ interface KanbanCardProps {
   onDelete?: (taskId: string) => void;
   onMove?: (taskId: string, newStatus: TaskStatus) => void;
   onStart?: (taskId: string) => Promise<void>;
-  onAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
+  onAdvance?: (
+    taskId: string,
+    action: "plan" | "ready" | "execute",
+  ) => Promise<void>;
   isDragOverlay?: boolean;
   processingState?: CardProcessingState;
   isSliding?: boolean;
@@ -105,6 +116,15 @@ const statusConfig: Record<
     label: "Executing",
     isActive: true,
   },
+  review: {
+    icon: Eye,
+    color: "text-cyan-500 dark:text-cyan-400",
+    textColor: "text-cyan-600 dark:text-cyan-300",
+    bgColor: "bg-cyan-100/80 dark:bg-cyan-900/40",
+    borderColor: "border-cyan-200/80 dark:border-cyan-700/50",
+    glowColor: "shadow-cyan-500/20",
+    label: "Review",
+  },
   done: {
     icon: CheckCircle2,
     color: "text-emerald-500 dark:text-emerald-400",
@@ -129,17 +149,28 @@ const statusConfig: Record<
 function getProgressPercentage(status: TaskStatus): number {
   const progressMap: Record<TaskStatus, number> = {
     todo: 0,
-    brainstorming: 20,
-    planning: 40,
-    ready: 60,
-    executing: 80,
+    brainstorming: 15,
+    planning: 30,
+    ready: 45,
+    executing: 60,
+    review: 85,
     done: 100,
     stuck: 0,
   };
   return progressMap[status];
 }
 
-export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance, isDragOverlay, processingState, isSliding }: KanbanCardProps) {
+export function KanbanCard({
+  task,
+  onClick,
+  onDelete,
+  onMove,
+  onStart,
+  onAdvance,
+  isDragOverlay,
+  processingState,
+  isSliding,
+}: KanbanCardProps) {
   const [starting, setStarting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -167,7 +198,10 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
     }
   };
 
-  const handleAdvance = async (e: React.MouseEvent, action: "plan" | "ready" | "execute") => {
+  const handleAdvance = async (
+    e: React.MouseEvent,
+    action: "plan" | "ready" | "execute",
+  ) => {
     e.stopPropagation();
     if (!onAdvance || advancing) return;
     setAdvancing(true);
@@ -180,19 +214,27 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: transition || "transform 200ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 200ms ease, opacity 150ms ease",
+    transition:
+      transition ||
+      "transform 200ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 200ms ease, opacity 150ms ease",
   };
 
   const config = statusConfig[task.status];
   const StatusIcon = config.icon;
-  const progress = isProcessing ? processingState.progress : getProgressPercentage(task.status);
-  const showProgress = !["stuck", "done", "todo"].includes(task.status) || isProcessing;
+  const progress = isProcessing
+    ? processingState.progress
+    : getProgressPercentage(task.status);
+  const showProgress =
+    !["stuck", "done", "todo"].includes(task.status) || isProcessing;
 
   // Show gradient border for executing tasks (but not during drag overlay)
-  const showGradientBorder = task.status === "executing" && !isDragOverlay && !isProcessing;
+  const showGradientBorder =
+    task.status === "executing" && !isDragOverlay && !isProcessing;
 
   // Get processing phase config for ring color
-  const processingConfig = isProcessing ? phaseConfig[processingState.processingPhase] : null;
+  const processingConfig = isProcessing
+    ? phaseConfig[processingState.processingPhase]
+    : null;
 
   // Card classes (shared between wrapped and unwrapped versions)
   const cardClasses = cn(
@@ -204,7 +246,8 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
     // Default state
     "border-border/60 shadow-sm",
     // Hover effects - subtle lift (disabled when processing)
-    !isProcessing && "hover:shadow-md hover:border-border hover:-translate-y-0.5",
+    !isProcessing &&
+      "hover:shadow-md hover:border-border hover:-translate-y-0.5",
     // Cursor - grab cursor for entire card (pointer when processing)
     isProcessing ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
     "select-none",
@@ -217,16 +260,19 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
       "border-primary/30",
     ],
     // Processing state - ring styling by phase
-    isProcessing && processingConfig && [
-      "ring-2 ring-offset-2 ring-offset-background",
-      processingState.processingPhase === "brainstorming" && "ring-violet-500/50",
-      processingState.processingPhase === "planning" && "ring-blue-500/50",
-      processingState.processingPhase === "executing" && "ring-emerald-500/50",
-    ],
+    isProcessing &&
+      processingConfig && [
+        "ring-2 ring-offset-2 ring-offset-background",
+        processingState.processingPhase === "brainstorming" &&
+          "ring-violet-500/50",
+        processingState.processingPhase === "planning" && "ring-blue-500/50",
+        processingState.processingPhase === "executing" &&
+          "ring-emerald-500/50",
+      ],
     // Slide animation when moving between lanes
     isSliding && "animate-slide-to-lane",
     // Rounded corners - slightly smaller when wrapped to fit inside gradient border
-    showGradientBorder ? "rounded-[10px]" : "rounded-xl"
+    showGradientBorder ? "rounded-[10px]" : "rounded-xl",
   );
 
   // Card content (shared between both render paths)
@@ -235,12 +281,16 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
       {/* Processing overlay */}
       {isProcessing && (
         <div className="absolute inset-0 z-10 bg-background/80 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center gap-2 p-4">
-          <Loader2 className={cn(
-            "w-6 h-6 animate-spin",
-            processingState.processingPhase === "brainstorming" && "text-violet-500",
-            processingState.processingPhase === "planning" && "text-blue-500",
-            processingState.processingPhase === "executing" && "text-emerald-500",
-          )} />
+          <Loader2
+            className={cn(
+              "w-6 h-6 animate-spin",
+              processingState.processingPhase === "brainstorming" &&
+                "text-violet-500",
+              processingState.processingPhase === "planning" && "text-blue-500",
+              processingState.processingPhase === "executing" &&
+                "text-emerald-500",
+            )}
+          />
           <span className="text-xs font-medium text-muted-foreground text-center">
             {processingState.statusText}
           </span>
@@ -248,9 +298,11 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
             <div
               className={cn(
                 "h-full rounded-full transition-all duration-300 ease-out",
-                processingState.processingPhase === "brainstorming" && "bg-violet-500",
+                processingState.processingPhase === "brainstorming" &&
+                  "bg-violet-500",
                 processingState.processingPhase === "planning" && "bg-blue-500",
-                processingState.processingPhase === "executing" && "bg-emerald-500",
+                processingState.processingPhase === "executing" &&
+                  "bg-emerald-500",
               )}
               style={{ width: `${processingState.progress}%` }}
             />
@@ -264,7 +316,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
           "absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center",
           "sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150",
           "rounded-l-xl hover:bg-muted/50 pointer-events-none",
-          isProcessing && "hidden" // Hide drag handle when processing
+          isProcessing && "hidden", // Hide drag handle when processing
         )}
       >
         <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60" />
@@ -284,7 +336,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   "flex-shrink-0 p-1.5 -m-1 rounded-lg",
                   "sm:opacity-0 sm:group-hover:opacity-100",
                   "hover:bg-muted/50 text-muted-foreground hover:text-foreground",
-                  "transition-all duration-150"
+                  "transition-all duration-150",
                 )}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -325,14 +377,11 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                 "text-xs font-medium",
                 config.bgColor,
                 config.textColor,
-                "transition-colors duration-200"
+                "transition-colors duration-200",
               )}
             >
               <StatusIcon
-                className={cn(
-                  "w-3 h-3",
-                  config.isActive && "animate-pulse"
-                )}
+                className={cn("w-3 h-3", config.isActive && "animate-pulse")}
               />
               <span>{config.label}</span>
             </div>
@@ -347,6 +396,29 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                 <span>Auto</span>
               </div>
             )}
+
+            {/* Blocked indicator */}
+            {task.blockedByIds &&
+              (task.blockedByIds as string[]).length > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-red-100/80 dark:bg-red-900/40 rounded-full text-xs text-red-700 dark:text-red-300 font-medium">
+                        <Lock className="w-3 h-3" />
+                        <span>{(task.blockedByIds as string[]).length}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>
+                        Blocked by {(task.blockedByIds as string[]).length} task
+                        {(task.blockedByIds as string[]).length === 1
+                          ? ""
+                          : "s"}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
 
             {/* Branch name */}
             {task.branch && (
@@ -368,7 +440,9 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={handleStart}
                   disabled={starting || task.autonomousMode}
-                  title={task.autonomousMode ? "Autonomous mode active" : undefined}
+                  title={
+                    task.autonomousMode ? "Autonomous mode active" : undefined
+                  }
                 >
                   {starting ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -385,7 +459,9 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => handleAdvance(e, "plan")}
                   disabled={advancing || task.autonomousMode}
-                  title={task.autonomousMode ? "Autonomous mode active" : undefined}
+                  title={
+                    task.autonomousMode ? "Autonomous mode active" : undefined
+                  }
                 >
                   {advancing ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -402,7 +478,9 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => handleAdvance(e, "ready")}
                   disabled={advancing || task.autonomousMode}
-                  title={task.autonomousMode ? "Autonomous mode active" : undefined}
+                  title={
+                    task.autonomousMode ? "Autonomous mode active" : undefined
+                  }
                 >
                   {advancing ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -419,7 +497,9 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   className="h-7 px-3 text-xs gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => handleAdvance(e, "execute")}
                   disabled={advancing || task.autonomousMode}
-                  title={task.autonomousMode ? "Autonomous mode active" : undefined}
+                  title={
+                    task.autonomousMode ? "Autonomous mode active" : undefined
+                  }
                 >
                   {advancing ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -437,8 +517,12 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
         {showProgress && (
           <div className="mt-3 pt-3 border-t border-border/40">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-muted-foreground font-medium">Progress</span>
-              <span className={cn("font-semibold tabular-nums", config.textColor)}>
+              <span className="text-muted-foreground font-medium">
+                Progress
+              </span>
+              <span
+                className={cn("font-semibold tabular-nums", config.textColor)}
+              >
                 {progress}%
               </span>
             </div>
@@ -449,10 +533,10 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
                   task.status === "executing"
                     ? "bg-primary"
                     : task.status === "brainstorming"
-                    ? "bg-violet-500"
-                    : task.status === "planning"
-                    ? "bg-blue-500"
-                    : "bg-amber-500"
+                      ? "bg-violet-500"
+                      : task.status === "planning"
+                        ? "bg-blue-500"
+                        : "bg-amber-500",
                 )}
                 style={{ width: `${progress}%` }}
               />
@@ -461,12 +545,15 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
         )}
 
         {/* Timestamp for completed/stuck tasks */}
-        {(task.status === "done" || task.status === "stuck") && task.updatedAt && (
-          <div className="mt-3 pt-3 border-t border-border/40 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Clock className="w-3 h-3" />
-            <span>{formatDistanceToNow(task.updatedAt, { addSuffix: true })}</span>
-          </div>
-        )}
+        {(task.status === "done" || task.status === "stuck") &&
+          task.updatedAt && (
+            <div className="mt-3 pt-3 border-t border-border/40 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="w-3 h-3" />
+              <span>
+                {formatDistanceToNow(task.updatedAt, { addSuffix: true })}
+              </span>
+            </div>
+          )}
       </div>
 
       {/* Delete confirmation dialog - wrapped to prevent click propagation to card */}
@@ -499,7 +586,7 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
         isProcessing ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
         "select-none",
         isDragging && "opacity-50 scale-[0.98]",
-        isSliding && "animate-slide-to-lane"
+        isSliding && "animate-slide-to-lane",
       )}
     >
       {/* Rotating gradient background */}
@@ -507,13 +594,17 @@ export function KanbanCard({ task, onClick, onDelete, onMove, onStart, onAdvance
         <div
           className="absolute inset-[-100%] animate-gradient-rotate"
           style={{
-            background: "conic-gradient(from 0deg, #22c55e, #14b8a6, #06b6d4, #22c55e)",
+            background:
+              "conic-gradient(from 0deg, #22c55e, #14b8a6, #06b6d4, #22c55e)",
           }}
         />
       </div>
 
       {/* Card content */}
-      <div onClick={isProcessing ? undefined : onClick} className={cn(cardClasses, "relative")}>
+      <div
+        onClick={isProcessing ? undefined : onClick}
+        className={cn(cardClasses, "relative")}
+      >
         {cardContent}
       </div>
     </div>

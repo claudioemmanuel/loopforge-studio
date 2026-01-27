@@ -50,6 +50,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: loopforge-studio-web-dev
     ports:
       - "3000:3000"
@@ -85,6 +87,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: loopforge-studio-worker-dev
     environment:
       - NODE_ENV=development

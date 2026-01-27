@@ -186,6 +186,7 @@ export async function POST(
       preferredModel: finalModel,
       planContent: task.planContent,
       branch,
+      defaultBranch: task.repo.defaultBranch || "main",
       cloneUrl: task.repo.cloneUrl,
     });
 
