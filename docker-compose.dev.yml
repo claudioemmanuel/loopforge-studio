@@ -63,6 +63,9 @@ services:
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - AUTH_TRUST_HOST=true
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
     volumes:
       - .:/app
       - /app/node_modules
@@ -74,7 +77,6 @@ services:
         condition: service_healthy
     networks:
       - loopforge-studio-dev
-    command: npx next dev
 
   # ===========================================
   # BullMQ Worker (dev with hot reload)
