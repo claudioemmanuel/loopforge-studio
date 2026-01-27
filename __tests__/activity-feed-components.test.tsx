@@ -174,10 +174,11 @@ describe("Activity Feed Components", () => {
 
       expect(grouped.size).toBe(2);
 
-      const jan15Key = new Date("2024-01-15").toDateString();
+      // Use the same date objects to ensure consistent timezone handling
+      const jan15Key = events[0].createdAt.toDateString();
       expect(grouped.get(jan15Key)).toHaveLength(2);
 
-      const jan16Key = new Date("2024-01-16").toDateString();
+      const jan16Key = events[2].createdAt.toDateString();
       expect(grouped.get(jan16Key)).toHaveLength(1);
     });
   });
