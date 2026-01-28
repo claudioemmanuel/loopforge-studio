@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { APIErrorResponse, ErrorCode, ErrorAction } from "@/lib/errors/types";
+import type { ErrorCode, ErrorAction } from "@/lib/errors/types";
 
 export interface ParsedAPIError {
   code: ErrorCode;
@@ -143,15 +143,14 @@ export function useAPIError(): UseAPIErrorReturn {
         return true;
       }
     },
-    [handleErrorData]
+    [handleErrorData],
   );
 
   const isRateLimitError = error?.code === "RATE_LIMIT";
   const isApiKeyError =
     error?.code === "AUTH_ERROR" || error?.code === "NO_PROVIDER_CONFIGURED";
   const requiresSettings = Boolean(
-    error?.action?.type === "link" &&
-    error.action.href?.includes("/settings")
+    error?.action?.type === "link" && error.action.href?.includes("/settings"),
   );
 
   return {

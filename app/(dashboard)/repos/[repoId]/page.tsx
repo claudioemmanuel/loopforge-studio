@@ -19,6 +19,9 @@ import {
   useCardProcessing,
   useSlideAnimation,
 } from "@/components/hooks/use-card-processing";
+import { RepoSetupBanner, RepoSetupOverlay } from "@/components/repo-setup";
+import { UsageIndicator, UsageLimitOverlay } from "@/components/billing";
+import { ActivityPanel } from "@/components/activity-panel";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -31,12 +34,15 @@ import {
   RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
-import type { Task, TaskStatus } from "@/lib/db/schema";
+import { RepoStatusBadge } from "@/components/repo-status-indicator";
+import type { Task, TaskStatus, IndexingStatus } from "@/lib/db/schema";
 
 interface RepoData {
   id: string;
   name: string;
   fullName: string;
+  isCloned: boolean;
+  indexingStatus: IndexingStatus;
 }
 
 // Quick stats configuration
@@ -641,9 +647,17 @@ export default function RepoPage() {
           {/* Title and description */}
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
-                {repo?.name || "Repository"}
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
+                  {repo?.name || "Repository"}
+                </h1>
+                {repo && (
+                  <RepoStatusBadge
+                    isCloned={repo.isCloned}
+                    indexingStatus={repo.indexingStatus}
+                  />
+                )}
+              </div>
               {repo?.fullName && (
                 <div className="flex items-center gap-2 mt-1.5 text-muted-foreground">
                   <GitBranch className="w-4 h-4" />
@@ -652,7 +666,7 @@ export default function RepoPage() {
               )}
             </div>
 
-            {/* Quick stats */}
+            {/* Quick stats and usage indicator */}
             <div className="flex items-center gap-4 sm:gap-6">
               {(
                 Object.entries(taskStats) as [keyof typeof taskStats, number][]
@@ -673,13 +687,29 @@ export default function RepoPage() {
                   </div>
                 );
               })}
+              {/* Usage indicator for managed billing */}
+              <div className="hidden md:block border-l border-border pl-4 ml-2">
+                <UsageIndicator />
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Kanban Board */}
-      <main className="flex-1 overflow-hidden px-6 lg:px-8 py-6">
+      {/* Repo Setup Banner (when not cloned) */}
+      {repo && !repo.isCloned && (
+        <div className="px-6 lg:px-8 pt-4">
+          <RepoSetupBanner
+            repoId={repoId}
+            repoName={repo.name}
+            isCloned={repo.isCloned}
+            onCloneComplete={fetchData}
+          />
+        </div>
+      )}
+
+      {/* Kanban Board with overlays */}
+      <main className="flex-1 overflow-hidden px-6 lg:px-8 py-6 relative">
         <KanbanBoard
           tasks={tasks}
           onTaskMove={handleTaskMove}
@@ -691,7 +721,23 @@ export default function RepoPage() {
           processingCards={processingCards}
           slidingCards={slidingCards}
         />
+
+        {/* Repo setup overlay (when not cloned) */}
+        {repo && !repo.isCloned && (
+          <RepoSetupOverlay
+            repoId={repoId}
+            repoName={repo.name}
+            isCloned={repo.isCloned}
+            onCloneComplete={fetchData}
+          />
+        )}
+
+        {/* Usage limit overlay (when at token limit) */}
+        <UsageLimitOverlay />
       </main>
+
+      {/* Activity Panel (collapsible sidebar) */}
+      <ActivityPanel repoId={repoId} />
 
       {/* Task Detail Modal */}
       {selectedTask && (

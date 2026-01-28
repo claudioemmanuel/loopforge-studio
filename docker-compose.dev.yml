@@ -1,5 +1,24 @@
-# Development Docker Compose - Full stack with hot reload
-# Usage: docker compose -f docker-compose.dev.yml up
+# Development Docker Compose - Hybrid Development Setup
+# ===========================================
+#
+# HYBRID MODE (Recommended for development):
+#   Run infrastructure in Docker, web server locally for faster hot reload
+#
+#   1. Start infrastructure only:
+#      docker compose -f docker-compose.dev.yml up -d postgres redis worker bull-board
+#
+#   2. Run migrations:
+#      npm run db:migrate
+#
+#   3. Start web server locally:
+#      npm run dev
+#
+# FULL DOCKER MODE:
+#   Run everything in Docker (slower hot reload):
+#
+#   docker compose -f docker-compose.dev.yml up
+#
+# ===========================================
 
 services:
   # ===========================================
@@ -8,6 +27,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: loopforge-studio-postgres-dev
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -31,6 +51,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: loopforge-studio-redis-dev
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -46,11 +67,21 @@ services:
   # ===========================================
   # Next.js Web Application (dev with hot reload)
   # ===========================================
+  # NOTE: For hybrid development, run this locally instead:
+  #   npm run dev
+  #
+  # Only start this service for full Docker development:
+  #   docker compose -f docker-compose.dev.yml up
+  # ===========================================
   web:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: loopforge-studio-web-dev
+    profiles:
+      - full # Only starts with: docker compose --profile full up
     ports:
       - "3000:3000"
     environment:
@@ -63,6 +94,9 @@ services:
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - AUTH_TRUST_HOST=true
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
     volumes:
       - .:/app
       - /app/node_modules
@@ -74,7 +108,6 @@ services:
         condition: service_healthy
     networks:
       - loopforge-studio-dev
-    command: npx next dev
 
   # ===========================================
   # BullMQ Worker (dev with hot reload)
@@ -83,12 +116,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: loopforge-studio-worker-dev
+    restart: unless-stopped
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/loopforge
       - REDIS_URL=redis://redis:6379
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     volumes:
       - .:/app
       - /app/node_modules
@@ -103,11 +143,12 @@ services:
     command: npx tsx --watch workers/execution-worker.ts
 
   # ===========================================
-  # Bull Board - Job queue dashboard
+  # Bull Board - Job queue dashboard (optional)
   # ===========================================
   bull-board:
     image: deadly0/bull-board
     container_name: loopforge-bull-board-dev
+    restart: unless-stopped
     ports:
       - "3001:3000"
     environment:

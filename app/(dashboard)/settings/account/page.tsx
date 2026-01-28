@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { User } from "lucide-react";
 import { useSettings } from "../settings-context";
 
@@ -16,10 +17,12 @@ export default function AccountPage() {
         </div>
         <div className="flex items-center gap-4">
           {user.image ? (
-            <img
+            <Image
               src={user.image}
               alt={user.name || ""}
-              className="w-16 h-16 rounded-full"
+              width={64}
+              height={64}
+              className="rounded-full"
             />
           ) : (
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-xl font-semibold">

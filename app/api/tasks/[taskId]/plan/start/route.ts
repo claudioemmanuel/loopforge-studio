@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users, buildStatusHistoryAppend } from "@/lib/db";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { queuePlan } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import {

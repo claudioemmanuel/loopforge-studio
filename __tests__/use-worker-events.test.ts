@@ -8,20 +8,20 @@ describe("useWorkerEvents utilities", () => {
       expect(calculateProgress("todo")).toBe(0);
     });
 
-    it("should return 20 for brainstorming status", () => {
-      expect(calculateProgress("brainstorming")).toBe(20);
+    it("should return 15 for brainstorming status", () => {
+      expect(calculateProgress("brainstorming")).toBe(15);
     });
 
-    it("should return 40 for planning status", () => {
-      expect(calculateProgress("planning")).toBe(40);
+    it("should return 30 for planning status", () => {
+      expect(calculateProgress("planning")).toBe(30);
     });
 
-    it("should return 60 for ready status", () => {
-      expect(calculateProgress("ready")).toBe(60);
+    it("should return 45 for ready status", () => {
+      expect(calculateProgress("ready")).toBe(45);
     });
 
-    it("should return 80 for executing status without step info", () => {
-      expect(calculateProgress("executing")).toBe(80);
+    it("should return 60 for executing status without step info", () => {
+      expect(calculateProgress("executing")).toBe(60);
     });
 
     it("should return 100 for done status", () => {
@@ -79,11 +79,11 @@ describe("useWorkerEvents utilities", () => {
       });
 
       it("should return base progress for invalid step format", () => {
-        expect(calculateProgress("executing", "Working on it")).toBe(80);
-        expect(calculateProgress("executing", "Step X of Y")).toBe(80);
-        expect(calculateProgress("executing", "")).toBe(80);
-        expect(calculateProgress("executing", "1/4")).toBe(80);
-        expect(calculateProgress("executing", "Step")).toBe(80);
+        expect(calculateProgress("executing", "Working on it")).toBe(60);
+        expect(calculateProgress("executing", "Step X of Y")).toBe(60);
+        expect(calculateProgress("executing", "")).toBe(60);
+        expect(calculateProgress("executing", "1/4")).toBe(60);
+        expect(calculateProgress("executing", "Step")).toBe(60);
       });
     });
 
@@ -93,15 +93,15 @@ describe("useWorkerEvents utilities", () => {
       });
 
       it("should ignore step info for brainstorming", () => {
-        expect(calculateProgress("brainstorming", "Step 3/4")).toBe(20);
+        expect(calculateProgress("brainstorming", "Step 3/4")).toBe(15);
       });
 
       it("should ignore step info for planning", () => {
-        expect(calculateProgress("planning", "Step 3/4")).toBe(40);
+        expect(calculateProgress("planning", "Step 3/4")).toBe(30);
       });
 
       it("should ignore step info for ready", () => {
-        expect(calculateProgress("ready", "Step 3/4")).toBe(60);
+        expect(calculateProgress("ready", "Step 3/4")).toBe(45);
       });
 
       it("should ignore step info for done", () => {
@@ -115,7 +115,7 @@ describe("useWorkerEvents utilities", () => {
 
     describe("edge cases", () => {
       it("should handle undefined currentStep", () => {
-        expect(calculateProgress("executing", undefined)).toBe(80);
+        expect(calculateProgress("executing", undefined)).toBe(60);
       });
 
       it("should return 0 for unknown status", () => {
@@ -124,7 +124,9 @@ describe("useWorkerEvents utilities", () => {
 
       it("should handle step with extra text", () => {
         // The regex only looks for "Step X/Y" pattern
-        expect(calculateProgress("executing", "Step 2/5: Creating files")).toBe(76); // 60 + (2/5 * 40) = 76
+        expect(calculateProgress("executing", "Step 2/5: Creating files")).toBe(
+          76,
+        ); // 60 + (2/5 * 40) = 76
       });
 
       it("should handle step at beginning of string", () => {
@@ -135,7 +137,12 @@ describe("useWorkerEvents utilities", () => {
 
   describe("Active status detection", () => {
     it("should identify active statuses correctly", () => {
-      const activeStatuses: TaskStatus[] = ["brainstorming", "planning", "ready", "executing"];
+      const activeStatuses: TaskStatus[] = [
+        "brainstorming",
+        "planning",
+        "ready",
+        "executing",
+      ];
       const inactiveStatuses: TaskStatus[] = ["todo", "done", "stuck"];
 
       activeStatuses.forEach((status) => {

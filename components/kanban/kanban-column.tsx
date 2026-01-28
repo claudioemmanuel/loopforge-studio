@@ -19,6 +19,7 @@ import {
   Inbox,
   Sparkles,
   CircleDashed,
+  Eye,
 } from "lucide-react";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import type { CardProcessingState } from "@/components/hooks/use-card-processing";
@@ -27,11 +28,15 @@ interface KanbanColumnProps {
   id: TaskStatus;
   title: string;
   tasks: Task[];
+  allTasks?: Task[];
   onTaskClick: (task: Task) => void;
   onTaskDelete?: (taskId: string) => void;
   onTaskMove?: (taskId: string, newStatus: TaskStatus) => void;
   onTaskStart?: (taskId: string) => Promise<void>;
-  onTaskAdvance?: (taskId: string, action: "plan" | "ready" | "execute") => Promise<void>;
+  onTaskAdvance?: (
+    taskId: string,
+    action: "plan" | "ready" | "execute",
+  ) => Promise<void>;
   onAddTask?: () => void;
   processingCards?: Map<string, CardProcessingState>;
   slidingCards?: Set<string>;
@@ -113,6 +118,18 @@ const columnConfig: Record<
     emptyHint: "Start a task to see it here",
     accentColor: "primary",
   },
+  review: {
+    icon: Eye,
+    color: "text-cyan-600 dark:text-cyan-400",
+    bgColor: "bg-cyan-50/30 dark:bg-cyan-900/10",
+    headerBg: "bg-cyan-100/80 dark:bg-cyan-900/30",
+    borderColor: "border-cyan-200/60 dark:border-cyan-800/40",
+    dropTargetBg: "bg-cyan-100 dark:bg-cyan-900/40",
+    emptyIcon: Eye,
+    emptyMessage: "Nothing to review",
+    emptyHint: "Changes will appear here for approval",
+    accentColor: "cyan",
+  },
   done: {
     icon: CheckCircle2,
     color: "text-emerald-600 dark:text-emerald-400",
@@ -143,6 +160,7 @@ export function KanbanColumn({
   id,
   title,
   tasks,
+  allTasks,
   onTaskClick,
   onTaskDelete,
   onTaskMove,
@@ -164,8 +182,8 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        // Base layout - fixed widths for horizontal scrolling
-        "flex flex-col w-[280px] min-w-[280px] md:w-[300px] md:min-w-[300px] rounded-2xl",
+        // Base layout - fixed widths for horizontal scrolling, h-full for consistent column heights
+        "flex flex-col h-full w-[280px] min-w-[280px] md:w-[300px] md:min-w-[300px] rounded-2xl",
         // Background - clean, subtle
         config.bgColor,
         // Border
@@ -178,7 +196,7 @@ export function KanbanColumn({
           config.dropTargetBg,
         ],
         // Smooth transitions
-        "transition-all duration-200 ease-out"
+        "transition-all duration-200 ease-out",
       )}
     >
       {/* Column Header */}
@@ -186,7 +204,7 @@ export function KanbanColumn({
         className={cn(
           "flex items-center gap-3 px-4 py-3.5",
           "rounded-t-2xl",
-          config.headerBg
+          config.headerBg,
         )}
       >
         {/* Icon container */}
@@ -194,7 +212,7 @@ export function KanbanColumn({
           className={cn(
             "flex items-center justify-center w-8 h-8",
             "rounded-xl bg-background/80 shadow-sm",
-            "ring-1 ring-border/50"
+            "ring-1 ring-border/50",
           )}
         >
           <Icon className={cn("w-4 h-4", config.color)} />
@@ -210,7 +228,7 @@ export function KanbanColumn({
               "flex items-center justify-center min-w-[22px] h-[22px] px-1.5",
               "rounded-full text-xs font-semibold tabular-nums",
               "bg-background/80 shadow-sm ring-1 ring-border/50",
-              taskCount > 0 ? config.color : "text-muted-foreground"
+              taskCount > 0 ? config.color : "text-muted-foreground",
             )}
           >
             {taskCount}
@@ -225,7 +243,7 @@ export function KanbanColumn({
               "flex items-center justify-center w-7 h-7",
               "rounded-lg hover:bg-background/80",
               "text-muted-foreground hover:text-foreground",
-              "transition-colors duration-150"
+              "transition-colors duration-150",
             )}
           >
             <Plus className="w-4 h-4" />
@@ -244,7 +262,7 @@ export function KanbanColumn({
             "min-h-[180px] max-h-[calc(100vh-280px)]",
             "h-full",
             // Custom scrollbar styling
-            "scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent"
+            "scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent",
           )}
         >
           {tasks.length === 0 ? (
@@ -252,21 +270,18 @@ export function KanbanColumn({
             <div
               className={cn(
                 "flex flex-col items-center justify-center h-full min-h-[180px] px-4",
-                "text-center"
+                "text-center",
               )}
             >
               <div
                 className={cn(
                   "flex items-center justify-center w-14 h-14 mb-4",
                   "rounded-2xl bg-muted/50",
-                  "ring-1 ring-border/30"
+                  "ring-1 ring-border/30",
                 )}
               >
                 <EmptyIcon
-                  className={cn(
-                    "w-6 h-6",
-                    "text-muted-foreground/50"
-                  )}
+                  className={cn("w-6 h-6", "text-muted-foreground/50")}
                 />
               </div>
               <p className="text-sm font-medium text-muted-foreground mb-1">
@@ -283,7 +298,7 @@ export function KanbanColumn({
                     "mt-4 w-full h-24 rounded-xl",
                     "border-2 border-dashed border-primary/40",
                     "bg-primary/5 animate-pulse",
-                    "flex items-center justify-center"
+                    "flex items-center justify-center",
                   )}
                 >
                   <span className="text-xs text-primary/60 font-medium">
@@ -299,6 +314,7 @@ export function KanbanColumn({
                 <KanbanCard
                   key={task.id}
                   task={task}
+                  allTasks={allTasks}
                   onClick={() => onTaskClick(task)}
                   onDelete={onTaskDelete}
                   onMove={onTaskMove}
@@ -316,7 +332,7 @@ export function KanbanColumn({
                     "h-20 rounded-xl",
                     "border-2 border-dashed border-primary/40",
                     "bg-primary/5 animate-pulse",
-                    "flex items-center justify-center"
+                    "flex items-center justify-center",
                   )}
                 >
                   <span className="text-xs text-primary/60 font-medium">
@@ -340,7 +356,7 @@ export function KanbanColumn({
               "border-border/60 hover:border-primary/40",
               "bg-background/30 hover:bg-background/60",
               "text-sm text-muted-foreground hover:text-foreground",
-              "transition-all duration-200"
+              "transition-all duration-200",
             )}
           >
             <Plus className="w-4 h-4" />

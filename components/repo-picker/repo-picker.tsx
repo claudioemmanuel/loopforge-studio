@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,7 +73,8 @@ export function RepoPicker({
         searchQuery === "" ||
         repo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         repo.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (repo.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+        (repo.description?.toLowerCase().includes(searchQuery.toLowerCase()) ??
+          false);
 
       const matchesFilter =
         filter === "all" ||
@@ -83,7 +85,10 @@ export function RepoPicker({
       return matchesSearch && matchesFilter;
     });
 
-    const groups: Record<string, { owner: GitHubRepo["owner"]; repos: GitHubRepo[] }> = {};
+    const groups: Record<
+      string,
+      { owner: GitHubRepo["owner"]; repos: GitHubRepo[] }
+    > = {};
     filtered.forEach((repo) => {
       if (!groups[repo.owner.login]) {
         groups[repo.owner.login] = { owner: repo.owner, repos: [] };
@@ -155,10 +160,12 @@ export function RepoPicker({
           {groupedRepos.map(({ owner, repos: ownerRepos }) => (
             <div key={owner.login} className="space-y-2">
               <div className="flex items-center gap-2 sticky top-0 bg-background py-1">
-                <img
+                <Image
                   src={owner.avatar_url}
                   alt={owner.login}
-                  className="w-5 h-5 rounded-full"
+                  width={20}
+                  height={20}
+                  className="rounded-full"
                 />
                 <span className="text-sm font-medium">{owner.login}</span>
                 {owner.type === "Organization" && (
@@ -180,14 +187,16 @@ export function RepoPicker({
                         isDisabled
                           ? "border-muted bg-muted/30 opacity-60 cursor-not-allowed"
                           : isSelected
-                          ? "border-primary bg-primary/5 ring-1 ring-primary"
-                          : "hover:border-primary/50 hover:bg-muted/50"
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
+                            : "hover:border-primary/50 hover:bg-muted/50"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium truncate">{repo.name}</span>
+                            <span className="font-medium truncate">
+                              {repo.name}
+                            </span>
                             {repo.private ? (
                               <Lock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                             ) : (

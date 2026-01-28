@@ -262,6 +262,7 @@ export async function PATCH(
         preferredModel: finalModel,
         planContent: task.planContent,
         branch,
+        defaultBranch: task.repo.defaultBranch || "main",
         cloneUrl: task.repo.cloneUrl,
       });
 

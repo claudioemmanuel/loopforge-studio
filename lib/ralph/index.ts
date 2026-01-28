@@ -1,6 +1,11 @@
 export * from "./types";
 export * from "./prompt-generator";
-export { runLoop, type LoopOptions, type LoopContext, type ExecutionMode } from "./loop";
+export {
+  runLoop,
+  type LoopOptions,
+  type LoopContext,
+  type ExecutionMode,
+} from "./loop";
 
 // Dependency graph utilities
 export {
@@ -21,10 +26,7 @@ export {
 } from "./dependency-graph";
 
 // Parallel execution
-export {
-  runParallelExecution,
-  getExecutionSummary,
-} from "./parallel-executor";
+export { runParallelExecution, getExecutionSummary } from "./parallel-executor";
 
 // Review gate
 export {
@@ -34,3 +36,24 @@ export {
   formatReviewResult,
   buildRetryPrompt,
 } from "./review-gate";
+
+// File writer
+export {
+  parseFileChanges,
+  applyFileChanges,
+  hasFileChanges,
+  type FileChange,
+  type ApplyResult,
+} from "./file-writer";
+
+// Git operations
+export {
+  commitChanges,
+  pushBranch,
+  getCurrentBranch,
+  hasUncommittedChanges,
+  getCommitsSinceBase,
+  buildAuthenticatedUrl,
+  type CommitResult,
+  type PushResult,
+} from "./git-operations";

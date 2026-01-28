@@ -12,6 +12,7 @@ export interface ExecutionJobData {
   preferredModel: string;
   planContent: string;
   branch: string;
+  defaultBranch: string;
   cloneUrl: string;
 }
 
@@ -25,11 +26,13 @@ export interface ExecutionJobResult {
 // Queue for execution jobs
 export const executionQueue = new Queue<ExecutionJobData, ExecutionJobResult>(
   "execution",
-  { connection: connectionOptions }
+  { connection: connectionOptions },
 );
 
 // Add a job to the queue
-export async function queueExecution(data: ExecutionJobData): Promise<Job<ExecutionJobData, ExecutionJobResult>> {
+export async function queueExecution(
+  data: ExecutionJobData,
+): Promise<Job<ExecutionJobData, ExecutionJobResult>> {
   return executionQueue.add("execute", data, {
     removeOnComplete: {
       count: 100, // Keep last 100 completed jobs
@@ -60,7 +63,9 @@ export async function getJobStatus(jobId: string) {
 
 // Create worker (to be used in separate process)
 export function createExecutionWorker(
-  processor: (job: Job<ExecutionJobData, ExecutionJobResult>) => Promise<ExecutionJobResult>
+  processor: (
+    job: Job<ExecutionJobData, ExecutionJobResult>,
+  ) => Promise<ExecutionJobResult>,
 ) {
   return new Worker<ExecutionJobData, ExecutionJobResult>(
     "execution",
@@ -68,6 +73,6 @@ export function createExecutionWorker(
     {
       connection: createConnectionOptions(),
       concurrency: 1, // Process one job at a time
-    }
+    },
   );
 }

@@ -7,8 +7,14 @@ import {
 } from "./types";
 import { generatePrompt, type PromptContext } from "./prompt-generator";
 import type { AIClient } from "@/lib/ai/client";
-import type { ParallelExecutionOptions, ExecutionProgress } from "@/lib/agents/types";
+import type {
+  ParallelExecutionOptions,
+  ExecutionProgress,
+} from "@/lib/agents/types";
 import { runParallelExecution, getExecutionSummary } from "./parallel-executor";
+import { applyFileChanges } from "./file-writer";
+import { smartExtractFiles, getFormatInstructions } from "./smart-extractor";
+import { commitChanges } from "./git-operations";
 
 export type ExecutionMode = "classic" | "multi-agent";
 
@@ -55,7 +61,7 @@ function extractStuckReason(output: string): string | undefined {
 
 export async function runLoop(
   context: LoopContext,
-  options: LoopOptions
+  options: LoopOptions,
 ): Promise<LoopResult> {
   const { mode = "classic" } = options;
 
@@ -73,7 +79,7 @@ export async function runLoop(
  */
 async function runMultiAgentLoop(
   context: LoopContext,
-  options: LoopOptions
+  options: LoopOptions,
 ): Promise<LoopResult> {
   const { client, onEvent, parallelOptions, onProgress } = options;
 
@@ -96,7 +102,7 @@ async function runMultiAgentLoop(
         options: parallelOptions,
         onEvent,
         onProgress,
-      }
+      },
     );
 
     // Log summary
@@ -115,7 +121,8 @@ async function runMultiAgentLoop(
       error: result.error,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
 
     await onEvent({
       type: "error",
@@ -133,16 +140,18 @@ async function runMultiAgentLoop(
 }
 
 /**
- * Classic single-agent execution mode (original behavior)
+ * Classic single-agent execution mode (with smart extraction and retry)
  */
 async function runClassicLoop(
   context: LoopContext,
-  options: LoopOptions
+  options: LoopOptions,
 ): Promise<LoopResult> {
   const { client, maxIterations, stuckThreshold, onEvent } = options;
   const commits: string[] = [];
   let iteration = 1;
   let stuckCount = 0;
+  let consecutiveNoFileIterations = 0;
+  const maxNoFileRetries = 2; // Retry with format instructions if no files found
 
   while (iteration <= maxIterations) {
     await onEvent({
@@ -163,13 +172,22 @@ async function runClassicLoop(
       dontConstraints: context.dontConstraints,
     };
 
-    const prompt = generatePrompt(promptContext);
+    let prompt = generatePrompt(promptContext);
+
+    // Add format instructions if previous iterations produced no files
+    if (consecutiveNoFileIterations > 0) {
+      prompt = `${getFormatInstructions()}\n\n${prompt}`;
+      await onEvent({
+        type: "thinking",
+        content: `Added format instructions due to ${consecutiveNoFileIterations} iteration(s) without extractable code`,
+        timestamp: new Date(),
+      });
+    }
 
     try {
-      const output = await client.chat(
-        [{ role: "user", content: prompt }],
-        { maxTokens: 8192 }
-      );
+      const output = await client.chat([{ role: "user", content: prompt }], {
+        maxTokens: 8192,
+      });
 
       await onEvent({
         type: "thinking",
@@ -178,13 +196,141 @@ async function runClassicLoop(
         timestamp: new Date(),
       });
 
+      // Use smart extraction with fuzzy matching
+      // Pass client for AI-assisted extraction on retry attempts
+      const useAiAssisted = consecutiveNoFileIterations >= maxNoFileRetries;
+      const extraction = await smartExtractFiles(
+        output,
+        useAiAssisted ? client : undefined,
+      );
+
+      await onEvent({
+        type: "thinking",
+        content: `Extraction: ${extraction.files.length} file(s) via ${extraction.method}`,
+        metadata: {
+          method: extraction.method,
+          fileCount: extraction.files.length,
+          warnings: extraction.warnings,
+        },
+        timestamp: new Date(),
+      });
+
+      if (extraction.files.length === 0) {
+        consecutiveNoFileIterations++;
+
+        if (consecutiveNoFileIterations > maxNoFileRetries) {
+          // Too many iterations without files - this is a problem
+          await onEvent({
+            type: "stuck",
+            content: `No extractable code after ${consecutiveNoFileIterations} attempts. Agent may not be producing code in a parseable format.`,
+            metadata: {
+              outputLength: output.length,
+              warnings: extraction.warnings,
+            },
+            timestamp: new Date(),
+          });
+
+          // Check if output indicates completion anyway
+          const status = checkCompletion(output);
+          if (status === "complete") {
+            return {
+              status: "stuck",
+              iterations: iteration,
+              commits,
+              error: "Agent reported completion but no code was extracted",
+            };
+          }
+        } else {
+          await onEvent({
+            type: "thinking",
+            content: `No file changes detected (attempt ${consecutiveNoFileIterations}/${maxNoFileRetries}). Will retry with format guidance.`,
+            metadata: { outputLength: output.length },
+            timestamp: new Date(),
+          });
+        }
+      } else {
+        // Successfully extracted files - reset counter
+        consecutiveNoFileIterations = 0;
+
+        await onEvent({
+          type: "file_write",
+          content: `Writing ${extraction.files.length} file(s): ${extraction.files.map((f) => f.path).join(", ")}`,
+          metadata: {
+            files: extraction.files.map((f) => f.path),
+            method: extraction.method,
+          },
+          timestamp: new Date(),
+        });
+
+        const writeResult = await applyFileChanges(
+          context.workingDir,
+          extraction.files.map((f) => ({
+            path: f.path,
+            action: f.action,
+            content: f.content,
+          })),
+        );
+
+        if (writeResult.errors.length > 0) {
+          await onEvent({
+            type: "error",
+            content: `File write errors: ${writeResult.errors.map((e) => `${e.path}: ${e.error}`).join("; ")}`,
+            timestamp: new Date(),
+          });
+        }
+
+        if (writeResult.writtenFiles.length > 0) {
+          // Commit the changes
+          try {
+            const commitResult = await commitChanges(
+              context.workingDir,
+              `feat: iteration ${iteration} changes`,
+              writeResult.writtenFiles,
+            );
+            commits.push(commitResult.sha);
+
+            await onEvent({
+              type: "commit",
+              content: `Committed ${commitResult.filesChanged} file(s)`,
+              metadata: {
+                commitSha: commitResult.sha,
+                filesChanged: commitResult.filesChanged,
+              },
+              timestamp: new Date(),
+            });
+          } catch (commitError) {
+            await onEvent({
+              type: "error",
+              content: `Commit failed: ${commitError instanceof Error ? commitError.message : "Unknown error"}`,
+              timestamp: new Date(),
+            });
+          }
+        }
+      }
+
       // Check completion status
       const status = checkCompletion(output);
 
       if (status === "complete") {
+        // Verify we actually did work before claiming success
+        if (commits.length === 0) {
+          await onEvent({
+            type: "stuck",
+            content: "Agent reported completion but no commits were made",
+            timestamp: new Date(),
+          });
+
+          return {
+            status: "stuck",
+            iterations: iteration,
+            commits,
+            error: "No commits made despite agent reporting completion",
+          };
+        }
+
         await onEvent({
           type: "complete",
-          content: "All tasks completed successfully",
+          content: `All tasks completed successfully (${commits.length} commit(s))`,
           timestamp: new Date(),
         });
 
@@ -214,7 +360,8 @@ async function runClassicLoop(
       // Continue to next iteration
       iteration++;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       await onEvent({
         type: "error",
         content: `Error in iteration ${iteration}: ${errorMessage}`,

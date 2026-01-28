@@ -1,7 +1,9 @@
 import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import path from "path";
 
 export default defineConfig({
+  plugins: [react()],
   test: {
     environment: "node",
     globals: true,
@@ -10,7 +12,10 @@ export default defineConfig({
     // Run database tests sequentially to avoid race conditions
     fileParallelism: false,
     globalSetup: ["./__tests__/setup/global-setup.ts"],
-    setupFiles: ["./__tests__/setup/setup.ts"],
+    setupFiles: [
+      "./__tests__/setup/setup.ts",
+      "./__tests__/setup/react-setup.ts",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

@@ -1,4 +1,11 @@
-export { fetchUserRepos, getRepo, type GitHubRepo } from "./client";
+export {
+  fetchUserRepos,
+  getRepo,
+  createPullRequest,
+  type GitHubRepo,
+  type CreatePullRequestInput,
+  type PullRequestResult,
+} from "./client";
 export {
   scanRepoViaGitHub,
   getDefaultRepoContext,

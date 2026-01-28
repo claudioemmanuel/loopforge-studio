@@ -2,9 +2,21 @@ import pino from "pino";
 
 const isDev = process.env.NODE_ENV === "development";
 
+// Disable pino-pretty transport when using Turbopack due to worker thread incompatibility
+// Use basic pino formatting instead
+const usePrettyTransport = isDev && !process.env.TURBOPACK;
+
 export const logger = pino({
   level: process.env.LOG_LEVEL || (isDev ? "debug" : "info"),
-  transport: isDev ? { target: "pino-pretty" } : undefined,
+  transport: usePrettyTransport ? { target: "pino-pretty" } : undefined,
+  // Use prettier formatting in dev mode even without pino-pretty transport
+  ...(!usePrettyTransport && isDev
+    ? {
+        formatters: {
+          level: (label) => ({ level: label }),
+        },
+      }
+    : {}),
 });
 
 // Namespaced loggers for different modules
