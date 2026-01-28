@@ -871,6 +871,46 @@ async function handleTaskOrchestration(
           })
           .where(eq(tasks.id, task.id));
 
+        // Build dependency context for the AI agent
+        let enhancedPlan = task.planContent!;
+        try {
+          const completedBlocker = await db.query.tasks.findFirst({
+            where: eq(tasks.id, completedTaskId),
+            with: {
+              executions: {
+                limit: 1,
+                orderBy: (e, { desc }) => [desc(e.createdAt)],
+              },
+            },
+          });
+          if (completedBlocker) {
+            const blockerSummary = [
+              `\n\n---`,
+              `## Dependency Context`,
+              `This task was auto-triggered after its blocker task completed.`,
+              ``,
+              `**Blocker task:** ${completedBlocker.title}`,
+              completedBlocker.description
+                ? `**Blocker description:** ${completedBlocker.description}`
+                : null,
+              completedBlocker.executions?.[0]?.commits?.length
+                ? `**Blocker commits:** ${completedBlocker.executions[0].commits.join(", ")}`
+                : null,
+              ``,
+              `Take into account what was changed by the blocker task when implementing this task.`,
+              `---\n`,
+            ]
+              .filter(Boolean)
+              .join("\n");
+            enhancedPlan = enhancedPlan + blockerSummary;
+          }
+        } catch (depCtxErr) {
+          workerLogger.warn(
+            { error: depCtxErr },
+            "Failed to build dependency context - proceeding without it",
+          );
+        }
+
         // Queue execution
         await queueExecution({
           executionId: execution.id,
@@ -881,7 +921,7 @@ async function handleTaskOrchestration(
           aiProvider: user.preferredProvider || "anthropic",
           preferredModel:
             user.preferredAnthropicModel || "claude-sonnet-4-20250514",
-          planContent: task.planContent!,
+          planContent: enhancedPlan,
           branch: task.branch || `loopforge/${task.id.slice(0, 8)}`,
           defaultBranch: task.repo.defaultBranch || "main",
           cloneUrl: task.repo.cloneUrl,
@@ -889,7 +929,7 @@ async function handleTaskOrchestration(
 
         workerLogger.info(
           { taskId: task.id, executionId: execution.id },
-          "Auto-execution queued",
+          "Auto-execution queued with dependency context",
         );
       }
     }
@@ -1644,6 +1684,134 @@ async function processExecution(
           },
         );
         await publishWorkerEvent(userId, reviewEvent);
+
+        // === Auto-approve: skip review gate if repo has autoApprove enabled ===
+        const canAutoApprove =
+          task.repo.autoApprove &&
+          (testsPassed === true || testsPassed === null);
+
+        if (canAutoApprove) {
+          workerLogger.info(
+            { taskId, testsPassed },
+            "Auto-approve enabled and tests passed (or skipped) - auto-approving changes",
+          );
+
+          try {
+            const { getPendingChangesByTask, deletePendingChangesByTask } =
+              await import("../lib/db/pending-changes");
+            const { createExecutionCommit } =
+              await import("../lib/db/execution-commits");
+            const { buildPrContent, generateBranchName } =
+              await import("../lib/github/pr-builder");
+            const {
+              commitAndPush,
+              createFilesFromChanges,
+              buildAuthenticatedUrl,
+            } = await import("../lib/ralph/git-operations");
+            const { createPullRequest } = await import("../lib/github/client");
+            const { getLatestTestRun } = await import("../lib/db/test-runs");
+            const pendingChanges = await getPendingChangesByTask(taskId);
+            if (pendingChanges.length > 0) {
+              const finalBranch = branch || generateBranchName(task);
+              const githubToken = await getUserGithubToken(userId);
+
+              if (githubToken) {
+                // Create files from pending changes
+                const filesChanged = await createFilesFromChanges(
+                  repoPath,
+                  pendingChanges,
+                );
+
+                // Commit and push
+                const commitMessage = `[LoopForge] ${task.title}`;
+                const remoteUrl = buildAuthenticatedUrl(
+                  task.repo.cloneUrl,
+                  githubToken,
+                );
+                const commitResult = await commitAndPush({
+                  repoPath,
+                  branch: finalBranch,
+                  message: commitMessage,
+                  files: filesChanged,
+                  remoteUrl,
+                });
+
+                // Record the commit
+                await createExecutionCommit({
+                  executionId,
+                  commitSha: commitResult.sha,
+                  commitMessage,
+                  filesChanged,
+                });
+
+                // Update execution with commit info
+                await db
+                  .update(executions)
+                  .set({
+                    commits: [commitResult.sha],
+                    completedAt: new Date(),
+                    status: "completed",
+                  })
+                  .where(eq(executions.id, executionId));
+
+                // Create PR
+                const testRun = await getLatestTestRun(taskId);
+                const latestExecution = await db.query.executions.findFirst({
+                  where: eq(executions.id, executionId),
+                });
+
+                const prContent = buildPrContent({
+                  task,
+                  repo: task.repo,
+                  execution: latestExecution!,
+                  testRun,
+                  filesChanged,
+                  commitMessages: [commitMessage],
+                });
+
+                const pr = await createPullRequest(githubToken, {
+                  owner: task.repo.fullName.split("/")[0],
+                  repo: task.repo.fullName.split("/")[1],
+                  title: prContent.title,
+                  body: prContent.body,
+                  head: finalBranch,
+                  base: task.repo.prTargetBranch || task.repo.defaultBranch,
+                  draft: prContent.draft,
+                });
+
+                // Update task to done
+                await db
+                  .update(tasks)
+                  .set({
+                    status: "done" as TaskStatus,
+                    prUrl: pr.html_url,
+                    prNumber: pr.number,
+                    statusHistory: buildStatusHistoryAppend({
+                      fromStatus: "review",
+                      toStatus: "done",
+                      triggeredBy: "worker",
+                    }),
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(tasks.id, taskId));
+
+                // Clean up pending changes
+                await deletePendingChangesByTask(taskId);
+
+                workerLogger.info(
+                  { taskId, prUrl: pr.html_url },
+                  "Auto-approved: committed, pushed, and created PR",
+                );
+              }
+            }
+          } catch (autoApproveError) {
+            workerLogger.warn(
+              { error: autoApproveError },
+              "Auto-approve failed - task remains in review for manual approval",
+            );
+            // Task stays in review status, user can approve manually
+          }
+        }
       } catch (collectError) {
         workerLogger.error(
           { error: collectError },

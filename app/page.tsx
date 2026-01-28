@@ -1,11 +1,28 @@
+import dynamic from "next/dynamic";
 import { Navigation } from "@/components/landing/navigation";
 import { Hero } from "@/components/landing/hero";
-import { FeaturesExpanded } from "@/components/landing/features-expanded";
-import { Integrations } from "@/components/landing/integrations";
-import { ComparisonBento } from "@/components/landing/comparison-bento";
-import { CTASection } from "@/components/landing/cta-section";
-import { Footer } from "@/components/landing/footer";
 import { ParallaxSection } from "@/components/landing/parallax-section";
+import { Footer } from "@/components/landing/footer";
+
+const FeaturesExpanded = dynamic(() =>
+  import("@/components/landing/features-expanded").then(
+    (mod) => mod.FeaturesExpanded,
+  ),
+);
+
+const Integrations = dynamic(() =>
+  import("@/components/landing/integrations").then((mod) => mod.Integrations),
+);
+
+const ComparisonBento = dynamic(() =>
+  import("@/components/landing/comparison-bento").then(
+    (mod) => mod.ComparisonBento,
+  ),
+);
+
+const CTASection = dynamic(() =>
+  import("@/components/landing/cta-section").then((mod) => mod.CTASection),
+);
 
 export default function Home() {
   return (

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import {
   HoverCard,
   HoverCardContent,
@@ -132,61 +131,19 @@ const providers = [
 ];
 
 const stats = [
-  { value: "10K+", label: "Tasks Executed", numericValue: 10000 },
-  { value: "500+", label: "Developers", numericValue: 500 },
-  { value: "1M+", label: "Lines Generated", numericValue: 1000000 },
-  { value: "<5min", label: "Avg Completion", numericValue: null },
+  { value: "3", label: "AI Providers", numericValue: null },
+  { value: "BYOK", label: "Bring Your Own Key", numericValue: null },
+  { value: "OSS", label: "Open Source", numericValue: null },
+  { value: "Self-Host", label: "Deploy Anywhere", numericValue: null },
 ];
 
-function formatStatValue(num: number): string {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(0)}M+`;
-  if (num >= 1000) return `${(num / 1000).toFixed(0)}K+`;
-  return `${num}+`;
-}
-
-function AnimatedStat({
-  stat,
-  index,
-  isVisible,
-}: {
-  stat: (typeof stats)[0];
-  index: number;
-  isVisible: boolean;
-}) {
-  const [displayValue, setDisplayValue] = useState(
-    stat.numericValue ? "0" : stat.value,
-  );
-
-  useEffect(() => {
-    if (!isVisible || stat.numericValue === null) return;
-
-    const duration = 1500;
-    const steps = 30;
-    const stepDuration = duration / steps;
-    const increment = stat.numericValue / steps;
-    let current = 0;
-    let step = 0;
-
-    const timer = setInterval(() => {
-      step++;
-      current = Math.min(step * increment, stat.numericValue!);
-      setDisplayValue(formatStatValue(Math.floor(current)));
-
-      if (step >= steps) {
-        clearInterval(timer);
-        setDisplayValue(stat.value);
-      }
-    }, stepDuration);
-
-    return () => clearInterval(timer);
-  }, [isVisible, stat.numericValue, stat.value]);
-
+function StatItem({ stat, index }: { stat: (typeof stats)[0]; index: number }) {
   return (
     <div
       className={`text-center opacity-0 animate-fade-up animation-delay-${(index + 1) * 100}`}
     >
-      <div className="text-4xl md:text-5xl font-bold text-primary mb-2 transition-all">
-        {displayValue}
+      <div className="text-4xl md:text-5xl font-bold text-primary mb-2">
+        {stat.value}
       </div>
       <div className="text-sm text-muted-foreground">{stat.label}</div>
     </div>
@@ -194,27 +151,6 @@ function AnimatedStat({
 }
 
 export function Integrations() {
-  const statsRef = useRef<HTMLDivElement>(null);
-  const [statsVisible, setStatsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setStatsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.3 },
-    );
-
-    if (statsRef.current) {
-      observer.observe(statsRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
   return (
     <section
       id="integrations"
@@ -320,17 +256,12 @@ export function Integrations() {
           })}
         </div>
 
-        {/* Stats */}
-        <div ref={statsRef} className="relative">
+        {/* Platform Highlights */}
+        <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 rounded-2xl blur-xl -z-10 animate-gradient-shift" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 p-8 md:p-12 rounded-2xl border border-border bg-card/30 backdrop-blur-sm">
             {stats.map((stat, index) => (
-              <AnimatedStat
-                key={stat.label}
-                stat={stat}
-                index={index}
-                isVisible={statsVisible}
-              />
+              <StatItem key={stat.label} stat={stat} index={index} />
             ))}
           </div>
         </div>
