@@ -21,6 +21,7 @@ import {
   Zap,
   Play,
   History,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ const settingsSubItems = [
   { href: "/settings/account", label: "Account", icon: User },
   { href: "/settings/preferences", label: "Preferences", icon: Sliders },
   { href: "/settings/integrations", label: "Integrations", icon: Plug },
+  { href: "/subscription", label: "Billing", icon: CreditCard },
   { href: "/settings/danger-zone", label: "Danger Zone", icon: AlertTriangle },
 ];
 
