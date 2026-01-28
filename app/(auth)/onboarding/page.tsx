@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -556,10 +557,12 @@ export default function OnboardingPage() {
                   {groupedRepos.map(({ owner, repos: ownerRepos }) => (
                     <div key={owner.login} className="space-y-2">
                       <div className="flex items-center gap-2 sticky top-0 bg-background py-1">
-                        <img
+                        <Image
                           src={owner.avatar_url}
                           alt={owner.login}
-                          className="w-5 h-5 rounded-full"
+                          width={20}
+                          height={20}
+                          className="rounded-full"
                         />
                         <span className="text-sm font-medium">
                           {owner.login}

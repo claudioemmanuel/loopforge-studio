@@ -25,14 +25,28 @@ import {
   Target,
   Layers,
   Gauge,
+  ExternalLink,
+  GitPullRequest,
+  XCircle,
+  Eye,
+  RotateCcw,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
-import type { Task, TaskStatus } from "@/lib/db/schema";
+import type {
+  Task,
+  TaskStatus,
+  Execution,
+  ExecutionEvent,
+} from "@/lib/db/schema";
 import { BrainstormPanel } from "@/components/brainstorm";
 import { useAPIError } from "@/components/hooks/use-api-error";
 import { ErrorDialog } from "@/components/ui/error-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TaskModalTabs, TimelineTab, type TabId } from "./task-modal/";
+import { ExecutionDetailTabs } from "@/components/workers/execution-detail-tabs";
+import { DependencyEditor } from "@/components/dependency-editor";
+import { DiffModal } from "@/components/diff-preview/diff-modal";
+import { RollbackModal } from "@/components/rollback/rollback-modal";
 
 // Helper to strip markdown code blocks
 function stripMarkdownCodeBlocks(text: string): string {
@@ -249,6 +263,13 @@ const statusConfig: Record<
     bgColor: "bg-primary/10",
     description: "AI working on code",
   },
+  review: {
+    icon: Eye,
+    label: "Review",
+    color: "text-cyan-600 dark:text-cyan-400",
+    bgColor: "bg-cyan-100 dark:bg-cyan-900/40",
+    description: "Changes ready for review",
+  },
   done: {
     icon: CheckCircle2,
     label: "Done",
@@ -272,6 +293,7 @@ const workflowSteps: TaskStatus[] = [
   "planning",
   "ready",
   "executing",
+  "review",
   "done",
 ];
 
@@ -294,6 +316,20 @@ export function TaskModal({
   const [togglingAutonomous, setTogglingAutonomous] = useState(false);
   const [showAutonomousConfirm, setShowAutonomousConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("details");
+  const [executionData, setExecutionData] = useState<{
+    execution: Execution | null;
+    events: ExecutionEvent[];
+  } | null>(null);
+  const [executionLoading, setExecutionLoading] = useState(false);
+  const [showDiffModal, setShowDiffModal] = useState(false);
+  const [showRollbackModal, setShowRollbackModal] = useState(false);
+
+  // Determine if execution tab should be shown
+  const showExecutionTab =
+    task.status === "done" ||
+    task.status === "stuck" ||
+    task.status === "executing" ||
+    task.status === "review";
 
   // Error handling
   const {
@@ -326,6 +362,7 @@ export function TaskModal({
       planning: "Planning",
       ready: "Ready",
       executing: "Executing",
+      review: "Review",
       done: "Done",
       stuck: "Failed",
     };
@@ -420,6 +457,32 @@ export function TaskModal({
     setMounted(true);
   }, []);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // Don't close if sub-dialogs are open
+        if (
+          showBrainstormPanel ||
+          showAutonomousConfirm ||
+          showDiffModal ||
+          showRollbackModal
+        ) {
+          return;
+        }
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [
+    onClose,
+    showBrainstormPanel,
+    showAutonomousConfirm,
+    showDiffModal,
+    showRollbackModal,
+  ]);
+
   // Auto-start brainstorm when requested (calls API, doesn't open panel)
   useEffect(() => {
     if (autoStartBrainstorm && !autoStartTriggered && task.status === "todo") {
@@ -427,6 +490,39 @@ export function TaskModal({
       handleBrainstorm();
     }
   }, [autoStartBrainstorm, autoStartTriggered, task.status, handleBrainstorm]);
+
+  // Fetch execution data when execution tab is selected or task has execution
+  useEffect(() => {
+    const fetchExecutionData = async () => {
+      if (!showExecutionTab) return;
+      if (activeTab !== "execution" && executionData !== null) return;
+      if (executionLoading) return;
+
+      setExecutionLoading(true);
+      try {
+        const res = await fetch(`/api/workers/${task.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setExecutionData({
+            execution: data.execution || null,
+            events: data.events || [],
+          });
+        }
+      } catch (error) {
+        clientLogger.error("Error fetching execution data", { error });
+      } finally {
+        setExecutionLoading(false);
+      }
+    };
+
+    // Fetch when tab becomes execution or when task becomes executable
+    if (
+      activeTab === "execution" ||
+      (showExecutionTab && executionData === null)
+    ) {
+      fetchExecutionData();
+    }
+  }, [task.id, activeTab, showExecutionTab, executionData, executionLoading]);
 
   const handleBrainstormFinalize = async () => {
     // Refresh task data after brainstorm finishes
@@ -527,6 +623,45 @@ export function TaskModal({
         setLoading(false);
         setActionType(null);
       }
+    }
+  };
+
+  const handleDiffApprove = async () => {
+    // Refresh task data after approval
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`);
+      if (res.ok) {
+        const updatedTask = await res.json();
+        onUpdate(updatedTask);
+      }
+    } catch (error) {
+      clientLogger.error("Error refreshing task after approval", { error });
+    }
+  };
+
+  const handleDiffReject = async () => {
+    // Refresh task data after rejection
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`);
+      if (res.ok) {
+        const updatedTask = await res.json();
+        onUpdate(updatedTask);
+      }
+    } catch (error) {
+      clientLogger.error("Error refreshing task after rejection", { error });
+    }
+  };
+
+  const handleRollback = async () => {
+    // Refresh task data after rollback
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`);
+      if (res.ok) {
+        const updatedTask = await res.json();
+        onUpdate(updatedTask);
+      }
+    } catch (error) {
+      clientLogger.error("Error refreshing task after rollback", { error });
     }
   };
 
@@ -644,13 +779,41 @@ export function TaskModal({
         </div>
 
         {/* Tabs Navigation */}
-        <TaskModalTabs activeTab={activeTab} onTabChange={setActiveTab} />
+        <TaskModalTabs
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          showExecutionTab={showExecutionTab}
+        />
 
         {/* Content - Scrollable */}
         <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
           {/* Timeline Tab */}
           {activeTab === "timeline" && (
             <TimelineTab history={task.statusHistory || []} />
+          )}
+
+          {/* Execution Tab */}
+          {activeTab === "execution" && showExecutionTab && (
+            <div className="p-6">
+              {executionLoading && !executionData ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    Loading execution details...
+                  </span>
+                </div>
+              ) : executionData ? (
+                <ExecutionDetailTabs
+                  task={task}
+                  execution={executionData.execution}
+                  events={executionData.events}
+                />
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>No execution data available</p>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Details Tab */}
@@ -741,6 +904,17 @@ export function TaskModal({
                 </div>
               )}
 
+              {/* Dependencies */}
+              <details className="group">
+                <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="w-4 h-4 text-slate-500 transition-transform duration-200 group-open:rotate-90" />
+                  <h3 className="text-sm font-medium">Dependencies</h3>
+                </summary>
+                <div className="mt-3 p-4 bg-muted/30 rounded-xl border">
+                  <DependencyEditor taskId={task.id} repoId={task.repoId} />
+                </div>
+              </details>
+
               {/* Brainstorm Result */}
               {task.brainstormResult &&
                 (() => {
@@ -750,7 +924,7 @@ export function TaskModal({
                   if (!brainstorm) {
                     // Fallback to raw display if parsing fails
                     return (
-                      <details className="group" open>
+                      <details className="group">
                         <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
                           <ChevronRight className="w-4 h-4 text-violet-500 transition-transform duration-200 group-open:rotate-90" />
                           <Lightbulb className="w-4 h-4 text-violet-500" />
@@ -767,7 +941,7 @@ export function TaskModal({
                     );
                   }
                   return (
-                    <details className="group" open>
+                    <details className="group">
                       <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
                         <ChevronRight className="w-4 h-4 text-violet-500 transition-transform duration-200 group-open:rotate-90" />
                         <Lightbulb className="w-4 h-4 text-violet-500" />
@@ -849,7 +1023,7 @@ export function TaskModal({
                   if (!plan) {
                     // Fallback to raw display if parsing fails
                     return (
-                      <details className="group" open>
+                      <details className="group">
                         <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
                           <ChevronRight className="w-4 h-4 text-blue-500 transition-transform duration-200 group-open:rotate-90" />
                           <FileText className="w-4 h-4 text-blue-500" />
@@ -866,7 +1040,7 @@ export function TaskModal({
                     );
                   }
                   return (
-                    <details className="group" open>
+                    <details className="group">
                       <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
                         <ChevronRight className="w-4 h-4 text-blue-500 transition-transform duration-200 group-open:rotate-90" />
                         <FileText className="w-4 h-4 text-blue-500" />
@@ -1126,7 +1300,7 @@ export function TaskModal({
                   const plan = parsePlanContent(task.planContent);
                   const summary = calculatePlanSummary(plan);
                   return (
-                    <details className="group" open={task.status === "ready"}>
+                    <details className="group">
                       <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
                         <ChevronRight className="w-4 h-4 text-amber-500 transition-transform duration-200 group-open:rotate-90" />
                         <Zap className="w-4 h-4 text-amber-500" />
@@ -1256,6 +1430,119 @@ export function TaskModal({
                   );
                 })()}
 
+              {/* Execution Summary - shown for done/stuck tasks */}
+              {(task.status === "done" || task.status === "stuck") && (
+                <details className="group" open>
+                  <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
+                    <ChevronRight
+                      className={cn(
+                        "w-4 h-4 transition-transform duration-200 group-open:rotate-90",
+                        task.status === "done"
+                          ? "text-emerald-500"
+                          : "text-red-500",
+                      )}
+                    />
+                    {task.status === "done" ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-500" />
+                    )}
+                    <h3 className="text-sm font-medium">Execution Summary</h3>
+                  </summary>
+                  <div
+                    className={cn(
+                      "mt-3 p-4 rounded-xl border space-y-4",
+                      task.status === "done"
+                        ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/50 dark:border-emerald-800/30"
+                        : "bg-red-50 dark:bg-red-900/20 border-red-200/50 dark:border-red-800/30",
+                    )}
+                  >
+                    {/* Status */}
+                    <div className="flex items-start gap-3">
+                      {task.status === "done" ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <h4
+                          className={cn(
+                            "text-xs font-semibold uppercase tracking-wide mb-1",
+                            task.status === "done"
+                              ? "text-emerald-700 dark:text-emerald-300"
+                              : "text-red-700 dark:text-red-300",
+                          )}
+                        >
+                          Status
+                        </h4>
+                        <p className="text-sm font-medium">
+                          {task.status === "done"
+                            ? "Execution completed successfully"
+                            : "Execution encountered issues"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* PR Link - shown for done tasks with PR */}
+                    {task.status === "done" && task.prUrl && (
+                      <div className="flex items-start gap-3">
+                        <GitPullRequest className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide mb-1">
+                            Pull Request
+                          </h4>
+                          <a
+                            href={task.prUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300 hover:underline"
+                          >
+                            PR #{task.prNumber}
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Branch */}
+                    {task.branch && (
+                      <div className="flex items-start gap-3">
+                        <GitBranch
+                          className={cn(
+                            "w-4 h-4 flex-shrink-0 mt-0.5",
+                            task.status === "done"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-red-600 dark:text-red-400",
+                          )}
+                        />
+                        <div>
+                          <h4
+                            className={cn(
+                              "text-xs font-semibold uppercase tracking-wide mb-1",
+                              task.status === "done"
+                                ? "text-emerald-700 dark:text-emerald-300"
+                                : "text-red-700 dark:text-red-300",
+                            )}
+                          >
+                            Branch
+                          </h4>
+                          <code
+                            className={cn(
+                              "text-sm font-mono px-2 py-0.5 rounded",
+                              task.status === "done"
+                                ? "bg-emerald-100 dark:bg-emerald-800/40"
+                                : "bg-red-100 dark:bg-red-800/40",
+                            )}
+                          >
+                            {task.branch}
+                          </code>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
+
               {/* Updated timestamp */}
               {task.updatedAt && (
                 <div className="text-xs text-muted-foreground">
@@ -1358,10 +1645,32 @@ export function TaskModal({
               </Button>
             )}
 
+            {task.status === "review" && (
+              <Button
+                onClick={() => setShowDiffModal(true)}
+                disabled={loading || autonomousMode}
+                title={autonomousMode ? "Autonomous mode active" : undefined}
+                className="gap-2"
+              >
+                <Eye className="w-4 h-4" />
+                Review Changes
+              </Button>
+            )}
+
             {task.status === "done" && (
-              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="text-sm font-medium">Task Completed</span>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRollbackModal(true)}
+                  className="gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Rollback
+                </Button>
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span className="text-sm font-medium">Task Completed</span>
+                </div>
               </div>
             )}
 
@@ -1419,6 +1728,23 @@ export function TaskModal({
         confirmLabel="Enable & Continue"
         cancelLabel="Cancel"
         onConfirm={handleConfirmAutonomous}
+      />
+
+      {/* Diff Review Modal */}
+      <DiffModal
+        taskId={task.id}
+        isOpen={showDiffModal}
+        onClose={() => setShowDiffModal(false)}
+        onApprove={handleDiffApprove}
+        onReject={handleDiffReject}
+      />
+
+      {/* Rollback Modal */}
+      <RollbackModal
+        taskId={task.id}
+        isOpen={showRollbackModal}
+        onClose={() => setShowRollbackModal(false)}
+        onRollback={handleRollback}
       />
     </div>
   );

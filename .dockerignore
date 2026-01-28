@@ -3,57 +3,90 @@ node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-store
 
 # Next.js
 .next
 out
 
-# Production
+# Production build artifacts (we build inside Docker)
 build
+dist
 
 # Testing
 coverage
 __tests__
-*.test.ts
-*.test.tsx
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
 vitest.config.ts
+jest.config.*
+.nyc_output
 
-# Misc
-.DS_Store
-*.pem
+# Environment files (secrets should never be in image)
 .env
 .env.*
 !.env.example
 
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Local database
+# Local database files
 *.db
 *.sqlite
+data/
 
-# IDE
+# IDE and editor files
 .idea
 .vscode
 *.swp
 *.swo
+*.vim
+.project
+.settings
 
 # Git
 .git
 .gitignore
+.gitattributes
 
-# Docker
+# Docker files (not needed inside container)
 Dockerfile*
 docker-compose*.yml
 .dockerignore
 
-# Documentation
+# Documentation (not needed for runtime)
 *.md
-!README.md
 docs/
+CHANGELOG*
+LICENSE*
+CONTRIBUTING*
 
 # Logs
 logs
 *.log
+
+# OS files
+.DS_Store
+Thumbs.db
+*.orig
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Scripts not needed in container
+scripts/init-secrets.sh
+
+# CI/CD configuration
+.github/
+.gitlab-ci.yml
+.circleci/
+.travis.yml
+Jenkinsfile
+azure-pipelines.yml
+
+# Misc development files
+Makefile
+*.tgz
+*.tar.gz

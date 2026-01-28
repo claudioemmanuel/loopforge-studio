@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Key } from "lucide-react";
@@ -22,10 +23,18 @@ export function AccountTab({ user, apiKeyMasked }: AccountTabProps) {
     <div className="space-y-6">
       {/* Profile */}
       <div className="p-6 rounded-xl border bg-card">
-        <h3 className="font-serif font-semibold tracking-tight mb-4">Profile</h3>
+        <h3 className="font-serif font-semibold tracking-tight mb-4">
+          Profile
+        </h3>
         <div className="flex items-center gap-4">
           {user.image ? (
-            <img src={user.image} alt={user.name || ""} className="w-16 h-16 rounded-full" />
+            <Image
+              src={user.image}
+              alt={user.name || ""}
+              width={64}
+              height={64}
+              className="rounded-full"
+            />
           ) : (
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-xl font-semibold">
               {user.name?.[0] || "U"}
@@ -46,7 +55,9 @@ export function AccountTab({ user, apiKeyMasked }: AccountTabProps) {
         </div>
         {apiKeyMasked ? (
           <div className="space-y-3">
-            <p className="font-mono text-sm bg-muted px-3 py-2 rounded">{apiKeyMasked}</p>
+            <p className="font-mono text-sm bg-muted px-3 py-2 rounded">
+              {apiKeyMasked}
+            </p>
             {showUpdateKey ? (
               <div className="space-y-2">
                 <Input
@@ -57,17 +68,29 @@ export function AccountTab({ user, apiKeyMasked }: AccountTabProps) {
                 />
                 <div className="flex gap-2">
                   <Button size="sm">Save</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowUpdateKey(false)}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowUpdateKey(false)}
+                  >
                     Cancel
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setShowUpdateKey(true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowUpdateKey(true)}
+                >
                   Update API Key
                 </Button>
-                <Button size="sm" variant="outline" className="text-destructive">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive"
+                >
                   Remove Key
                 </Button>
               </div>
@@ -75,7 +98,9 @@ export function AccountTab({ user, apiKeyMasked }: AccountTabProps) {
           </div>
         ) : (
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">No API key configured.</p>
+            <p className="text-sm text-muted-foreground">
+              No API key configured.
+            </p>
             <Input
               type="password"
               placeholder="sk-ant-api03-..."
@@ -86,7 +111,6 @@ export function AccountTab({ user, apiKeyMasked }: AccountTabProps) {
           </div>
         )}
       </div>
-
     </div>
   );
 }

@@ -204,7 +204,7 @@ async function detectTechStack(
   repo: string,
   branch: string,
   configFiles: string[],
-  entries: TreeEntry[],
+  _entries: TreeEntry[],
 ): Promise<string[]> {
   const techStack: string[] = [];
 

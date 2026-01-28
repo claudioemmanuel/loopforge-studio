@@ -233,10 +233,11 @@ export function calculateProgress(
 ): number {
   const progressMap: Record<TaskStatus, number> = {
     todo: 0,
-    brainstorming: 20,
-    planning: 40,
-    ready: 60,
-    executing: 80,
+    brainstorming: 15,
+    planning: 30,
+    ready: 45,
+    executing: 60,
+    review: 85,
     done: 100,
     stuck: 0, // Frozen at last known progress
   };

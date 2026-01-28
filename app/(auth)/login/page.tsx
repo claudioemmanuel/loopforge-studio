@@ -1,45 +1,87 @@
 "use client";
 
-import { signIn } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { LoopforgeLogo } from "@/components/loopforge-logo";
+import { useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { LoginForm } from "@/components/auth/login-form";
+
+interface Particle {
+  id: number;
+  left: number;
+  top: number;
+  delay: number;
+  duration: number;
+  size: number;
+}
 
 export default function LoginPage() {
+  const [particles, setParticles] = useState<Particle[]>([]);
+
+  useEffect(() => {
+    // Generate particles on client to avoid hydration mismatch
+    const generated = Array.from({ length: 30 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      delay: Math.random() * 3,
+      duration: 3 + Math.random() * 2,
+      size: 2 + Math.random() * 3,
+    }));
+    setParticles(generated);
+  }, []);
+
   return (
-    <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-secondary/30">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-4">
-          <div className="mx-auto">
-            <LoopforgeLogo size="xl" animate={true} showSparks={true} showText={false} />
-          </div>
-          <h1 className="text-3xl font-serif font-bold tracking-tight !-mt-4">
-            <span className="text-primary">Loopforge</span> Studio
-          </h1>
-          <CardDescription>
-            Sign in to start building with AI-powered autonomous coding
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button
-            onClick={() => signIn("github", { callbackUrl: "/onboarding" })}
-            className="w-full"
-            size="lg"
-          >
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-              <path
-                fillRule="evenodd"
-                d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                clipRule="evenodd"
-              />
-            </svg>
-            Continue with GitHub
-          </Button>
-          <p className="text-xs text-center text-muted-foreground">
-            By signing in, you agree to give Loopforge Studio access to your repositories
-          </p>
-        </CardContent>
-      </Card>
+    <main className="min-h-screen relative overflow-hidden">
+      {/* Base gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/10" />
+
+      {/* Large animated gradient orbs */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Primary orb - top left */}
+        <div className="absolute -top-1/4 -left-1/4 w-[800px] h-[800px] rounded-full bg-primary/30 blur-3xl animate-gradient-shift" />
+
+        {/* Accent orb - bottom right */}
+        <div className="absolute -bottom-1/4 -right-1/4 w-[700px] h-[700px] rounded-full bg-accent/25 blur-3xl animate-gradient-shift animation-delay-300" />
+
+        {/* Secondary orb - center floating */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-primary/20 blur-3xl animate-float" />
+
+        {/* Additional accent orb for depth */}
+        <div className="absolute top-1/4 right-1/4 w-[300px] h-[300px] rounded-full bg-accent/20 blur-2xl animate-gradient-shift animation-delay-500" />
+      </div>
+
+      {/* Floating particles effect */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {particles.map((p) => (
+          <div
+            key={p.id}
+            className="absolute rounded-full bg-primary/50 animate-float"
+            style={{
+              left: `${p.left}%`,
+              top: `${p.top}%`,
+              width: `${p.size}px`,
+              height: `${p.size}px`,
+              animationDelay: `${p.delay}s`,
+              animationDuration: `${p.duration}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Subtle grid overlay for tech feel */}
+      <div
+        className="absolute inset-0 opacity-[0.02]"
+        style={{
+          backgroundImage: `linear-gradient(hsl(var(--primary)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary)) 1px, transparent 1px)`,
+          backgroundSize: "50px 50px",
+        }}
+      />
+
+      {/* Centered floating card */}
+      <div className="relative z-10 min-h-screen flex items-center justify-center p-6">
+        <Card className="w-full max-w-sm bg-card/80 dark:bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/20 opacity-0 animate-fade-up">
+          <LoginForm variant="minimal" />
+        </Card>
+      </div>
     </main>
   );
 }

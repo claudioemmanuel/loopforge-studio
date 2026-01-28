@@ -16,16 +16,21 @@ describe("Worker Events Utilities", () => {
     it("should return correct progress for each status", () => {
       const statusProgressMap: Record<TaskStatus, number> = {
         todo: 0,
-        brainstorming: 20,
-        planning: 40,
-        ready: 60,
-        executing: 80,
+        brainstorming: 15,
+        planning: 30,
+        ready: 45,
+        executing: 60,
+        review: 85,
         done: 100,
         stuck: 0,
       };
 
-      for (const [status, expectedProgress] of Object.entries(statusProgressMap)) {
-        expect(calculateProgressFromStatus(status as TaskStatus)).toBe(expectedProgress);
+      for (const [status, expectedProgress] of Object.entries(
+        statusProgressMap,
+      )) {
+        expect(calculateProgressFromStatus(status as TaskStatus)).toBe(
+          expectedProgress,
+        );
       }
     });
 
@@ -55,14 +60,14 @@ describe("Worker Events Utilities", () => {
     });
 
     it("should return base progress if step format is invalid", () => {
-      expect(calculateProgressFromStatus("executing", "Working...")).toBe(80);
-      expect(calculateProgressFromStatus("executing", "Step X of Y")).toBe(80);
-      expect(calculateProgressFromStatus("executing", "")).toBe(80);
+      expect(calculateProgressFromStatus("executing", "Working...")).toBe(60);
+      expect(calculateProgressFromStatus("executing", "Step X of Y")).toBe(60);
+      expect(calculateProgressFromStatus("executing", "")).toBe(60);
     });
 
     it("should ignore currentStep for non-executing statuses", () => {
-      expect(calculateProgressFromStatus("brainstorming", "Step 1/4")).toBe(20);
-      expect(calculateProgressFromStatus("planning", "Step 2/4")).toBe(40);
+      expect(calculateProgressFromStatus("brainstorming", "Step 1/4")).toBe(15);
+      expect(calculateProgressFromStatus("planning", "Step 2/4")).toBe(30);
       expect(calculateProgressFromStatus("done", "Step 4/4")).toBe(100);
     });
 
@@ -88,14 +93,19 @@ describe("Worker Events Utilities", () => {
     });
 
     it("should create worker_update event for active statuses", () => {
-      const activeStatuses: TaskStatus[] = ["brainstorming", "planning", "ready", "executing"];
+      const activeStatuses: TaskStatus[] = [
+        "brainstorming",
+        "planning",
+        "ready",
+        "executing",
+      ];
 
       for (const status of activeStatuses) {
         const event = createWorkerUpdateEvent(
           baseParams.taskId,
           baseParams.taskTitle,
           baseParams.repoName,
-          status
+          status,
         );
 
         expect(event.type).toBe("worker_update");
@@ -111,7 +121,7 @@ describe("Worker Events Utilities", () => {
         baseParams.taskId,
         baseParams.taskTitle,
         baseParams.repoName,
-        "done"
+        "done",
       );
 
       expect(event.type).toBe("worker_complete");
@@ -125,7 +135,7 @@ describe("Worker Events Utilities", () => {
         baseParams.taskTitle,
         baseParams.repoName,
         "stuck",
-        { error: "Failed to execute plan" }
+        { error: "Failed to execute plan" },
       );
 
       expect(event.type).toBe("worker_stuck");
@@ -144,7 +154,7 @@ describe("Worker Events Utilities", () => {
           currentStep: "Step 3/5",
           currentAction: "Creating auth middleware",
           completedAt,
-        }
+        },
       );
 
       expect(event.data.currentStep).toBe("Step 3/5");
@@ -159,7 +169,7 @@ describe("Worker Events Utilities", () => {
         baseParams.taskId,
         baseParams.taskTitle,
         baseParams.repoName,
-        "brainstorming"
+        "brainstorming",
       );
 
       expect(event.timestamp).toBe("2024-01-15T10:30:00.000Z");
@@ -169,10 +179,10 @@ describe("Worker Events Utilities", () => {
     it("should calculate correct progress for each status", () => {
       const statusTests: { status: TaskStatus; expectedProgress: number }[] = [
         { status: "todo", expectedProgress: 0 },
-        { status: "brainstorming", expectedProgress: 20 },
-        { status: "planning", expectedProgress: 40 },
-        { status: "ready", expectedProgress: 60 },
-        { status: "executing", expectedProgress: 80 },
+        { status: "brainstorming", expectedProgress: 15 },
+        { status: "planning", expectedProgress: 30 },
+        { status: "ready", expectedProgress: 45 },
+        { status: "executing", expectedProgress: 60 },
         { status: "done", expectedProgress: 100 },
         { status: "stuck", expectedProgress: 0 },
       ];
@@ -182,7 +192,7 @@ describe("Worker Events Utilities", () => {
           baseParams.taskId,
           baseParams.taskTitle,
           baseParams.repoName,
-          status
+          status,
         );
         expect(event.data.progress).toBe(expectedProgress);
       }
@@ -193,7 +203,7 @@ describe("Worker Events Utilities", () => {
         baseParams.taskId,
         baseParams.taskTitle,
         baseParams.repoName,
-        "brainstorming"
+        "brainstorming",
       );
 
       expect(event.data.currentStep).toBeUndefined();
@@ -212,7 +222,7 @@ describe("Worker Events Utilities", () => {
           taskTitle: "Test task",
           repoName: "test-repo",
           status: "executing",
-          progress: 80,
+          progress: 60,
           updatedAt: new Date().toISOString(),
         },
         timestamp: new Date().toISOString(),
@@ -262,7 +272,11 @@ describe("Worker Events Utilities", () => {
 
   describe("phaseStatusMessages", () => {
     it("should have messages for all processing phases", () => {
-      const phases: ProcessingPhase[] = ["brainstorming", "planning", "executing"];
+      const phases: ProcessingPhase[] = [
+        "brainstorming",
+        "planning",
+        "executing",
+      ];
 
       for (const phase of phases) {
         expect(phaseStatusMessages[phase]).toBeDefined();
@@ -273,8 +287,12 @@ describe("Worker Events Utilities", () => {
 
     it("should have brainstorming phase messages", () => {
       expect(phaseStatusMessages.brainstorming).toContain("Analyzing task...");
-      expect(phaseStatusMessages.brainstorming).toContain("Generating ideas...");
-      expect(phaseStatusMessages.brainstorming).toContain("Finalizing brainstorm...");
+      expect(phaseStatusMessages.brainstorming).toContain(
+        "Generating ideas...",
+      );
+      expect(phaseStatusMessages.brainstorming).toContain(
+        "Finalizing brainstorm...",
+      );
     });
 
     it("should have planning phase messages", () => {
@@ -286,7 +304,9 @@ describe("Worker Events Utilities", () => {
     it("should have executing phase messages", () => {
       expect(phaseStatusMessages.executing).toContain("Starting execution...");
       expect(phaseStatusMessages.executing).toContain("Running tasks...");
-      expect(phaseStatusMessages.executing).toContain("Completing execution...");
+      expect(phaseStatusMessages.executing).toContain(
+        "Completing execution...",
+      );
     });
   });
 
@@ -316,7 +336,7 @@ describe("Worker Events Utilities", () => {
         baseParams.repoName,
         "brainstorming",
         baseParams.jobId,
-        startedAt
+        startedAt,
       );
 
       expect(event.type).toBe("processing_start");
@@ -338,7 +358,7 @@ describe("Worker Events Utilities", () => {
         "planning",
         baseParams.jobId,
         startedAt,
-        { progress: 50, statusText: "Designing plan..." }
+        { progress: 50, statusText: "Designing plan..." },
       );
 
       expect(event.type).toBe("processing_update");
@@ -357,7 +377,7 @@ describe("Worker Events Utilities", () => {
         "brainstorming",
         baseParams.jobId,
         startedAt,
-        { progress: 75 } // Should be overridden to 100
+        { progress: 75 }, // Should be overridden to 100
       );
 
       expect(event.type).toBe("processing_complete");
@@ -374,7 +394,7 @@ describe("Worker Events Utilities", () => {
         "executing",
         baseParams.jobId,
         startedAt,
-        { error: "API rate limit exceeded", progress: 30 }
+        { error: "API rate limit exceeded", progress: 30 },
       );
 
       expect(event.type).toBe("processing_error");
@@ -391,7 +411,7 @@ describe("Worker Events Utilities", () => {
         baseParams.repoName,
         "brainstorming",
         baseParams.jobId,
-        startedAt
+        startedAt,
       );
 
       // Should use first message from brainstorming phase
@@ -408,7 +428,7 @@ describe("Worker Events Utilities", () => {
         "brainstorming",
         baseParams.jobId,
         startedAt,
-        { statusText: "Custom progress message" }
+        { statusText: "Custom progress message" },
       );
 
       expect(event.data.statusText).toBe("Custom progress message");
@@ -423,7 +443,7 @@ describe("Worker Events Utilities", () => {
         baseParams.repoName,
         "planning",
         baseParams.jobId,
-        startedAt
+        startedAt,
       );
 
       expect(event.timestamp).toBe("2024-01-15T10:30:00.000Z");
@@ -432,7 +452,11 @@ describe("Worker Events Utilities", () => {
     });
 
     it("should handle all processing phases", () => {
-      const phases: ProcessingPhase[] = ["brainstorming", "planning", "executing"];
+      const phases: ProcessingPhase[] = [
+        "brainstorming",
+        "planning",
+        "executing",
+      ];
       const startedAt = new Date("2024-01-15T10:29:00.000Z");
 
       for (const phase of phases) {
@@ -443,7 +467,7 @@ describe("Worker Events Utilities", () => {
           baseParams.repoName,
           phase,
           baseParams.jobId,
-          startedAt
+          startedAt,
         );
 
         expect(event.data.processingPhase).toBe(phase);

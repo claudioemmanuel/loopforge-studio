@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   Clock,
   FileText,
-  GitCommit,
   Lightbulb,
   Play,
   Terminal,
@@ -26,7 +25,10 @@ import { Card } from "@/components/ui/card";
 import type { WorkerJobPhase } from "@/lib/db/schema";
 
 // Event icons mapping
-const eventIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+const eventIcons: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
   thinking: Brain,
   action: Zap,
   file_read: BookOpen,
@@ -48,12 +50,15 @@ const eventColors: Record<string, string> = {
 };
 
 // Phase badge configuration - using app's muted palette
-const phaseBadgeConfig: Record<WorkerJobPhase, {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  bgColor: string;
-  textColor: string;
-}> = {
+const phaseBadgeConfig: Record<
+  WorkerJobPhase,
+  {
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    bgColor: string;
+    textColor: string;
+  }
+> = {
   brainstorming: {
     label: "Brainstorm",
     icon: Lightbulb,
@@ -215,7 +220,7 @@ export function HistoryCard({
       className={cn(
         "overflow-hidden transition-all duration-200",
         item.status === "failed" && "border-destructive/30",
-        className
+        className,
       )}
     >
       {/* Header - Clickable to expand/collapse */}
@@ -224,7 +229,7 @@ export function HistoryCard({
         className={cn(
           "w-full flex items-start gap-3 p-4 text-left",
           "hover:bg-muted/30 transition-colors",
-          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset"
+          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset",
         )}
       >
         {/* Expand/collapse indicator */}
@@ -249,7 +254,7 @@ export function HistoryCard({
                 className={cn(
                   "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0",
                   phaseCfg.bgColor,
-                  phaseCfg.textColor
+                  phaseCfg.textColor,
                 )}
               >
                 <PhaseIcon className="w-2.5 h-2.5" />
@@ -260,7 +265,7 @@ export function HistoryCard({
                 className={cn(
                   "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0",
                   statusCfg.bgColor,
-                  statusCfg.textColor
+                  statusCfg.textColor,
                 )}
               >
                 <StatusIcon className="w-2.5 h-2.5" />
@@ -290,9 +295,7 @@ export function HistoryCard({
                 </span>
               )}
               {item.resultSummary && (
-                <span className="text-foreground/70">
-                  {item.resultSummary}
-                </span>
+                <span className="text-foreground/70">{item.resultSummary}</span>
               )}
             </div>
           )}
@@ -316,17 +319,23 @@ export function HistoryCard({
             {/* Job summary - flat row with dividers */}
             <div className="flex divide-x divide-border">
               <div className="flex-1 pr-4">
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">Phase</p>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">
+                  Phase
+                </p>
                 <p className="text-sm font-medium capitalize">{item.phase}</p>
               </div>
               <div className="flex-1 px-4">
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">Duration</p>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">
+                  Duration
+                </p>
                 <p className="text-sm font-medium">
                   {item.duration ? formatDuration(item.duration) : "-"}
                 </p>
               </div>
               <div className="flex-1 pl-4">
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">Result</p>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-0.5">
+                  Result
+                </p>
                 <p className="text-sm font-medium">
                   {item.resultSummary || "-"}
                 </p>
@@ -343,14 +352,22 @@ export function HistoryCard({
                 <div className="border-l border-border ml-1 pl-4 space-y-2">
                   {item.events.slice(0, 8).map((event) => {
                     const EventIcon = eventIcons[event.eventType] || Brain;
-                    const colorClass = eventColors[event.eventType] || "text-muted-foreground";
+                    const colorClass =
+                      eventColors[event.eventType] || "text-muted-foreground";
                     const displayContent = formatEventContent(event);
 
                     return (
-                      <div key={event.id} className="relative flex items-start gap-2.5">
+                      <div
+                        key={event.id}
+                        className="relative flex items-start gap-2.5"
+                      >
                         <div className="absolute -left-[18px] top-1.5 w-1.5 h-1.5 rounded-full bg-border" />
-                        <EventIcon className={cn("w-4 h-4 shrink-0 mt-0.5", colorClass)} />
-                        <span className="text-sm text-foreground/80">{displayContent}</span>
+                        <EventIcon
+                          className={cn("w-4 h-4 shrink-0 mt-0.5", colorClass)}
+                        />
+                        <span className="text-sm text-foreground/80">
+                          {displayContent}
+                        </span>
                       </div>
                     );
                   })}
@@ -393,13 +410,9 @@ export function HistoryCard({
                 </Button>
               )}
 
-              <Link href={`/repos/${item.repoId}?task=${item.taskId}`}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                >
-                  View Task
+              <Link href={`/workers/${item.taskId}`}>
+                <Button size="sm" variant="outline" className="gap-1.5">
+                  View Execution Details
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Button>
               </Link>
