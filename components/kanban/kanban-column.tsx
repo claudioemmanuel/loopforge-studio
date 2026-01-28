@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -156,7 +157,7 @@ const columnConfig: Record<
   },
 };
 
-export function KanbanColumn({
+export const KanbanColumn = React.memo(function KanbanColumn({
   id,
   title,
   tasks,
@@ -366,4 +367,4 @@ export function KanbanColumn({
       )}
     </div>
   );
-}
+});

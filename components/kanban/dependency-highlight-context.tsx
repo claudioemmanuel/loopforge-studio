@@ -10,25 +10,39 @@ import {
 } from "react";
 import type { Task } from "@/lib/db/schema";
 
-interface DependencyHighlightContextValue {
-  hoveredTaskId: string | null;
+/**
+ * Split into two contexts to avoid unnecessary re-renders:
+ * - DependencyDataContext: static dependency data (changes rarely)
+ * - DependencyHoverContext: hover state (changes frequently on mouse move)
+ *
+ * Components that only need data don't re-render on hover changes.
+ */
+
+interface DependencyDataContextValue {
   blockerIds: string[];
   blockedByIds: string[];
   dependencyChainIds: string[];
   hasConnections: boolean;
+  isBlocker: (taskId: string) => boolean;
+  isBlocked: (taskId: string) => boolean;
+  isInChain: (taskId: string) => boolean;
+}
+
+interface DependencyHoverContextValue {
+  hoveredTaskId: string | null;
   setHoveredTask: (
     taskId: string | null,
     task?: Task,
     allTasks?: Task[],
   ) => void;
-  isBlocker: (taskId: string) => boolean;
-  isBlocked: (taskId: string) => boolean;
   isUnrelated: (taskId: string) => boolean;
-  isInChain: (taskId: string) => boolean;
 }
 
-const DependencyHighlightContext =
-  createContext<DependencyHighlightContextValue | null>(null);
+const DependencyDataContext = createContext<DependencyDataContextValue | null>(
+  null,
+);
+const DependencyHoverContext =
+  createContext<DependencyHoverContextValue | null>(null);
 
 interface DependencyHighlightProviderProps {
   children: ReactNode;
@@ -140,45 +154,82 @@ export function DependencyHighlightProvider({
     [dependencyChainIds],
   );
 
-  const value = useMemo(
+  const dataValue = useMemo(
     () => ({
-      hoveredTaskId,
       blockerIds,
       blockedByIds,
       dependencyChainIds,
       hasConnections,
-      setHoveredTask,
       isBlocker,
       isBlocked,
-      isUnrelated,
       isInChain,
     }),
     [
-      hoveredTaskId,
       blockerIds,
       blockedByIds,
       dependencyChainIds,
       hasConnections,
-      setHoveredTask,
       isBlocker,
       isBlocked,
-      isUnrelated,
       isInChain,
     ],
   );
 
+  const hoverValue = useMemo(
+    () => ({
+      hoveredTaskId,
+      setHoveredTask,
+      isUnrelated,
+    }),
+    [hoveredTaskId, setHoveredTask, isUnrelated],
+  );
+
   return (
-    <DependencyHighlightContext.Provider value={value}>
-      {children}
-    </DependencyHighlightContext.Provider>
+    <DependencyDataContext.Provider value={dataValue}>
+      <DependencyHoverContext.Provider value={hoverValue}>
+        {children}
+      </DependencyHoverContext.Provider>
+    </DependencyDataContext.Provider>
   );
 }
 
+/**
+ * Combined hook that returns both data and hover context values.
+ * This preserves backward compatibility with existing consumers.
+ */
 export function useDependencyHighlight() {
-  const context = useContext(DependencyHighlightContext);
-  if (!context) {
+  const data = useContext(DependencyDataContext);
+  const hover = useContext(DependencyHoverContext);
+  if (!data || !hover) {
     throw new Error(
       "useDependencyHighlight must be used within a DependencyHighlightProvider",
+    );
+  }
+  return { ...data, ...hover };
+}
+
+/**
+ * Use this hook when a component only needs static dependency data
+ * (blocker/blocked relationships). It won't re-render on hover changes.
+ */
+export function useDependencyData() {
+  const context = useContext(DependencyDataContext);
+  if (!context) {
+    throw new Error(
+      "useDependencyData must be used within a DependencyHighlightProvider",
+    );
+  }
+  return context;
+}
+
+/**
+ * Use this hook when a component only needs hover state.
+ */
+export function useDependencyHover() {
+  const context = useContext(DependencyHoverContext);
+  if (!context) {
+    throw new Error(
+      "useDependencyHover must be used within a DependencyHighlightProvider",
     );
   }
   return context;

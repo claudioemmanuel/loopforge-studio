@@ -18,7 +18,11 @@ import {
 } from "lucide-react";
 import { useSettings } from "../settings-context";
 import { cn } from "@/lib/utils";
-import { AnthropicIcon, OpenAIIcon, GeminiIcon } from "@/components/providers";
+import {
+  AnthropicIcon,
+  OpenAIIcon,
+  GeminiIcon,
+} from "@/components/providers/provider-icons";
 
 type Provider = "anthropic" | "openai" | "gemini";
 

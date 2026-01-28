@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -163,7 +163,7 @@ function getProgressPercentage(status: TaskStatus): number {
   return progressMap[status];
 }
 
-export function KanbanCard({
+export const KanbanCard = React.memo(function KanbanCard({
   task,
   allTasks,
   onClick,
@@ -745,4 +745,4 @@ export function KanbanCard({
   }
 
   return baseCard;
-}
+});
