@@ -202,7 +202,7 @@ const statusConfig = {
  * - Collapsed: title, phase badge, status badge, timestamp, result summary
  * - Expanded: full details, events, actions
  */
-export function HistoryCard({
+export const HistoryCard = React.memo(function HistoryCard({
   item,
   defaultExpanded = false,
   onRetry,
@@ -422,7 +422,7 @@ export function HistoryCard({
       )}
     </Card>
   );
-}
+});
 
 /**
  * Loading skeleton for HistoryCard

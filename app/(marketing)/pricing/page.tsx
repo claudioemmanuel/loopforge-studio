@@ -11,17 +11,18 @@ const plans = [
     cta: "Get Started",
     ctaHref: "/login",
     highlighted: false,
+    comingSoon: false,
     features: [
-      { name: "Unlimited tasks", included: true },
-      { name: "3 connected repositories", included: true },
+      { name: "1 connected repository", included: true },
+      { name: "5 tasks per month", included: true },
+      { name: "50K tokens per month", included: true },
       { name: "Bring your own API keys", included: true },
       { name: "Full brainstorming features", included: true },
       { name: "Live execution logs", included: true },
       { name: "GitHub integration", included: true },
       { name: "Community support", included: true },
-      { name: "Priority queue", included: false },
       { name: "Team collaboration", included: false },
-      { name: "Analytics dashboard", included: false },
+      { name: "Advanced analytics", included: false },
     ],
   },
   {
@@ -32,15 +33,16 @@ const plans = [
     cta: "Start Free Trial",
     ctaHref: "/login",
     highlighted: true,
+    comingSoon: false,
     features: [
-      { name: "Unlimited tasks", included: true },
-      { name: "Unlimited repositories", included: true },
+      { name: "5 repositories", included: true },
+      { name: "100 tasks per month", included: true },
+      { name: "2M tokens per month", included: true },
       { name: "Bring your own API keys", included: true },
       { name: "Full brainstorming features", included: true },
       { name: "Live execution logs", included: true },
       { name: "GitHub integration", included: true },
       { name: "Priority support", included: true },
-      { name: "Priority queue", included: true },
       { name: "Team collaboration", included: false },
       { name: "Advanced analytics", included: true },
     ],
@@ -50,9 +52,10 @@ const plans = [
     description: "For teams building together with AI assistance",
     price: "$99",
     period: "/month",
-    cta: "Contact Sales",
+    cta: "Join Waitlist",
     ctaHref: "/contact",
     highlighted: false,
+    comingSoon: true,
     features: [
       { name: "Everything in Pro", included: true },
       { name: "Up to 10 team members", included: true },
@@ -92,6 +95,11 @@ export default function PricingPage() {
                   Most Popular
                 </div>
               )}
+              {plan.comingSoon && (
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-muted text-muted-foreground text-sm font-medium border">
+                  Coming Soon
+                </div>
+              )}
 
               <div className="text-center mb-8">
                 <h3 className="text-2xl font-semibold mb-2">{plan.name}</h3>
@@ -125,16 +133,22 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              <Link
-                href={plan.ctaHref}
-                className={`block w-full py-3 px-6 rounded-lg text-center font-medium transition-all ${
-                  plan.highlighted
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25"
-                    : "border border-border hover:bg-muted/50"
-                }`}
-              >
-                {plan.cta}
-              </Link>
+              {plan.comingSoon ? (
+                <span className="block w-full py-3 px-6 rounded-lg text-center font-medium border border-border text-muted-foreground cursor-not-allowed opacity-60">
+                  {plan.cta}
+                </span>
+              ) : (
+                <Link
+                  href={plan.ctaHref}
+                  className={`block w-full py-3 px-6 rounded-lg text-center font-medium transition-all ${
+                    plan.highlighted
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25"
+                      : "border border-border hover:bg-muted/50"
+                  }`}
+                >
+                  {plan.cta}
+                </Link>
+              )}
             </div>
           ))}
         </div>
@@ -161,6 +175,15 @@ export default function PricingPage() {
                 Yes! Loopforge is open source. You can deploy it on your own
                 infrastructure using Docker. All features work identically in
                 self-hosted mode.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-medium mb-2">Is the Team plan available?</h4>
+              <p className="text-muted-foreground text-sm">
+                The Team plan is not yet available. We&apos;re actively building
+                team collaboration features including shared workspaces,
+                role-based permissions, and team activity feeds. Join the
+                waitlist to be notified when it launches.
               </p>
             </div>
             <div>

@@ -1,0 +1,167 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Plus, GitBranch, ArrowLeft, RefreshCw, Zap } from "lucide-react";
+import Link from "next/link";
+import { RepoStatusBadge } from "@/components/repo-status-indicator";
+import { UsageIndicator } from "@/components/billing/usage-indicator";
+import { RepoData, statConfig } from "./use-task-actions";
+
+interface RepoHeaderProps {
+  repo: RepoData | null;
+  taskStats: {
+    total: number;
+    inProgress: number;
+    completed: number;
+    stuck: number;
+  };
+  refreshing: boolean;
+  onRefresh: () => void;
+  onNewTask: () => void;
+  onRepoUpdate?: (repo: RepoData) => void;
+}
+
+export function RepoHeader({
+  repo,
+  taskStats,
+  refreshing,
+  onRefresh,
+  onNewTask,
+  onRepoUpdate,
+}: RepoHeaderProps) {
+  const [togglingAutoApprove, setTogglingAutoApprove] = useState(false);
+
+  const handleToggleAutoApprove = async () => {
+    if (!repo) return;
+    setTogglingAutoApprove(true);
+    try {
+      const res = await fetch(`/api/repos/${repo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoApprove: !repo.autoApprove }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        onRepoUpdate?.(updated);
+      }
+    } catch (err) {
+      console.error("Failed to toggle auto-approve", err);
+    } finally {
+      setTogglingAutoApprove(false);
+    }
+  };
+  return (
+    <header className="flex-shrink-0 border-b bg-card/50 backdrop-blur-sm">
+      <div className="px-6 lg:px-8 py-6">
+        {/* Breadcrumb and actions row */}
+        <div className="flex items-center justify-between mb-4">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Dashboard</span>
+          </Link>
+          <div className="flex items-center gap-2">
+            {repo && (
+              <button
+                onClick={handleToggleAutoApprove}
+                disabled={togglingAutoApprove}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border",
+                  repo.autoApprove
+                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+                    : "bg-muted/50 text-muted-foreground border-border hover:bg-muted",
+                  togglingAutoApprove && "opacity-50 cursor-not-allowed",
+                )}
+                title={
+                  repo.autoApprove
+                    ? "Auto-approve enabled: changes are committed automatically when tests pass"
+                    : "Auto-approve disabled: changes require manual review"
+                }
+              >
+                <Zap
+                  className={cn(
+                    "w-3.5 h-3.5",
+                    repo.autoApprove && "text-amber-500",
+                  )}
+                />
+                <span className="hidden sm:inline">
+                  Auto-approve {repo.autoApprove ? "on" : "off"}
+                </span>
+              </button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-200"
+            >
+              <RefreshCw
+                className={cn("w-4 h-4", refreshing && "animate-spin")}
+              />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+            <Button onClick={onNewTask} size="sm" className="gap-2">
+              <Plus className="w-4 h-4" />
+              <span>New Task</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Title and description */}
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
+                {repo?.name || "Repository"}
+              </h1>
+              {repo && (
+                <RepoStatusBadge
+                  isCloned={repo.isCloned}
+                  indexingStatus={repo.indexingStatus}
+                />
+              )}
+            </div>
+            {repo?.fullName && (
+              <div className="flex items-center gap-2 mt-1.5 text-muted-foreground">
+                <GitBranch className="w-4 h-4" />
+                <span className="text-sm font-mono">{repo.fullName}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Quick stats and usage indicator */}
+          <div className="flex items-center gap-4 sm:gap-6">
+            {(
+              Object.entries(taskStats) as [keyof typeof taskStats, number][]
+            ).map(([key, value]) => {
+              const config = statConfig[key];
+              const Icon = config.icon;
+              return (
+                <div key={key} className="flex items-center gap-2">
+                  <Icon className={cn("w-4 h-4", config.color)} />
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-lg font-semibold tabular-nums">
+                      {value}
+                    </span>
+                    <span className="text-xs text-muted-foreground hidden sm:inline">
+                      {config.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {/* Usage indicator for managed billing */}
+            <div className="hidden md:block border-l border-border pl-4 ml-2">
+              <UsageIndicator />
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}

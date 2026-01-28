@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  MessageSquare,
 } from "lucide-react";
 import { DiffFile } from "./diff-file";
 import { TestOutput } from "@/components/test-results/test-output";
@@ -43,6 +44,7 @@ interface DiffModalProps {
   onClose: () => void;
   onApprove: () => Promise<void>;
   onReject: () => Promise<void>;
+  onRequestChanges?: () => Promise<void>;
 }
 
 export function DiffModal({
@@ -51,6 +53,7 @@ export function DiffModal({
   onClose,
   onApprove,
   onReject,
+  onRequestChanges,
 }: DiffModalProps) {
   const [loading, setLoading] = useState(true);
   const [changes, setChanges] = useState<PendingChange[]>([]);
@@ -58,6 +61,9 @@ export function DiffModal({
   const [summary, setSummary] = useState({ total: 0, approved: 0, pending: 0 });
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [feedback, setFeedback] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [showTestOutput, setShowTestOutput] = useState(false);
@@ -134,6 +140,38 @@ export function DiffModal({
       setError(err instanceof Error ? err.message : "Failed to reject changes");
     } finally {
       setRejecting(false);
+    }
+  };
+
+  const handleRequestChanges = async () => {
+    if (!feedback.trim()) return;
+    setRequesting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/diff/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetStatus: "planning",
+          reason: feedback.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to request changes");
+      }
+      if (onRequestChanges) {
+        await onRequestChanges();
+      }
+      setFeedback("");
+      setShowFeedbackForm(false);
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to request changes",
+      );
+    } finally {
+      setRequesting(false);
     }
   };
 
@@ -317,6 +355,47 @@ export function DiffModal({
           )}
         </div>
 
+        {/* Feedback Form */}
+        {showFeedbackForm && (
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/10 space-y-3">
+            <label className="block text-sm font-medium">
+              What changes would you like?
+            </label>
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="Describe the changes you'd like the AI to make..."
+              className="w-full h-24 px-3 py-2 text-sm border rounded-lg bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+              autoFocus
+            />
+            <div className="flex items-center gap-2 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowFeedbackForm(false);
+                  setFeedback("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleRequestChanges}
+                disabled={requesting || !feedback.trim()}
+                className="gap-2"
+              >
+                {requesting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <MessageSquare className="w-4 h-4" />
+                )}
+                Submit Feedback
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
           <div className="text-sm text-muted-foreground">
@@ -331,7 +410,7 @@ export function DiffModal({
             <Button
               variant="outline"
               onClick={handleReject}
-              disabled={rejecting || approving || loading}
+              disabled={rejecting || approving || requesting || loading}
               className="gap-2"
             >
               {rejecting ? (
@@ -339,12 +418,25 @@ export function DiffModal({
               ) : (
                 <XCircle className="w-4 h-4" />
               )}
-              Reject Changes
+              Reject
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowFeedbackForm(!showFeedbackForm)}
+              disabled={rejecting || approving || requesting || loading}
+              className="gap-2"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Request Changes
             </Button>
             <Button
               onClick={handleApprove}
               disabled={
-                approving || rejecting || loading || changes.length === 0
+                approving ||
+                rejecting ||
+                requesting ||
+                loading ||
+                changes.length === 0
               }
               className="gap-2 bg-emerald-600 hover:bg-emerald-700"
             >

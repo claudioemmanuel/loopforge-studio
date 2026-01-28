@@ -1,23 +1,46 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { clientLogger } from "@/lib/logger";
 import { StatCard } from "@/components/dashboard";
-import {
-  TasksByStatusChart,
-  CompletionTrendChart,
-  TokenUsageChart,
-  CostBreakdown,
-  RepoActivityTable,
-} from "@/components/analytics";
 import { Button } from "@/components/ui/button";
+
+const TasksByStatusChart = dynamic(
+  () => import("@/components/analytics").then((mod) => mod.TasksByStatusChart),
+  { ssr: false },
+);
+
+const CompletionTrendChart = dynamic(
+  () =>
+    import("@/components/analytics").then((mod) => mod.CompletionTrendChart),
+  { ssr: false },
+);
+
+const TokenUsageChart = dynamic(
+  () => import("@/components/analytics").then((mod) => mod.TokenUsageChart),
+  { ssr: false },
+);
+
+const CostBreakdown = dynamic(
+  () => import("@/components/analytics").then((mod) => mod.CostBreakdown),
+  { ssr: false },
+);
+
+const RepoActivityTable = dynamic(
+  () => import("@/components/analytics").then((mod) => mod.RepoActivityTable),
+  { ssr: false },
+);
 import {
   ListTodo,
   CheckCircle2,
   TrendingUp,
   Clock,
   Download,
+  BarChart3,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 
 type DateRange = "today" | "week" | "month" | "year";
 
@@ -99,6 +122,45 @@ export default function AnalyticsPage() {
     return (
       <div className="p-8">
         <p className="text-muted-foreground">Failed to load analytics.</p>
+      </div>
+    );
+  }
+
+  const hasData = data.taskMetrics.total > 0;
+
+  if (!hasData) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
+              Analytics
+            </h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
+              Track your <em className="font-serif">AI-powered</em> development
+              metrics
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-6">
+            <BarChart3 className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-xl font-serif font-semibold mb-2">No data yet</h2>
+          <p className="text-muted-foreground max-w-md mb-6">
+            Analytics will appear here once you start creating and completing
+            tasks. Connect a repository, create your first task, and let the AI
+            get to work.
+          </p>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium"
+          >
+            Go to Dashboard
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
     );
   }

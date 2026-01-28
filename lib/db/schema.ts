@@ -191,6 +191,8 @@ export const repos = pgTable(
     prDraftDefault: boolean("pr_draft_default").notNull().default(false),
     prReviewers: jsonb("pr_reviewers").$type<string[]>(),
     prLabels: jsonb("pr_labels").$type<string[]>(),
+    // Auto-approve: skip review gate when tests pass
+    autoApprove: boolean("auto_approve").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

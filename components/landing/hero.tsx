@@ -1,9 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { LoopforgeLogo } from "@/components/loopforge-logo";
-import { ModernKanban } from "./modern-kanban";
 import { ArrowRight, Play } from "lucide-react";
+
+const ModernKanban = dynamic(() =>
+  import("./modern-kanban").then((mod) => mod.ModernKanban),
+);
 
 export function Hero() {
   return (

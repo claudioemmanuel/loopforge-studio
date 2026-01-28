@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { CreditCard, Check, Sparkles, Settings, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { UsageDashboard } from "@/components/billing";
+import { UsageDashboard } from "@/components/billing/usage-dashboard";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/use-toast";
 
 interface Plan {
   id: string;
@@ -126,11 +127,19 @@ export default function SubscriptionPage() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert(data.error || "Failed to start checkout");
+        toast({
+          title: "Checkout error",
+          description: data.error || "Failed to start checkout",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Checkout error:", error);
-      alert("Failed to start checkout");
+      toast({
+        title: "Checkout error",
+        description: "Failed to start checkout",
+        variant: "destructive",
+      });
     } finally {
       setCheckoutLoading(null);
     }
@@ -147,11 +156,19 @@ export default function SubscriptionPage() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert(data.error || "Failed to open billing portal");
+        toast({
+          title: "Billing error",
+          description: data.error || "Failed to open billing portal",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Portal error:", error);
-      alert("Failed to open billing portal");
+      toast({
+        title: "Billing error",
+        description: "Failed to open billing portal",
+        variant: "destructive",
+      });
     }
   };
 

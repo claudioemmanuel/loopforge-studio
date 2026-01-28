@@ -3,59 +3,39 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { clientLogger } from "@/lib/logger";
+import dynamic from "next/dynamic";
 import { KanbanBoard } from "@/components/kanban";
-import { TaskModal, NewTaskModal } from "@/components/modals";
-import { Button } from "@/components/ui/button";
+import { NewTaskModal } from "@/components/modals/new-task-modal";
+
+const TaskModal = dynamic(
+  () => import("@/components/modals/task-modal").then((mod) => mod.TaskModal),
+  {
+    loading: () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="animate-pulse h-96 w-full max-w-4xl bg-muted rounded-lg" />
+      </div>
+    ),
+  },
+);
 import { ErrorDialog } from "@/components/ui/error-dialog";
-import {
-  BackwardMoveDialog,
-  isBackwardMove,
-} from "@/components/ui/backward-move-dialog";
-import {
-  ConfirmActionDialog,
-  requiresActionConfirmation,
-} from "@/components/ui/confirm-action-dialog";
+import { BackwardMoveDialog } from "@/components/ui/backward-move-dialog";
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog";
 import {
   useCardProcessing,
   useSlideAnimation,
 } from "@/components/hooks/use-card-processing";
 import { RepoSetupBanner, RepoSetupOverlay } from "@/components/repo-setup";
-import { UsageIndicator, UsageLimitOverlay } from "@/components/billing";
+import { UsageLimitOverlay } from "@/components/billing/usage-indicator";
 import { ActivityPanel } from "@/components/activity-panel";
-import { cn } from "@/lib/utils";
-import {
-  Plus,
-  GitBranch,
-  ListTodo,
-  CheckCircle2,
-  Zap,
-  AlertTriangle,
-  ArrowLeft,
-  RefreshCw,
-} from "lucide-react";
-import Link from "next/link";
-import { RepoStatusBadge } from "@/components/repo-status-indicator";
-import type { Task, TaskStatus, IndexingStatus } from "@/lib/db/schema";
-
-interface RepoData {
-  id: string;
-  name: string;
-  fullName: string;
-  isCloned: boolean;
-  indexingStatus: IndexingStatus;
-}
-
-// Quick stats configuration
-const statConfig = {
-  total: { label: "Total", icon: ListTodo, color: "text-muted-foreground" },
-  inProgress: { label: "In Progress", icon: Zap, color: "text-primary" },
-  completed: {
-    label: "Completed",
-    icon: CheckCircle2,
-    color: "text-emerald-500",
-  },
-  stuck: { label: "Failed", icon: AlertTriangle, color: "text-red-500" },
-};
+import type { Task, TaskStatus } from "@/lib/db/schema";
+import { useTaskActions } from "./use-task-actions";
+import { RepoHeader } from "./repo-header";
+import type {
+  RepoData,
+  ErrorDialogState,
+  BackwardMoveDialogState,
+  ActionDialogState,
+} from "./use-task-actions";
 
 export default function RepoPage() {
   const params = useParams();
@@ -72,12 +52,7 @@ export default function RepoPage() {
   const [autoStartBrainstorm, setAutoStartBrainstorm] = useState(false);
 
   // Error dialog state for task start failures
-  const [errorDialog, setErrorDialog] = useState<{
-    open: boolean;
-    title: string;
-    description: string;
-    isApiKeyError: boolean;
-  }>({
+  const [errorDialog, setErrorDialog] = useState<ErrorDialogState>({
     open: false,
     title: "",
     description: "",
@@ -85,29 +60,17 @@ export default function RepoPage() {
   });
 
   // Backward move dialog state
-  const [backwardMoveDialog, setBackwardMoveDialog] = useState<{
-    open: boolean;
-    taskId: string;
-    taskTitle: string;
-    fromStatus: TaskStatus;
-    toStatus: TaskStatus;
-  }>({
-    open: false,
-    taskId: "",
-    taskTitle: "",
-    fromStatus: "todo",
-    toStatus: "todo",
-  });
+  const [backwardMoveDialog, setBackwardMoveDialog] =
+    useState<BackwardMoveDialogState>({
+      open: false,
+      taskId: "",
+      taskTitle: "",
+      fromStatus: "todo",
+      toStatus: "todo",
+    });
 
   // Action confirmation dialog state (for forward moves to action columns)
-  const [actionDialog, setActionDialog] = useState<{
-    open: boolean;
-    taskId: string;
-    taskTitle: string;
-    fromStatus: TaskStatus;
-    toStatus: TaskStatus;
-    loading: boolean;
-  }>({
+  const [actionDialog, setActionDialog] = useState<ActionDialogState>({
     open: false,
     taskId: "",
     taskTitle: "",
@@ -259,340 +222,39 @@ export default function RepoPage() {
     return { total, inProgress, completed, stuck };
   }, [tasks]);
 
-  // Core function to perform the task move API call
-  const performTaskMove = async (
-    taskId: string,
-    newStatus: TaskStatus,
-    resetPhases: boolean = false,
-  ) => {
-    const currentTask = tasks.find((t) => t.id === taskId);
-    if (!currentTask) return;
-
-    // Optimistic update
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
-    );
-
-    try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus, resetPhases }),
-      });
-
-      if (!res.ok) {
-        // Revert to original status
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === taskId ? { ...t, status: currentTask.status } : t,
-          ),
-        );
-
-        const errorData = await res.json().catch(() => ({}));
-        setErrorDialog({
-          open: true,
-          title: newStatus === "executing" ? "Execution Failed" : "Move Failed",
-          description: errorData.error || `Failed to move task to ${newStatus}`,
-          isApiKeyError:
-            errorData.error?.includes("API key") ||
-            errorData.code === "NO_PROVIDER_CONFIGURED",
-        });
-      } else {
-        // Update with server response (includes execution info when moving to executing)
-        const updatedTask = await res.json();
-        setTasks((prev) =>
-          prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
-        );
-      }
-    } catch (error) {
-      clientLogger.error("Error updating task", { error, taskId });
-      // Revert on error
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, status: currentTask.status } : t,
-        ),
-      );
-    }
-  };
-
-  const handleTaskMove = async (taskId: string, newStatus: TaskStatus) => {
-    // Find the current task for potential revert
-    const currentTask = tasks.find((t) => t.id === taskId);
-    if (!currentTask) return;
-
-    // Check if this is a backward move
-    if (isBackwardMove(currentTask.status, newStatus)) {
-      // Show confirmation dialog instead of moving immediately
-      setBackwardMoveDialog({
-        open: true,
-        taskId,
-        taskTitle: currentTask.title,
-        fromStatus: currentTask.status,
-        toStatus: newStatus,
-      });
-      return;
-    }
-
-    // Check if forward move requires action confirmation
-    if (requiresActionConfirmation(newStatus)) {
-      setActionDialog({
-        open: true,
-        taskId,
-        taskTitle: currentTask.title,
-        fromStatus: currentTask.status,
-        toStatus: newStatus,
-        loading: false,
-      });
-      return;
-    }
-
-    // Simple status update (ready, done, stuck) - proceed immediately
-    await performTaskMove(taskId, newStatus);
-  };
-
-  // Handler for backward move with data preserved
-  const handleBackwardMoveKeepData = async () => {
-    const { taskId, toStatus } = backwardMoveDialog;
-    await performTaskMove(taskId, toStatus, false);
-  };
-
-  // Handler for backward move with data reset
-  const handleBackwardMoveReset = async () => {
-    const { taskId, toStatus } = backwardMoveDialog;
-    await performTaskMove(taskId, toStatus, true);
-  };
-
-  // Handler for action dialog confirmation
-  const handleActionConfirm = async () => {
-    const { taskId, toStatus } = actionDialog;
-
-    setActionDialog((prev) => ({ ...prev, loading: true }));
-
-    try {
-      if (toStatus === "brainstorming") {
-        await executeStartAction(taskId);
-      } else if (toStatus === "planning") {
-        await executeAdvanceAction(taskId, "plan");
-      } else if (toStatus === "executing") {
-        await executeAdvanceAction(taskId, "execute");
-      }
-    } finally {
-      setActionDialog((prev) => ({ ...prev, open: false, loading: false }));
-    }
-  };
-
-  // Handler for action dialog cancel
-  const handleActionCancel = () => {
-    setActionDialog((prev) => ({ ...prev, open: false, loading: false }));
-  };
-
-  const handleTaskClick = (task: Task) => {
-    setSelectedTask(task);
-    // Auto-open brainstorm panel for tasks in brainstorming status
-    setAutoStartBrainstorm(task.status === "brainstorming");
-  };
-
-  const handleTaskCreated = (task: Task) => {
-    setTasks((prev) => [...prev, task]);
-    setShowNewTask(false);
-  };
-
-  const handleTaskUpdated = (updatedTask: Task) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === updatedTask.id ? updatedTask : t)),
-    );
-    setSelectedTask(updatedTask);
-  };
-
-  const handleTaskDelete = async (taskId: string) => {
-    // Optimistic update
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
-
-    try {
-      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
-      if (!res.ok) {
-        clientLogger.error("Failed to delete task", { taskId });
-        fetchData(); // Revert on error
-      }
-    } catch (error) {
-      clientLogger.error("Error deleting task", { error, taskId });
-      fetchData(); // Revert on error
-    }
-  };
-
-  // Internal execution functions (no confirmation, called after user confirms)
-  const executeStartAction = async (taskId: string) => {
-    try {
-      const res = await fetch(`/api/tasks/${taskId}/brainstorm/start`, {
-        method: "POST",
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        setErrorDialog({
-          open: true,
-          title: "Failed to Start",
-          description: errorData.error || "Failed to start brainstorming",
-          isApiKeyError:
-            errorData.error?.includes("API key") ||
-            errorData.code === "NO_PROVIDER_CONFIGURED",
-        });
-        return;
-      }
-
-      // Optimistically update task status
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, status: "brainstorming" as TaskStatus } : t,
-        ),
-      );
-    } catch (error) {
-      clientLogger.error("Error starting brainstorm", { error, taskId });
-      setErrorDialog({
-        open: true,
-        title: "Failed to Start",
-        description: "An unexpected error occurred",
-        isApiKeyError: false,
-      });
-    }
-  };
-
-  const executeAdvanceAction = async (
-    taskId: string,
-    action: "plan" | "ready" | "execute",
-  ) => {
-    // For plan action, use async endpoint (card locks immediately)
-    if (action === "plan") {
-      try {
-        const res = await fetch(`/api/tasks/${taskId}/plan/start`, {
-          method: "POST",
-        });
-
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          setErrorDialog({
-            open: true,
-            title: "Failed to Start Planning",
-            description: errorData.error || "Failed to start planning",
-            isApiKeyError:
-              errorData.error?.includes("API key") ||
-              errorData.code === "NO_PROVIDER_CONFIGURED",
-          });
-          return;
-        }
-
-        // Optimistically update task status
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === taskId ? { ...t, status: "planning" as TaskStatus } : t,
-          ),
-        );
-        return;
-      } catch (error) {
-        clientLogger.error("Error starting plan", { error, taskId });
-        setErrorDialog({
-          open: true,
-          title: "Failed to Start Planning",
-          description: "An unexpected error occurred",
-          isApiKeyError: false,
-        });
-        return;
-      }
-    }
-
-    // For ready and execute actions, use existing synchronous endpoints
-    const endpoint =
-      action === "ready"
-        ? `/api/tasks/${taskId}`
-        : `/api/tasks/${taskId}/execute`;
-
-    const method = action === "ready" ? "PATCH" : "POST";
-    const body =
-      action === "ready" ? JSON.stringify({ status: "ready" }) : undefined;
-
-    try {
-      const res = await fetch(endpoint, {
-        method,
-        body,
-        headers: body ? { "Content-Type": "application/json" } : undefined,
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setTasks((prev) =>
-          prev.map((t) => (t.id === updated.id ? updated : t)),
-        );
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        setErrorDialog({
-          open: true,
-          title: "Action Failed",
-          description: errorData.error || `Failed to ${action} task`,
-          isApiKeyError: errorData.error?.includes("API key"),
-        });
-      }
-    } catch (error) {
-      clientLogger.error("Error advancing task", { error, taskId, action });
-      setErrorDialog({
-        open: true,
-        title: "Action Failed",
-        description: "An unexpected error occurred",
-        isApiKeyError: false,
-      });
-    }
-  };
-
-  // Public handlers that show confirmation before executing actions
-  const handleTaskStart = async (taskId: string) => {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-
-    // For non-todo tasks, just open the modal
-    if (task.status !== "todo") {
-      setSelectedTask(task);
-      setAutoStartBrainstorm(task.status === "brainstorming");
-      return;
-    }
-
-    // Show confirmation dialog for starting brainstorming
-    setActionDialog({
-      open: true,
-      taskId,
-      taskTitle: task.title,
-      fromStatus: task.status,
-      toStatus: "brainstorming",
-      loading: false,
-    });
-  };
-
-  const handleTaskAdvance = async (
-    taskId: string,
-    action: "plan" | "ready" | "execute",
-  ) => {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-
-    // "ready" doesn't need confirmation - it's not an AI action
-    if (action === "ready") {
-      await executeAdvanceAction(taskId, action);
-      return;
-    }
-
-    // Show confirmation for "plan" and "execute"
-    const targetStatus: TaskStatus =
-      action === "plan" ? "planning" : "executing";
-    setActionDialog({
-      open: true,
-      taskId,
-      taskTitle: task.title,
-      fromStatus: task.status,
-      toStatus: targetStatus,
-      loading: false,
-    });
-  };
+  const {
+    handleTaskMove,
+    handleBackwardMoveKeepData,
+    handleBackwardMoveReset,
+    handleActionConfirm,
+    handleActionCancel,
+    handleTaskClick,
+    handleTaskCreated,
+    handleTaskUpdated,
+    handleTaskDelete,
+    handleTaskStart,
+    handleTaskAdvance,
+  } = useTaskActions({
+    tasks,
+    setTasks,
+    fetchData,
+    setSelectedTask,
+    setAutoStartBrainstorm,
+    setErrorDialog,
+    backwardMoveDialog,
+    setBackwardMoveDialog,
+    actionDialog,
+    setActionDialog,
+  });
 
   const handleRefresh = () => {
     setRefreshing(true);
     fetchData();
+  };
+
+  const handleTaskCreatedAndClose = (task: Task) => {
+    handleTaskCreated(task);
+    setShowNewTask(false);
   };
 
   if (loading) {
@@ -609,92 +271,14 @@ export default function RepoPage() {
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Page Header */}
-      <header className="flex-shrink-0 border-b bg-card/50 backdrop-blur-sm">
-        <div className="px-6 lg:px-8 py-6">
-          {/* Breadcrumb and actions row */}
-          <div className="flex items-center justify-between mb-4">
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Dashboard</span>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-200"
-              >
-                <RefreshCw
-                  className={cn("w-4 h-4", refreshing && "animate-spin")}
-                />
-                <span className="hidden sm:inline">Refresh</span>
-              </Button>
-              <Button
-                onClick={() => setShowNewTask(true)}
-                size="sm"
-                className="gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Task</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Title and description */}
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
-                  {repo?.name || "Repository"}
-                </h1>
-                {repo && (
-                  <RepoStatusBadge
-                    isCloned={repo.isCloned}
-                    indexingStatus={repo.indexingStatus}
-                  />
-                )}
-              </div>
-              {repo?.fullName && (
-                <div className="flex items-center gap-2 mt-1.5 text-muted-foreground">
-                  <GitBranch className="w-4 h-4" />
-                  <span className="text-sm font-mono">{repo.fullName}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Quick stats and usage indicator */}
-            <div className="flex items-center gap-4 sm:gap-6">
-              {(
-                Object.entries(taskStats) as [keyof typeof taskStats, number][]
-              ).map(([key, value]) => {
-                const config = statConfig[key];
-                const Icon = config.icon;
-                return (
-                  <div key={key} className="flex items-center gap-2">
-                    <Icon className={cn("w-4 h-4", config.color)} />
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-lg font-semibold tabular-nums">
-                        {value}
-                      </span>
-                      <span className="text-xs text-muted-foreground hidden sm:inline">
-                        {config.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-              {/* Usage indicator for managed billing */}
-              <div className="hidden md:block border-l border-border pl-4 ml-2">
-                <UsageIndicator />
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <RepoHeader
+        repo={repo}
+        taskStats={taskStats}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        onNewTask={() => setShowNewTask(true)}
+        onRepoUpdate={setRepo}
+      />
 
       {/* Repo Setup Banner (when not cloned) */}
       {repo && !repo.isCloned && (
@@ -759,7 +343,7 @@ export default function RepoPage() {
         <NewTaskModal
           repoId={repoId}
           onClose={() => setShowNewTask(false)}
-          onCreate={handleTaskCreated}
+          onCreate={handleTaskCreatedAndClose}
         />
       )}
 
