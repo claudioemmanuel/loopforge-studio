@@ -88,13 +88,16 @@ export function ExecutionActivityFeed({
   executionId,
 }: ExecutionActivityFeedProps) {
   const [events, setEvents] = useState<ExecutionActivityEvent[]>([]);
-  const [isConnected, _setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [elapsedTime, setElapsedTime] = useState("0:00");
   const feedRef = useRef<HTMLDivElement>(null);
   const startTimeRef = useRef<Date | null>(null);
 
   useEffect(() => {
-    // Fetch existing events
+    let eventSource: EventSource | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+    // Fallback polling function
     const fetchEvents = async () => {
       try {
         const res = await fetch(`/api/executions/${executionId}/events`);
@@ -102,7 +105,6 @@ export function ExecutionActivityFeed({
           const data = await res.json();
           setEvents(data);
 
-          // Set start time from first event if not already set
           if (data.length > 0 && !startTimeRef.current) {
             startTimeRef.current = new Date(data[0].timestamp);
           }
@@ -112,12 +114,65 @@ export function ExecutionActivityFeed({
       }
     };
 
-    fetchEvents();
+    // Try SSE first
+    try {
+      eventSource = new EventSource(`/api/executions/${executionId}/sse`);
 
-    // Poll for new events (simpler than WebSocket for initial implementation)
-    const interval = setInterval(fetchEvents, 2000);
+      eventSource.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data) as ExecutionActivityEvent;
+          setEvents((prev) => {
+            // Deduplicate by id if present
+            if (event.id && prev.some((p) => p.id === event.id)) {
+              return prev;
+            }
+            const next = [...prev, event];
+            if (next.length > 0 && !startTimeRef.current) {
+              startTimeRef.current = new Date(next[0].timestamp);
+            }
+            return next;
+          });
+        } catch (error) {
+          clientLogger.error("Error parsing SSE event", { error });
+        }
+      };
 
-    return () => clearInterval(interval);
+      eventSource.onopen = () => {
+        setIsConnected(true);
+        // Cancel polling fallback if SSE connects
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      };
+
+      eventSource.onerror = () => {
+        setIsConnected(false);
+        // Close the broken SSE connection and fall back to polling
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+        if (!pollInterval) {
+          fetchEvents(); // Immediate fetch on fallback
+          pollInterval = setInterval(fetchEvents, 2000);
+        }
+      };
+    } catch {
+      // SSE not supported or failed, fall back to polling
+      setIsConnected(false);
+      fetchEvents();
+      pollInterval = setInterval(fetchEvents, 2000);
+    }
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
   }, [executionId]);
 
   // Update elapsed time every second
