@@ -356,7 +356,12 @@ export const KanbanCard = React.memo(function KanbanCard({
     <>
       {/* Processing overlay */}
       {isProcessing && (
-        <div className="absolute inset-0 z-10 bg-background/80 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center gap-2 p-4">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label={`Processing: ${processingState.statusText}`}
+          className="absolute inset-0 z-10 bg-background/80 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center gap-2 p-4"
+        >
           <Loader2
             className={cn(
               "w-6 h-6 animate-spin",
@@ -408,6 +413,7 @@ export const KanbanCard = React.memo(function KanbanCard({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
+                aria-label="Task actions"
                 className={cn(
                   "flex-shrink-0 p-1.5 -m-1 rounded-lg",
                   "sm:opacity-0 sm:group-hover:opacity-100",

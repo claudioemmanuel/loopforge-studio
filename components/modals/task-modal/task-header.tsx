@@ -102,6 +102,9 @@ export function TaskHeader({
                   task.status === "executing" ||
                   task.status === "done"
                 }
+                role="switch"
+                aria-checked={autonomousMode}
+                aria-label="Toggle autonomous mode"
                 className={cn(
                   "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
