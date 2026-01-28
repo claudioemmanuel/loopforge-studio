@@ -180,6 +180,29 @@ export function createWorkerUpdateEvent(
 }
 
 /**
+ * Publish an execution event to Redis for SSE streaming
+ */
+export async function publishExecutionEvent(
+  executionId: string,
+  event: { type: string; content: string; metadata?: Record<string, unknown> },
+): Promise<void> {
+  try {
+    const redis = getPublisher();
+    const channel = `execution-events:${executionId}`;
+    await redis.publish(
+      channel,
+      JSON.stringify({ ...event, timestamp: new Date().toISOString() }),
+    );
+    workerLogger.debug(
+      { eventType: event.type, executionId },
+      "Published execution event",
+    );
+  } catch (error) {
+    workerLogger.error({ error }, "Failed to publish execution event");
+  }
+}
+
+/**
  * Clean up Redis connection
  */
 export async function closePublisher(): Promise<void> {

@@ -40,10 +40,11 @@ import {
 import { decryptGithubToken } from "../lib/crypto";
 import {
   createAIClient,
-  brainstormTask,
   generatePlan,
+  generateInitialBrainstorm,
   type RepoContext,
 } from "../lib/ai";
+import { scanRepoViaGitHub } from "../lib/github/repo-scanner";
 import {
   pushBranch,
   buildAuthenticatedUrl,
@@ -65,6 +66,7 @@ import {
   createWorkerUpdateEvent,
   publishProcessingEvent,
   createProcessingEvent,
+  publishExecutionEvent,
   phaseStatusMessages,
 } from "../lib/workers/events";
 import simpleGit from "simple-git";
@@ -1076,6 +1078,13 @@ async function processExecution(
         createdAt: new Date(),
       });
 
+      // Publish to SSE for real-time streaming
+      await publishExecutionEvent(executionId, {
+        type: mapEventTypeToDb(eventType),
+        content,
+        metadata: { ...metadata, phase: "setup" },
+      });
+
       // Store in workerEvents for worker history
       await db.insert(workerEvents).values({
         workerJobId: workerJob.id,
@@ -1312,6 +1321,16 @@ async function processExecution(
           createdAt: event.timestamp,
         });
 
+        // Publish to SSE for real-time streaming
+        await publishExecutionEvent(executionId, {
+          type: mapEventTypeToDb(event.type),
+          content: event.content,
+          metadata: {
+            ...event.metadata,
+            originalEventType: event.type,
+          },
+        });
+
         // Also insert to worker_events for unified history
         const workerEventType = mapEventTypeToWorkerEvent(event.type);
         await db.insert(workerEvents).values({
@@ -1411,6 +1430,15 @@ async function processExecution(
         },
         createdAt: new Date(),
       });
+      await publishExecutionEvent(executionId, {
+        type: "stuck",
+        content: `Verification failed: ${verification.reason}`,
+        metadata: {
+          commits: result.commits.length,
+          filesWritten,
+          originalStatus: "complete",
+        },
+      });
     }
 
     // === P0: NEW REVIEW FLOW ===
@@ -1430,6 +1458,11 @@ async function processExecution(
         content: "Collecting file changes for review...",
         metadata: { phase: "review_prep" },
         createdAt: new Date(),
+      });
+      await publishExecutionEvent(executionId, {
+        type: "thinking",
+        content: "Collecting file changes for review...",
+        metadata: { phase: "review_prep" },
       });
 
       // Collect file changes using git
@@ -1537,6 +1570,11 @@ async function processExecution(
             metadata: { pendingChangesCount: pendingChangeRecords.length },
             createdAt: new Date(),
           });
+          await publishExecutionEvent(executionId, {
+            type: "complete",
+            content: `${pendingChangeRecords.length} file(s) ready for review`,
+            metadata: { pendingChangesCount: pendingChangeRecords.length },
+          });
         }
 
         // === P0: OPTIONAL TEST EXECUTION ===
@@ -1558,6 +1596,11 @@ async function processExecution(
               content: `Running tests: ${testCommand}`,
               metadata: { testCommand },
               createdAt: new Date(),
+            });
+            await publishExecutionEvent(executionId, {
+              type: "thinking",
+              content: `Running tests: ${testCommand}`,
+              metadata: { testCommand },
             });
 
             // Create test run record
@@ -1606,6 +1649,17 @@ async function processExecution(
                 exitCode: testResult.exitCode ?? undefined,
               },
               createdAt: new Date(),
+            });
+            await publishExecutionEvent(executionId, {
+              type: testsPassed ? "complete" : "error",
+              content: testsPassed
+                ? `Tests passed in ${(testResult.durationMs / 1000).toFixed(1)}s`
+                : `Tests failed (exit code: ${testResult.exitCode})`,
+              metadata: {
+                testStatus,
+                durationMs: testResult.durationMs,
+                exitCode: testResult.exitCode ?? undefined,
+              },
             });
 
             workerLogger.info(
@@ -2049,9 +2103,65 @@ async function processBrainstorm(
     await db.insert(workerEvents).values({
       workerJobId: workerJob.id,
       eventType: "thinking",
-      content: "Analyzing task requirements and context...",
+      content: "Scanning repository context...",
       metadata: { model: preferredModel } as WorkerEventMetadata,
     });
+
+    // Update status: Scanning repository...
+    await db
+      .update(tasks)
+      .set({ processingStatusText: "Scanning repository..." })
+      .where(eq(tasks.id, taskId));
+
+    await publishProcessingEvent(
+      userId,
+      createProcessingEvent(
+        "processing_update",
+        taskId,
+        task.title,
+        task.repo.name,
+        "brainstorming",
+        job.id!,
+        startedAt,
+        {
+          statusText: "Scanning repository...",
+          progress: 5,
+        },
+      ),
+    );
+
+    // Scan repository for context
+    let repoContext: RepoContext = {
+      techStack: [],
+      fileStructure: [],
+      configFiles: [],
+    };
+    try {
+      const githubToken = await getUserGithubToken(userId);
+      if (githubToken && task.repo.fullName) {
+        const [owner, repoName] = task.repo.fullName.split("/");
+        const githubContext = await scanRepoViaGitHub(
+          githubToken,
+          owner,
+          repoName,
+          task.repo.defaultBranch || "main",
+        );
+        repoContext = {
+          techStack: githubContext.techStack,
+          fileStructure: githubContext.fileStructure,
+          configFiles: githubContext.configFiles,
+        };
+        workerLogger.info(
+          { techStack: repoContext.techStack },
+          "Repo scan complete for brainstorm",
+        );
+      }
+    } catch (error) {
+      workerLogger.error(
+        { error },
+        "GitHub scan failed during brainstorm, using empty context",
+      );
+    }
 
     // Update status: Analyzing task...
     await db
@@ -2071,7 +2181,7 @@ async function processBrainstorm(
         startedAt,
         {
           statusText: phaseStatusMessages.brainstorming[0],
-          progress: 10,
+          progress: 15,
         },
       ),
     );
@@ -2107,8 +2217,19 @@ async function processBrainstorm(
       ),
     );
 
-    // Run brainstorm
-    const result = await brainstormTask(client, task.title, task.description);
+    // Run brainstorm with repo context
+    const result = (await generateInitialBrainstorm(
+      client,
+      task.title,
+      task.description,
+      repoContext,
+    )) ?? {
+      summary: `Initial analysis of: ${task.title}`,
+      requirements: ["Define detailed requirements through refinement"],
+      considerations: ["Technical approach needs discussion"],
+      suggestedApproach:
+        "Use the Refine button to interactively clarify this task",
+    };
 
     // Update status: Finalizing brainstorm...
     await db
