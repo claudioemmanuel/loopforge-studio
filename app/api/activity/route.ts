@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, activityEvents, repos, tasks, users } from "@/lib/db";
-import { eq, and, desc, sql, gte, lte, or, ilike, inArray } from "drizzle-orm";
+import { db, activityEvents, repos, tasks } from "@/lib/db";
+import { eq, and, desc, gte, lte, or, ilike, inArray } from "drizzle-orm";
 import type { ActivityEventCategory } from "@/lib/db/schema";
 
 // GET - Fetch activity events with filters

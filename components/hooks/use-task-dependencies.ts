@@ -40,7 +40,7 @@ export interface UseTaskDependenciesReturn {
 
 export function useTaskDependencies({
   taskId,
-  repoId,
+  repoId: _repoId,
 }: UseTaskDependenciesOptions): UseTaskDependenciesReturn {
   const [blockedBy, setBlockedBy] = useState<TaskDependencyInfo[]>([]);
   const [blocks, setBlocks] = useState<TaskDependencyInfo[]>([]);

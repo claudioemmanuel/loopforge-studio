@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, activitySummaries, activityEvents, repos } from "@/lib/db";
-import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte } from "drizzle-orm";
 
 // GET - Fetch daily activity summaries
 export async function GET(request: Request) {

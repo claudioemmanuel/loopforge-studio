@@ -13,7 +13,6 @@ import {
   FileText,
   Play,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   HistoryCard,
@@ -24,7 +23,6 @@ import {
   HistoryFilters,
   type HistoryFiltersState,
 } from "@/components/workers/history-filters";
-import type { WorkerJobPhase } from "@/lib/db/schema";
 
 interface HistoryStats {
   total: number;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   X,
@@ -8,10 +8,8 @@ import {
   Loader2,
   AlertTriangle,
   GitCommit,
-  Check,
   XCircle,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface CommitInfo {
   sha: string;
@@ -42,13 +40,7 @@ export function RollbackModal({
   const [rolling, setRolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      checkRollback();
-    }
-  }, [isOpen, taskId]);
-
-  const checkRollback = async () => {
+  const checkRollback = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -67,7 +59,13 @@ export function RollbackModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [taskId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      checkRollback();
+    }
+  }, [isOpen, checkRollback]);
 
   const handleRollback = async () => {
     setRolling(true);

@@ -5,26 +5,26 @@ import { LoopforgeLogo } from "@/components/loopforge-logo";
 
 const footerLinks = {
   Product: [
-    { name: "Features", href: "#features" },
-    { name: "Workflow", href: "#workflow" },
-    { name: "Pricing", href: "#" },
-    { name: "Changelog", href: "#" },
+    { name: "Features", href: "/features" },
+    { name: "Workflow", href: "/workflow" },
+    { name: "Pricing", href: "/pricing" },
+    { name: "Changelog", href: "/changelog" },
   ],
   Resources: [
-    { name: "Documentation", href: "#" },
-    { name: "API Reference", href: "#" },
-    { name: "Blog", href: "#" },
-    { name: "Status", href: "#" },
+    { name: "Documentation", href: "/docs" },
+    { name: "API Reference", href: "/api" },
+    { name: "Blog", href: "/blog" },
+    { name: "Status", href: "/status" },
   ],
   Company: [
-    { name: "About", href: "#" },
-    { name: "Careers", href: "#" },
-    { name: "Contact", href: "#" },
+    { name: "About", href: "/about" },
+    { name: "Careers", href: "/careers" },
+    { name: "Contact", href: "/contact" },
   ],
   Legal: [
-    { name: "Privacy", href: "#" },
-    { name: "Terms", href: "#" },
-    { name: "Security", href: "#" },
+    { name: "Privacy", href: "/privacy" },
+    { name: "Terms", href: "/terms" },
+    { name: "Security", href: "/security" },
   ],
 };
 
@@ -114,12 +114,12 @@ export function Footer() {
               <ul className="space-y-3">
                 {links.map((link) => (
                   <li key={link.name}>
-                    <a
+                    <Link
                       href={link.href}
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {link.name}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>

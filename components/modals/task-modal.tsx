@@ -457,6 +457,32 @@ export function TaskModal({
     setMounted(true);
   }, []);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // Don't close if sub-dialogs are open
+        if (
+          showBrainstormPanel ||
+          showAutonomousConfirm ||
+          showDiffModal ||
+          showRollbackModal
+        ) {
+          return;
+        }
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [
+    onClose,
+    showBrainstormPanel,
+    showAutonomousConfirm,
+    showDiffModal,
+    showRollbackModal,
+  ]);
+
   // Auto-start brainstorm when requested (calls API, doesn't open panel)
   useEffect(() => {
     if (autoStartBrainstorm && !autoStartTriggered && task.status === "todo") {

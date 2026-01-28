@@ -35,7 +35,7 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 
 # Install git (needed for git operations in worker) and curl (for health checks)
-RUN apk add --no-cache git curl
+RUN apk add --no-cache git curl postgresql-client
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -55,6 +55,10 @@ COPY workers ./workers
 COPY lib ./lib
 COPY tsconfig.json ./
 
+# Copy worker entrypoint script
+COPY scripts/worker-entrypoint.sh /usr/local/bin/worker-entrypoint.sh
+RUN chmod +x /usr/local/bin/worker-entrypoint.sh
+
 # Create directories for data and repos
 RUN mkdir -p /app/data /app/repos && chown -R worker:worker /app
 
@@ -64,6 +68,9 @@ USER worker
 # Health check - verify worker process is running
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD pgrep -f "execution-worker" || exit 1
+
+# Use entrypoint for database readiness checks
+ENTRYPOINT ["worker-entrypoint.sh"]
 
 # Start the worker using node with tsx loader (faster than npx tsx)
 CMD ["node", "--import", "tsx", "workers/execution-worker.ts"]

@@ -5,7 +5,7 @@ import { LoopforgeLogo } from "@/components/loopforge-logo";
 
 export function Navigation() {
   return (
-    <nav className="fixed top-0 w-full z-50 backdrop-blur-md bg-background/80 border-b border-border/50">
+    <nav className="fixed top-0 w-full z-[100] backdrop-blur-md bg-background/80 border-b border-border/50">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <LoopforgeLogo

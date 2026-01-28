@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useCallback } from "react";
@@ -63,9 +64,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
   const { isOpen, closeSidebar } = useSidebar();
 
   const isDashboardActive = pathname === "/dashboard";
-  const isWorkersActive = pathname.startsWith("/workers");
   const isAnalyticsActive = pathname === "/analytics";
-  const isSettingsActive = pathname.startsWith("/settings");
 
   // Close sidebar on route change
   useEffect(() => {
@@ -288,10 +287,12 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
         <div className="p-4 border-t">
           <div className="flex items-center gap-3 mb-3">
             {user.image ? (
-              <img
+              <Image
                 src={user.image}
                 alt={user.name || "User"}
-                className="w-8 h-8 rounded-full"
+                width={32}
+                height={32}
+                className="rounded-full"
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">

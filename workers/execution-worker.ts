@@ -618,6 +618,74 @@ function verifyExecutionCompleted(
 }
 
 /**
+ * Notify dependent tasks when a blocker task fails
+ * Creates activity events for tasks that are blocked by the failed task
+ */
+async function handleCascadingFailure(
+  failedTaskId: string,
+  failedTaskTitle: string,
+  userId: string,
+  repoId: string,
+): Promise<void> {
+  workerLogger.info(
+    { failedTaskId },
+    "Checking for cascading failure notifications",
+  );
+
+  try {
+    // Find tasks that are blocked by the failed task
+    const dependentTasks = await db.query.taskDependencies.findMany({
+      where: eq(taskDependencies.blockedById, failedTaskId),
+      with: {
+        task: {
+          columns: { id: true, title: true, status: true },
+        },
+      },
+    });
+
+    if (dependentTasks.length === 0) {
+      workerLogger.debug({ failedTaskId }, "No dependent tasks found");
+      return;
+    }
+
+    workerLogger.info(
+      { failedTaskId, dependentCount: dependentTasks.length },
+      "Notifying dependent tasks of blocker failure",
+    );
+
+    // Create activity events for each dependent task
+    for (const dep of dependentTasks) {
+      await db.insert(activityEvents).values({
+        id: crypto.randomUUID(),
+        taskId: dep.task.id,
+        repoId,
+        userId,
+        eventType: "blocker_failed",
+        eventCategory: "system" as ActivityEventCategory,
+        title: "Blocker task failed",
+        content: `Blocked by "${failedTaskTitle}" which has failed. This task cannot proceed until the blocker is resolved.`,
+        metadata: {
+          failedBlockerId: failedTaskId,
+          failedBlockerTitle: failedTaskTitle,
+        },
+        createdAt: new Date(),
+      });
+
+      workerLogger.debug(
+        { dependentTaskId: dep.task.id, failedBlockerId: failedTaskId },
+        "Created blocker_failed activity event",
+      );
+    }
+  } catch (err) {
+    workerLogger.error(
+      { failedTaskId, error: err },
+      "Error in cascading failure handling",
+    );
+    // Don't throw - failure notification shouldn't fail the main task processing
+  }
+}
+
+/**
  * Handle task auto-orchestration when a task completes
  * Finds tasks blocked by this one and triggers execution if:
  * 1. All their blockers are now complete
@@ -1658,6 +1726,9 @@ async function processExecution(
         },
       );
       await publishWorkerEvent(userId, stuckEvent);
+
+      // Notify dependent tasks about the failure
+      await handleCascadingFailure(taskId, task.title, userId, task.repoId);
     }
 
     // Record usage for billing (only if tokens were tracked)
@@ -1750,6 +1821,9 @@ async function processExecution(
       },
     );
     await publishWorkerEvent(userId, errorEvent);
+
+    // Notify dependent tasks about the failure
+    await handleCascadingFailure(taskId, task.title, userId, task.repoId);
 
     return {
       success: false,

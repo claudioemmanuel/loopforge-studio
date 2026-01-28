@@ -216,7 +216,10 @@ export function Integrations() {
   }, []);
 
   return (
-    <section id="integrations" className="relative py-24 px-6 overflow-hidden">
+    <section
+      id="integrations"
+      className="relative py-24 px-6 overflow-hidden bg-background"
+    >
       {/* Background floating orbs */}
       <div className="absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute top-20 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl animate-float" />
@@ -227,8 +230,24 @@ export function Integrations() {
       <div className="max-w-7xl mx-auto">
         {/* AI Providers */}
         <div className="text-center space-y-4 mb-12">
-          <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight">
-            Powered by the <span className="text-primary">best AI models</span>
+          <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight">
+            Powered by the{" "}
+            <span className="text-primary relative">
+              best AI models
+              <svg
+                className="absolute -bottom-2 left-0 w-full"
+                viewBox="0 0 200 12"
+                fill="none"
+              >
+                <path
+                  d="M2 10C50 2 150 2 198 10"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity="0.4"
+                />
+              </svg>
+            </span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Choose your preferred AI provider. Switch models per task for

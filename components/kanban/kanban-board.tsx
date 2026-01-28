@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -16,6 +16,11 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./kanban-column";
 import { KanbanCard } from "./kanban-card";
+import { DependencyHighlightProvider } from "./dependency-highlight-context";
+import { DependencyLines } from "./dependency-lines";
+import { cn } from "@/lib/utils";
+import { KanbanFocusProvider, useKanbanFocus } from "./kanban-focus-context";
+import { useKeyboardShortcuts } from "@/components/hooks/use-keyboard-shortcuts";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import type { CardProcessingState } from "@/components/hooks/use-card-processing";
 
@@ -35,28 +40,33 @@ interface KanbanBoardProps {
 }
 
 // Column definitions with workflow order
-const columns: { id: TaskStatus; title: string; description: string }[] = [
-  { id: "todo", title: "To Do", description: "Tasks waiting to start" },
-  {
-    id: "brainstorming",
-    title: "Brainstorming",
-    description: "AI generating ideas",
-  },
-  {
-    id: "planning",
-    title: "Planning",
-    description: "Creating execution plans",
-  },
-  { id: "ready", title: "Ready", description: "Ready to execute" },
-  { id: "executing", title: "Executing", description: "AI working on code" },
-  { id: "review", title: "Review", description: "Changes ready for approval" },
-  { id: "done", title: "Done", description: "Completed tasks" },
-  {
-    id: "stuck",
-    title: "Failed",
-    description: "Tasks that encountered errors",
-  },
-];
+export const columns: { id: TaskStatus; title: string; description: string }[] =
+  [
+    { id: "todo", title: "To Do", description: "Tasks waiting to start" },
+    {
+      id: "brainstorming",
+      title: "Brainstorming",
+      description: "AI generating ideas",
+    },
+    {
+      id: "planning",
+      title: "Planning",
+      description: "Creating execution plans",
+    },
+    { id: "ready", title: "Ready", description: "Ready to execute" },
+    { id: "executing", title: "Executing", description: "AI working on code" },
+    {
+      id: "review",
+      title: "Review",
+      description: "Changes ready for approval",
+    },
+    { id: "done", title: "Done", description: "Completed tasks" },
+    {
+      id: "stuck",
+      title: "Failed",
+      description: "Tasks that encountered errors",
+    },
+  ];
 
 // Measuring configuration for smoother animations
 const measuringConfig = {
@@ -65,7 +75,15 @@ const measuringConfig = {
   },
 };
 
-export function KanbanBoard({
+export function KanbanBoard(props: KanbanBoardProps) {
+  return (
+    <KanbanFocusProvider tasks={props.tasks}>
+      <KanbanBoardInner {...props} />
+    </KanbanFocusProvider>
+  );
+}
+
+function KanbanBoardInner({
   tasks,
   onTaskMove,
   onTaskClick,
@@ -77,6 +95,70 @@ export function KanbanBoard({
   slidingCards,
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const boardContainerRef = useRef<HTMLDivElement>(null);
+
+  // Focus management and keyboard shortcuts
+  const {
+    focusedTaskId,
+    focusNext,
+    focusPrevious,
+    focusNextColumn,
+    focusPreviousColumn,
+  } = useKanbanFocus();
+
+  useKeyboardShortcuts(
+    useMemo(
+      () => [
+        { key: "j", action: focusNext, description: "Focus next card" },
+        { key: "ArrowDown", action: focusNext, description: "Focus next card" },
+        { key: "k", action: focusPrevious, description: "Focus previous card" },
+        {
+          key: "ArrowUp",
+          action: focusPrevious,
+          description: "Focus previous card",
+        },
+        {
+          key: "ArrowRight",
+          action: focusNextColumn,
+          description: "Focus next column",
+        },
+        {
+          key: "ArrowLeft",
+          action: focusPreviousColumn,
+          description: "Focus previous column",
+        },
+        {
+          key: "Enter",
+          action: () => {
+            if (focusedTaskId) {
+              const task = tasks.find((t) => t.id === focusedTaskId);
+              if (task) onTaskClick(task);
+            }
+          },
+          description: "Open focused task",
+          enabled: !!focusedTaskId,
+        },
+        {
+          key: "n",
+          action: () => {
+            if (onAddTask) onAddTask();
+          },
+          description: "New task",
+          enabled: !!onAddTask,
+        },
+      ],
+      [
+        focusNext,
+        focusPrevious,
+        focusNextColumn,
+        focusPreviousColumn,
+        focusedTaskId,
+        tasks,
+        onTaskClick,
+        onAddTask,
+      ],
+    ),
+  );
 
   // Configure sensors with activation constraints for smoother UX
   const sensors = useSensors(
@@ -162,56 +244,68 @@ export function KanbanBoard({
   }, []);
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={pointerWithin}
-      measuring={measuringConfig}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      {/* Board Container */}
-      <div className="h-full flex flex-col relative">
-        {/* Mobile scroll fade hints */}
-        <div className="absolute left-0 top-0 bottom-4 w-4 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none md:hidden" />
-        <div className="absolute right-0 top-0 bottom-4 w-4 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none md:hidden" />
+    <DependencyHighlightProvider>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={pointerWithin}
+        measuring={measuringConfig}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        {/* Board Container */}
+        <div className="h-full flex flex-col relative">
+          {/* Mobile scroll fade hints */}
+          <div className="absolute left-0 top-0 bottom-4 w-4 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none md:hidden" />
+          <div className="absolute right-0 top-0 bottom-4 w-4 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none md:hidden" />
 
-        {/* Horizontal Scrollable Board */}
-        <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4 scrollbar-hide">
-          <div className="flex gap-4 min-w-max h-full px-1 pt-1">
-            {columns.map((column) => (
-              <KanbanColumn
-                key={column.id}
-                id={column.id}
-                title={column.title}
-                tasks={getTasksByStatus(column.id)}
-                onTaskClick={onTaskClick}
-                onTaskDelete={onTaskDelete}
-                onTaskMove={onTaskMove}
-                onTaskStart={onTaskStart}
-                onTaskAdvance={onTaskAdvance}
-                onAddTask={column.id === "todo" ? onAddTask : undefined}
-                processingCards={processingCards}
-                slidingCards={slidingCards}
-              />
-            ))}
+          {/* Horizontal Scrollable Board */}
+          <div
+            ref={boardContainerRef}
+            className="flex-1 overflow-x-auto overflow-y-hidden pb-4 scrollbar-hide relative"
+          >
+            {/* SVG dependency lines layer - renders on hover when connections exist */}
+            <DependencyLines
+              tasks={tasks}
+              containerRef={boardContainerRef as React.RefObject<HTMLElement>}
+            />
+
+            <div className="flex gap-4 min-w-max h-full px-1 pt-1">
+              {columns.map((column) => (
+                <KanbanColumn
+                  key={column.id}
+                  id={column.id}
+                  title={column.title}
+                  tasks={getTasksByStatus(column.id)}
+                  allTasks={tasks}
+                  onTaskClick={onTaskClick}
+                  onTaskDelete={onTaskDelete}
+                  onTaskMove={onTaskMove}
+                  onTaskStart={onTaskStart}
+                  onTaskAdvance={onTaskAdvance}
+                  onAddTask={column.id === "todo" ? onAddTask : undefined}
+                  processingCards={processingCards}
+                  slidingCards={slidingCards}
+                />
+              ))}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Drag Overlay - Floating card during drag */}
-      <DragOverlay
-        dropAnimation={{
-          duration: 200,
-          easing: "cubic-bezier(0.25, 1, 0.5, 1)",
-        }}
-      >
-        {activeTask && (
-          <div className="w-[276px]">
-            <KanbanCard task={activeTask} onClick={() => {}} isDragOverlay />
-          </div>
-        )}
-      </DragOverlay>
-    </DndContext>
+        {/* Drag Overlay - Floating card during drag */}
+        <DragOverlay
+          dropAnimation={{
+            duration: 200,
+            easing: "cubic-bezier(0.25, 1, 0.5, 1)",
+          }}
+        >
+          {activeTask && (
+            <div className="w-[276px]">
+              <KanbanCard task={activeTask} onClick={() => {}} isDragOverlay />
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+    </DependencyHighlightProvider>
   );
 }
