@@ -141,6 +141,23 @@
   }
 }
 
+/* Gradient border animation for login cards */
+@keyframes gradient-border-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-border {
+  animation: gradient-border-shift 3s ease-in-out infinite;
+}
+
 /* Slide animation for cards moving between lanes */
 @keyframes slide-to-lane {
   0% {
@@ -270,6 +287,7 @@
   .animate-glow-pulse,
   .animate-pulse-border,
   .animate-gradient-shift,
+  .animate-gradient-border,
   .animate-icon-glow {
     animation: none;
   }

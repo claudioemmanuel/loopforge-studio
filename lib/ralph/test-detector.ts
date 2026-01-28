@@ -175,8 +175,7 @@ function detectPythonTests(repoPath: string): TestConfig[] | null {
   const requirementsDevPath = join(repoPath, "requirements-dev.txt");
 
   let hasPytest = false;
-  // eslint-disable-next-line prefer-const
-  let hasUnittest = false; // Reserved for future unittest detection
+  const _hasUnittest = false; // Reserved for future unittest detection
 
   // Check pyproject.toml
   if (existsSync(pyprojectPath)) {

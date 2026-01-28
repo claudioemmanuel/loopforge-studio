@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users, executions } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import { decryptApiKey } from "@/lib/crypto";
 import type { AiProvider, User } from "@/lib/db/schema";
@@ -88,6 +88,33 @@ export async function POST(
       { error: "Task must have a plan to execute" },
       { status: 400 },
     );
+  }
+
+  // Check for blocking dependencies
+  const blockedByIds = task.blockedByIds || [];
+  if (blockedByIds.length > 0) {
+    const blockerTasks = await db.query.tasks.findMany({
+      where: inArray(tasks.id, blockedByIds),
+      columns: { id: true, title: true, status: true },
+    });
+
+    const incompleteBlockers = blockerTasks.filter(
+      (blocker) => blocker.status !== "done",
+    );
+
+    if (incompleteBlockers.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Task is blocked by incomplete dependencies",
+          blockedBy: incompleteBlockers.map((blocker) => ({
+            id: blocker.id,
+            title: blocker.title,
+            status: blocker.status,
+          })),
+        },
+        { status: 400 },
+      );
+    }
   }
 
   // Get user details

@@ -11,6 +11,8 @@ NC='\033[0m' # No Color
 # Configuration
 DB_WAIT_TIMEOUT=${DB_WAIT_TIMEOUT:-60}
 DB_WAIT_INTERVAL=2
+MIGRATION_MAX_RETRIES=3
+MIGRATION_RETRY_DELAY=5
 
 log_info() {
   echo "${BLUE}[INFO]${NC} $1"
@@ -43,13 +45,30 @@ done
 
 log_success "Database is ready!"
 
-# Sync database schema
-log_info "Syncing database schema..."
-if npx drizzle-kit push --force; then
-  log_success "Schema sync completed successfully"
+# Run database migrations with retry logic
+log_info "Running database migrations..."
+attempt=1
+while [ $attempt -le $MIGRATION_MAX_RETRIES ]; do
+  if npx drizzle-kit migrate; then
+    log_success "Migrations completed successfully"
+    break
+  else
+    if [ $attempt -ge $MIGRATION_MAX_RETRIES ]; then
+      log_error "Migrations failed after ${MIGRATION_MAX_RETRIES} attempts!"
+      exit 1
+    fi
+    log_warn "Migration attempt ${attempt}/${MIGRATION_MAX_RETRIES} failed, retrying in ${MIGRATION_RETRY_DELAY}s..."
+    sleep $MIGRATION_RETRY_DELAY
+    attempt=$((attempt + 1))
+  fi
+done
+
+# Verify schema was applied
+log_info "Verifying database schema..."
+if PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h ${DB_HOST:-postgres} -p ${DB_PORT:-5432} -U ${DB_USER:-postgres} -d loopforge -c "SELECT 1 FROM users LIMIT 1" > /dev/null 2>&1; then
+  log_success "Schema verification passed"
 else
-  log_error "Schema sync failed!"
-  exit 1
+  log_warn "Schema verification: users table not yet populated (this is expected on first run)"
 fi
 
 # Run seed script (non-fatal)

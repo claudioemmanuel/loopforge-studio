@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, repos, taskDependencies } from "@/lib/db";
-import { eq, and, ne, notInArray } from "drizzle-orm";
+import { db, tasks, taskDependencies } from "@/lib/db";
+import { eq, and, notInArray } from "drizzle-orm";
 
 // GET - Get task dependencies
 export async function GET(

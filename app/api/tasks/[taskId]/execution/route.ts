@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, executions, executionEvents, repos } from "@/lib/db";
-import { eq, and, desc } from "drizzle-orm";
+import { db, tasks, executions, executionEvents } from "@/lib/db";
+import { eq, desc } from "drizzle-orm";
 
 /**
  * GET /api/tasks/[taskId]/execution

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   X,
@@ -62,13 +62,7 @@ export function DiffModal({
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [showTestOutput, setShowTestOutput] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchChanges();
-    }
-  }, [isOpen, taskId]);
-
-  const fetchChanges = async () => {
+  const fetchChanges = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -89,7 +83,13 @@ export function DiffModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [taskId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchChanges();
+    }
+  }, [isOpen, fetchChanges]);
 
   const handleApprove = async () => {
     setApproving(true);

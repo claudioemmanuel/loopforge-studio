@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   Clock,
   FileText,
-  GitCommit,
   Lightbulb,
   Play,
   Terminal,

@@ -28,6 +28,7 @@ interface KanbanColumnProps {
   id: TaskStatus;
   title: string;
   tasks: Task[];
+  allTasks?: Task[];
   onTaskClick: (task: Task) => void;
   onTaskDelete?: (taskId: string) => void;
   onTaskMove?: (taskId: string, newStatus: TaskStatus) => void;
@@ -159,6 +160,7 @@ export function KanbanColumn({
   id,
   title,
   tasks,
+  allTasks,
   onTaskClick,
   onTaskDelete,
   onTaskMove,
@@ -312,6 +314,7 @@ export function KanbanColumn({
                 <KanbanCard
                   key={task.id}
                   task={task}
+                  allTasks={allTasks}
                   onClick={() => onTaskClick(task)}
                   onDelete={onTaskDelete}
                   onMove={onTaskMove}

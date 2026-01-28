@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, executions } from "@/lib/db";
+import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
   canRollback,

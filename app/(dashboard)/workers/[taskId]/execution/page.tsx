@@ -290,13 +290,7 @@ function FilesTab({ events }: { events: ExecutionEvent[] }) {
 }
 
 // Commits & PR Tab
-function CommitsTab({
-  execution,
-  task,
-}: {
-  execution: Execution | null;
-  task: Task & { repo: Repo };
-}) {
+function CommitsTab({ execution }: { execution: Execution | null }) {
   const [copied, setCopied] = useState(false);
 
   const copyBranch = () => {
@@ -574,9 +568,7 @@ export default function ExecutionPage() {
           )}
           {activeTab === "timeline" && <TimelineTab events={events} />}
           {activeTab === "files" && <FilesTab events={events} />}
-          {activeTab === "commits" && (
-            <CommitsTab execution={execution} task={task} />
-          )}
+          {activeTab === "commits" && <CommitsTab execution={execution} />}
         </div>
       </div>
     </div>

@@ -75,6 +75,20 @@ vi.mock("@/components/kanban/processing-popover", () => ({
   },
 }));
 
+vi.mock("@/components/kanban/dependency-highlight-context", () => ({
+  useDependencyHighlight: () => ({
+    hoveredTaskId: null,
+    blockerIds: [],
+    blockedByIds: [],
+    showDependencyLines: false,
+    setHoveredTask: vi.fn(),
+    setShowDependencyLines: vi.fn(),
+    isBlocker: () => false,
+    isBlocked: () => false,
+    isUnrelated: () => false,
+  }),
+}));
+
 // Import after mocks
 import { KanbanCard } from "@/components/kanban/kanban-card";
 

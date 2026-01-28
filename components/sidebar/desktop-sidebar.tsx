@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
@@ -398,10 +399,12 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                 <TooltipTrigger asChild>
                   <div>
                     {user.image ? (
-                      <img
+                      <Image
                         src={user.image}
                         alt={user.name || "User"}
-                        className="w-8 h-8 rounded-full"
+                        width={32}
+                        height={32}
+                        className="rounded-full"
                       />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
@@ -435,10 +438,12 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
             <>
               <div className="flex items-center gap-3 mb-3">
                 {user.image ? (
-                  <img
+                  <Image
                     src={user.image}
                     alt={user.name || "User"}
-                    className="w-8 h-8 rounded-full"
+                    width={32}
+                    height={32}
+                    className="rounded-full"
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">

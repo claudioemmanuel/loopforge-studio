@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { clientLogger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
@@ -25,11 +25,7 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    checkSetupStatus();
-  }, []);
-
-  const checkSetupStatus = async () => {
+  const checkSetupStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/setup/status");
       const data = await res.json();
@@ -44,7 +40,11 @@ export default function SetupPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    checkSetupStatus();
+  }, [checkSetupStatus]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);

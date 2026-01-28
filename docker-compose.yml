@@ -112,12 +112,18 @@ services:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/loopforge
       - REDIS_URL=redis://redis:6379
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
     volumes:
       - repos-data:/app/repos
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      web:
         condition: service_healthy
     healthcheck:
       test:
@@ -132,7 +138,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
     networks:
       - loopforge
 

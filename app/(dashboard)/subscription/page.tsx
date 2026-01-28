@@ -72,16 +72,6 @@ function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(0)}`;
 }
 
-function formatTokens(tokens: number): string {
-  if (tokens >= 1_000_000) {
-    return `${(tokens / 1_000_000).toFixed(0)}M`;
-  }
-  if (tokens >= 1_000) {
-    return `${(tokens / 1_000).toFixed(0)}K`;
-  }
-  return tokens.toString();
-}
-
 export default function SubscriptionPage() {
   const [plans, setPlans] = useState<PlansData | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(

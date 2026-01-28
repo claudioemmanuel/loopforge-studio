@@ -264,7 +264,7 @@ export function generateBranchName(task: Task): string {
  */
 export function validatePrCreation(
   task: Task,
-  repo: Repo,
+  _repo: Repo,
 ): {
   valid: boolean;
   reason?: string;

@@ -12,7 +12,7 @@ import {
 } from "@/lib/ai";
 import { decryptApiKey, decryptGithubToken } from "@/lib/crypto";
 import { scanRepoViaGitHub } from "@/lib/github/repo-scanner";
-import type { AiProvider, User, Task } from "@/lib/db/schema";
+import type { AiProvider, User } from "@/lib/db/schema";
 import {
   publishWorkerEvent,
   createWorkerUpdateEvent,

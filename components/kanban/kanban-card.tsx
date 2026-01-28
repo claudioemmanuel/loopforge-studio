@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -37,12 +37,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ProcessingPopover, phaseConfig } from "./processing-popover";
+import { useDependencyHighlight } from "./dependency-highlight-context";
+import { useKanbanFocus } from "./kanban-focus-context";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import type { CardProcessingState } from "@/components/hooks/use-card-processing";
 import { formatDistanceToNow } from "date-fns";
 
 interface KanbanCardProps {
   task: Task;
+  allTasks?: Task[];
   onClick: () => void;
   onDelete?: (taskId: string) => void;
   onMove?: (taskId: string, newStatus: TaskStatus) => void;
@@ -162,9 +165,10 @@ function getProgressPercentage(status: TaskStatus): number {
 
 export function KanbanCard({
   task,
+  allTasks,
   onClick,
   onDelete,
-  onMove,
+  onMove: _onMove,
   onStart,
   onAdvance,
   isDragOverlay,
@@ -175,8 +179,56 @@ export function KanbanCard({
   const [advancing, setAdvancing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Dependency highlight context
+  const dependencyContext = useDependencyHighlight();
+  const { setHoveredTask, isBlocker, isBlocked, isUnrelated, hoveredTaskId } =
+    dependencyContext;
+
+  // Focus management
+  const focusContext = useKanbanFocus();
+  const cardRef = useRef<HTMLDivElement>(null);
+  const isFocused = focusContext.focusedTaskId === task.id;
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (el) {
+      focusContext.registerCard(task.id, el);
+    }
+    return () => {
+      focusContext.unregisterCard(task.id);
+    };
+  }, [task.id, focusContext]);
+
   // Check if card is currently processing
   const isProcessing = !!processingState;
+
+  // Check if task has incomplete blockers (for drag lock)
+  const blockedByIds = (task.blockedByIds as string[]) || [];
+  const hasIncompleteBlockers =
+    blockedByIds.length > 0 &&
+    allTasks?.some((t) => blockedByIds.includes(t.id) && t.status !== "done");
+
+  // Hover handlers for dependency highlighting
+  const handleMouseEnter = useCallback(() => {
+    if (!isDragOverlay && allTasks) {
+      setHoveredTask(task.id, task, allTasks);
+    }
+  }, [task, allTasks, isDragOverlay, setHoveredTask]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!isDragOverlay) {
+      setHoveredTask(null);
+    }
+  }, [isDragOverlay, setHoveredTask]);
+
+  // Calculate highlight styles based on dependency relationships
+  const isHovered = hoveredTaskId === task.id;
+  const isBlockerOfHovered = isBlocker(task.id);
+  const isBlockedByHovered = isBlocked(task.id);
+  const isUnrelatedToHovered = isUnrelated(task.id);
+
+  // Disable drag for processing tasks or tasks with incomplete blockers
+  const isDragDisabled = isProcessing || hasIncompleteBlockers;
 
   const {
     attributes,
@@ -185,7 +237,7 @@ export function KanbanCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id, disabled: isProcessing });
+  } = useSortable({ id: task.id, disabled: isDragDisabled });
 
   const handleStart = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -245,11 +297,16 @@ export function KanbanCard({
     "transition-all duration-200 ease-out",
     // Default state
     "border-border/60 shadow-sm",
-    // Hover effects - subtle lift (disabled when processing)
+    // Hover effects - subtle lift (disabled when processing or blocked)
     !isProcessing &&
+      !hasIncompleteBlockers &&
       "hover:shadow-md hover:border-border hover:-translate-y-0.5",
-    // Cursor - grab cursor for entire card (pointer when processing)
-    isProcessing ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+    // Cursor - grab cursor for entire card (pointer when processing, not-allowed when blocked)
+    isProcessing
+      ? "cursor-pointer"
+      : hasIncompleteBlockers
+        ? "cursor-not-allowed"
+        : "cursor-grab active:cursor-grabbing",
     "select-none",
     // Dragging states
     isDragging && "opacity-50 scale-[0.98] shadow-none cursor-grabbing",
@@ -269,6 +326,25 @@ export function KanbanCard({
         processingState.processingPhase === "executing" &&
           "ring-emerald-500/50",
       ],
+    // Dependency highlight styles
+    !isDragOverlay && [
+      // Blocker highlight (amber glow)
+      isBlockerOfHovered &&
+        "ring-2 ring-amber-500/60 ring-offset-2 ring-offset-background shadow-amber-500/20 shadow-lg",
+      // Blocked highlight (red glow)
+      isBlockedByHovered &&
+        "ring-2 ring-red-500/60 ring-offset-2 ring-offset-background shadow-red-500/20 shadow-lg",
+      // Unrelated fade
+      isUnrelatedToHovered && "opacity-50",
+      // Self highlight
+      isHovered &&
+        hoveredTaskId &&
+        "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
+    ],
+    // Blocked task muted appearance
+    hasIncompleteBlockers && !isHovered && "opacity-75",
+    // Keyboard focus ring
+    isFocused && "ring-2 ring-primary ring-offset-2 ring-offset-background",
     // Slide animation when moving between lanes
     isSliding && "animate-slide-to-lane",
     // Rounded corners - slightly smaller when wrapped to fit inside gradient border
@@ -398,27 +474,43 @@ export function KanbanCard({
             )}
 
             {/* Blocked indicator */}
-            {task.blockedByIds &&
-              (task.blockedByIds as string[]).length > 0 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-red-100/80 dark:bg-red-900/40 rounded-full text-xs text-red-700 dark:text-red-300 font-medium">
-                        <Lock className="w-3 h-3" />
-                        <span>{(task.blockedByIds as string[]).length}</span>
+            {blockedByIds.length > 0 && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={cn(
+                        "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
+                        hasIncompleteBlockers
+                          ? "bg-red-100/80 dark:bg-red-900/40 text-red-700 dark:text-red-300"
+                          : "bg-emerald-100/80 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
+                      )}
+                    >
+                      <Lock className="w-3 h-3" />
+                      <span>{blockedByIds.length}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    {hasIncompleteBlockers ? (
+                      <div>
+                        <p className="font-medium text-red-600 dark:text-red-400">
+                          Blocked - cannot drag or execute
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Complete {blockedByIds.length} blocking task
+                          {blockedByIds.length === 1 ? "" : "s"} first
+                        </p>
                       </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
+                    ) : (
                       <p>
-                        Blocked by {(task.blockedByIds as string[]).length} task
-                        {(task.blockedByIds as string[]).length === 1
-                          ? ""
-                          : "s"}
+                        All {blockedByIds.length} blocker
+                        {blockedByIds.length === 1 ? "" : "s"} completed
                       </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
 
             {/* Branch name */}
             {task.branch && (
@@ -577,13 +669,26 @@ export function KanbanCard({
   // Base card element (without processing popover wrapper)
   const baseCard = showGradientBorder ? (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node);
+        (cardRef as React.MutableRefObject<HTMLDivElement | null>).current =
+          node;
+      }}
       style={style}
+      data-task-id={task.id}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       {...attributes}
       {...listeners}
+      tabIndex={0}
+      onFocus={() => focusContext.setFocusedTaskId(task.id)}
       className={cn(
         "relative p-[2px] rounded-xl",
-        isProcessing ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+        isProcessing
+          ? "cursor-pointer"
+          : hasIncompleteBlockers
+            ? "cursor-not-allowed"
+            : "cursor-grab active:cursor-grabbing",
         "select-none",
         isDragging && "opacity-50 scale-[0.98]",
         isSliding && "animate-slide-to-lane",
@@ -610,10 +715,19 @@ export function KanbanCard({
     </div>
   ) : (
     <div
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node);
+        (cardRef as React.MutableRefObject<HTMLDivElement | null>).current =
+          node;
+      }}
       style={style}
+      data-task-id={task.id}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       {...attributes}
       {...listeners}
+      tabIndex={0}
+      onFocus={() => focusContext.setFocusedTaskId(task.id)}
       onClick={isProcessing ? undefined : onClick}
       className={cardClasses}
     >

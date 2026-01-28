@@ -88,7 +88,7 @@ export function ExecutionActivityFeed({
   executionId,
 }: ExecutionActivityFeedProps) {
   const [events, setEvents] = useState<ExecutionActivityEvent[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, _setIsConnected] = useState(false);
   const [elapsedTime, setElapsedTime] = useState("0:00");
   const feedRef = useRef<HTMLDivElement>(null);
   const startTimeRef = useRef<Date | null>(null);
@@ -246,10 +246,7 @@ export function ExecutionActivityFeed({
 // Enhanced Activity Feed (with filtering, search, daily summaries)
 // =============================================================================
 
-import {
-  useActivityFeed,
-  type ActivityFilters,
-} from "@/components/hooks/use-activity-feed";
+import { useActivityFeed } from "@/components/hooks/use-activity-feed";
 import { FilterBar } from "./filter-bar";
 import { DailySummary } from "./daily-summary";
 import { Loader2 } from "lucide-react";

@@ -11,6 +11,8 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { detectLanguage } from "@/lib/utils/language-detection";
+import { SyntaxLine } from "./syntax-line";
 
 interface DiffFileProps {
   filePath: string;
@@ -39,6 +41,7 @@ export function DiffFile({
   onToggle,
 }: DiffFileProps) {
   const [copied, setCopied] = useState(false);
+  const language = useMemo(() => detectLanguage(filePath), [filePath]);
 
   const ActionIcon =
     action === "create" ? FilePlus : action === "delete" ? FileMinus : FileText;
@@ -194,7 +197,14 @@ export function DiffFile({
                     </td>
                     {/* Line content */}
                     <td className="px-2 py-0.5 whitespace-pre">
-                      {line.content || " "}
+                      {line.content ? (
+                        <SyntaxLine
+                          content={line.content}
+                          language={language}
+                        />
+                      ) : (
+                        " "
+                      )}
                     </td>
                   </tr>
                 ))}
