@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { GitBranch, Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { GitBranch, Loader2 } from "lucide-react";
 
 interface RepoSetupOverlayProps {
   repoId: string;
@@ -50,59 +51,66 @@ export function RepoSetupOverlay({
     return null;
   }
 
+  const isCloning = cloneStatus === "cloning";
+
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[2px] rounded-lg">
-      <div className="max-w-md text-center p-8">
-        <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-          {cloneStatus === "error" ? (
-            <AlertCircle className="w-8 h-8 text-red-500" />
-          ) : (
-            <GitBranch className="w-8 h-8 text-primary" />
-          )}
-        </div>
-
-        <h3 className="text-xl font-semibold mb-2">
-          {cloneStatus === "error" ? "Clone Failed" : "Set Up Repository"}
-        </h3>
-
-        <p className="text-muted-foreground mb-6">
-          {cloneStatus === "cloning"
-            ? `Cloning ${repoName}...`
-            : cloneStatus === "error"
-              ? errorMessage || "Failed to clone repository. Please try again."
-              : "Clone this repository to start executing AI tasks. You can still organize tasks while it's not cloned."}
-        </p>
-
-        {cloneStatus === "idle" && (
-          <Button size="lg" onClick={handleClone} className="gap-2">
-            <GitBranch className="w-4 h-4" />
-            Clone Repository
-          </Button>
-        )}
-
-        {cloneStatus === "cloning" && (
-          <Button size="lg" disabled className="gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Cloning...
-          </Button>
-        )}
-
-        {cloneStatus === "error" && (
-          <Button
-            size="lg"
-            onClick={handleClone}
-            variant="destructive"
-            className="gap-2"
-          >
-            Try Again
-          </Button>
-        )}
-
-        <p className="text-xs text-muted-foreground mt-4">
-          Tasks can be created and organized without cloning.
-          <br />
-          Execution requires the repository to be cloned.
-        </p>
+    <div className="absolute inset-0 z-20 bg-background/80 backdrop-blur-md rounded-lg">
+      <div className="flex items-start justify-center pt-12 px-4">
+        <Alert
+          variant={cloneStatus === "error" ? "destructive" : "default"}
+          className="max-w-2xl"
+        >
+          <GitBranch className="h-5 w-5" />
+          <AlertTitle>Repository Setup Required</AlertTitle>
+          <AlertDescription>
+            {cloneStatus === "cloning"
+              ? `Cloning ${repoName}...`
+              : cloneStatus === "error"
+                ? errorMessage ||
+                  "Failed to clone repository. Please try again."
+                : "Clone this repository to start executing AI tasks. You can still organize tasks while it's not cloned."}
+          </AlertDescription>
+          <div className="mt-4 flex gap-2">
+            {cloneStatus === "error" ? (
+              <Button
+                onClick={handleClone}
+                disabled={isCloning}
+                variant="destructive"
+              >
+                {isCloning ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Retrying...
+                  </>
+                ) : (
+                  <>
+                    <GitBranch className="mr-2 h-4 w-4" />
+                    Try Again
+                  </>
+                )}
+              </Button>
+            ) : cloneStatus === "cloning" ? (
+              <Button disabled variant="outline">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Cloning...
+              </Button>
+            ) : (
+              <Button onClick={handleClone} disabled={isCloning}>
+                {isCloning ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Cloning...
+                  </>
+                ) : (
+                  <>
+                    <GitBranch className="mr-2 h-4 w-4" />
+                    Clone Repository
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </Alert>
       </div>
     </div>
   );
