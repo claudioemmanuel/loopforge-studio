@@ -35,8 +35,18 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [autonomousMode, setAutonomousMode] = useState(false);
+  const [autoApprove, setAutoApprove] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleClose = () => {
+    setTitle("");
+    setDescription("");
+    setAutonomousMode(false);
+    setAutoApprove(false);
+    setError(null);
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +59,12 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
       const res = await fetch(`/api/repos/${repoId}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, autonomousMode }),
+        body: JSON.stringify({
+          title,
+          description,
+          autonomousMode,
+          autoApprove,
+        }),
       });
 
       if (!res.ok) {
@@ -75,7 +90,7 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       {/* Modal */}
@@ -97,7 +112,7 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 -m-2 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="w-5 h-5" />
@@ -161,7 +176,7 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
                   "text-sm shadow-sm placeholder:text-muted-foreground",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   "disabled:cursor-not-allowed disabled:opacity-50",
-                  "resize-none transition-colors"
+                  "resize-none transition-colors",
                 )}
               />
             </div>
@@ -184,28 +199,65 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
                       "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       "disabled:cursor-not-allowed disabled:opacity-50",
-                      autonomousMode ? "bg-amber-500" : "bg-muted"
+                      autonomousMode ? "bg-amber-500" : "bg-muted",
                     )}
                   >
                     <span
                       className={cn(
                         "inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow-sm transition-transform",
-                        autonomousMode ? "translate-x-5" : "translate-x-0.5"
+                        autonomousMode ? "translate-x-5" : "translate-x-0.5",
                       )}
                     >
-                      <Zap className={cn("w-3 h-3", autonomousMode ? "text-amber-500" : "text-muted-foreground")} />
+                      <Zap
+                        className={cn(
+                          "w-3 h-3",
+                          autonomousMode
+                            ? "text-amber-500"
+                            : "text-muted-foreground",
+                        )}
+                      />
                     </span>
                   </button>
                 </div>
                 <p className="text-xs text-amber-600/80 dark:text-amber-400/80 mt-2">
-                  When enabled, this task will progress automatically through all stages (brainstorm → plan → execute) without manual approval.
+                  When enabled, this task will progress automatically through
+                  all stages (brainstorm → plan → execute) without manual
+                  approval.
                 </p>
                 {autonomousMode && (
                   <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 dark:text-amber-300">
                     <AlertTriangle className="w-3 h-3" />
-                    <span>AI will run end-to-end without human interaction</span>
+                    <span>
+                      AI will run end-to-end without human interaction
+                    </span>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Auto-Approve Section */}
+            <div className="flex items-start gap-3 p-4 rounded-lg border bg-muted/30">
+              <input
+                type="checkbox"
+                id="autoApprove"
+                checked={autoApprove}
+                onChange={(e) => setAutoApprove(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <div className="flex-1">
+                <label
+                  htmlFor="autoApprove"
+                  className="flex items-center gap-2 cursor-pointer font-medium text-sm"
+                >
+                  <Zap
+                    className={cn("w-4 h-4", autoApprove && "text-amber-500")}
+                  />
+                  <span>Auto-approve changes</span>
+                </label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Automatically commit and push changes when tests pass. Useful
+                  for low-risk tasks like documentation or refactoring.
+                </p>
               </div>
             </div>
 
@@ -229,7 +281,7 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={loading}
               className="w-full sm:w-auto"
             >
