@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { clientLogger } from "@/lib/logger";
+import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 import { KanbanBoard } from "@/components/kanban";
 import { NewTaskModal } from "@/components/modals/new-task-modal";
@@ -24,7 +25,7 @@ import {
   useCardProcessing,
   useSlideAnimation,
 } from "@/components/hooks/use-card-processing";
-import { RepoSetupBanner, RepoSetupOverlay } from "@/components/repo-setup";
+import { RepoSetupOverlay } from "@/components/repo-setup";
 import { UsageLimitOverlay } from "@/components/billing/usage-indicator";
 import { ActivityPanel } from "@/components/activity-panel";
 import type { Task, TaskStatus } from "@/lib/db/schema";
@@ -280,20 +281,13 @@ export default function RepoPage() {
         onRepoUpdate={setRepo}
       />
 
-      {/* Repo Setup Banner (when not cloned) */}
-      {repo && !repo.isCloned && (
-        <div className="px-6 lg:px-8 pt-4">
-          <RepoSetupBanner
-            repoId={repoId}
-            repoName={repo.name}
-            isCloned={repo.isCloned}
-            onCloneComplete={fetchData}
-          />
-        </div>
-      )}
-
       {/* Kanban Board with overlays */}
-      <main className="flex-1 overflow-hidden px-6 lg:px-8 py-6 relative">
+      <main
+        className={cn(
+          "flex-1 overflow-hidden px-6 lg:px-8 py-6 relative transition-opacity duration-300",
+          !repo?.isCloned && "opacity-40",
+        )}
+      >
         <KanbanBoard
           tasks={tasks}
           onTaskMove={handleTaskMove}
