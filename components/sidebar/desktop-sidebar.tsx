@@ -23,6 +23,7 @@ import {
   History,
   CreditCard,
   FlaskConical,
+  FolderGit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -60,14 +61,13 @@ const settingsSubItems = [
   { href: "/settings/account", label: "Account", icon: User },
   { href: "/settings/preferences", label: "Preferences", icon: Sliders },
   { href: "/settings/integrations", label: "Integrations", icon: Plug },
-  { href: "/subscription", label: "Billing", icon: CreditCard },
-  { href: "/settings/danger-zone", label: "Danger Zone", icon: AlertTriangle },
 ];
 
-const workersSubItems = [
-  { href: "/workers", label: "Active", icon: Play },
-  { href: "/workers/history", label: "History", icon: History },
-  { href: "/workers/failed", label: "Failed", icon: AlertTriangle },
+const executionSubItems = [
+  { href: "/execution/active", label: "Active Tasks", icon: Play },
+  { href: "/execution/history", label: "History", icon: History },
+  { href: "/execution/failed", label: "Failed", icon: AlertTriangle },
+  { href: "/execution/performance", label: "Performance", icon: BarChart3 },
 ];
 
 export function Sidebar({ user, repos = [] }: SidebarProps) {
@@ -91,9 +91,13 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
   };
 
   const isDashboardActive = pathname === "/dashboard";
-  const isWorkersActive = pathname.startsWith("/workers");
-  const isAnalyticsActive = pathname === "/analytics";
-  const isSettingsActive = pathname.startsWith("/settings");
+  const isRepositoriesActive =
+    pathname === "/repositories" || pathname.startsWith("/repos/");
+  const isExecutionActive = pathname.startsWith("/execution");
+  const isSettingsActive =
+    pathname.startsWith("/settings") && pathname !== "/settings/danger-zone";
+  const isBillingActive = pathname.startsWith("/billing");
+  const isDangerZoneActive = pathname === "/settings/danger-zone";
   const isExperimentsActive = pathname === "/experiments";
 
   const enableABTesting = getFeatureFlag("ENABLE_AB_TESTING");
@@ -129,24 +133,57 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
             collapsed && "px-2",
           )}
         >
-          {/* Dashboard with cascade */}
+          {/* Dashboard (single view) */}
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href="/dashboard"
+                  className={cn(
+                    "flex items-center justify-center p-2 rounded-lg transition-colors",
+                    isDashboardActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Home className="w-5 h-5" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">Dashboard</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Link
+              href="/dashboard"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                isDashboardActive
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Home className="w-4 h-4" />
+              Dashboard
+            </Link>
+          )}
+
+          {/* Repositories with cascade */}
           <div>
             {collapsed ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
-                    href="/dashboard"
+                    href="/repositories"
                     className={cn(
                       "flex items-center justify-center p-2 rounded-lg transition-colors",
-                      isDashboardActive
+                      isRepositoriesActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    <Home className="w-5 h-5" />
+                    <FolderGit2 className="w-5 h-5" />
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Dashboard</TooltipContent>
+                <TooltipContent side="right">Repositories</TooltipContent>
               </Tooltip>
             ) : (
               <>
@@ -156,62 +193,55 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                     "text-muted-foreground",
                   )}
                 >
-                  <Home className="w-4 h-4" />
+                  <FolderGit2 className="w-4 h-4" />
                   <span className="flex-1 text-left font-medium">
-                    Dashboard
+                    Repositories
                   </span>
                 </div>
 
-                <div className="ml-4 mt-1 space-y-1 border-l pl-3">
+                <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
                   <Link
-                    href="/dashboard"
+                    href="/repositories"
                     className={cn(
                       "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                      isDashboardActive
+                      pathname === "/repositories"
                         ? "bg-primary/10 text-primary font-medium"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     <LayoutDashboard className="w-3.5 h-3.5" />
-                    Overview
+                    All Repositories
                   </Link>
 
                   {repos.length > 0 && (
-                    <div className="pt-1">
-                      <span className="px-3 text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
-                        Repositories
-                      </span>
-                      <div className="mt-1 space-y-0.5">
-                        {repos.map((repo) => {
-                          const isRepoActive = pathname === `/repos/${repo.id}`;
-                          return (
-                            <Link
-                              key={repo.id}
-                              href={`/repos/${repo.id}`}
-                              className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                                isRepoActive
-                                  ? "bg-primary/10 text-primary font-medium"
-                                  : "text-muted-foreground hover:text-foreground",
-                              )}
-                            >
-                              <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="flex-1 truncate">
-                                {repo.name}
+                    <div className="mt-1 space-y-0.5">
+                      {repos.map((repo) => {
+                        const isRepoActive = pathname === `/repos/${repo.id}`;
+                        return (
+                          <Link
+                            key={repo.id}
+                            href={`/repos/${repo.id}`}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
+                              isRepoActive
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="flex-1 truncate">{repo.name}</span>
+                            <RepoStatusDot
+                              isCloned={repo.isCloned}
+                              indexingStatus={repo.indexingStatus}
+                            />
+                            {repo.taskCount > 0 && (
+                              <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                                {repo.taskCount}
                               </span>
-                              <RepoStatusDot
-                                isCloned={repo.isCloned}
-                                indexingStatus={repo.indexingStatus}
-                              />
-                              {repo.taskCount > 0 && (
-                                <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                                  {repo.taskCount}
-                                </span>
-                              )}
-                            </Link>
-                          );
-                        })}
-                      </div>
+                            )}
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -219,16 +249,16 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
             )}
           </div>
 
-          {/* Workers with cascade */}
+          {/* Execution with cascade */}
           <div>
             {collapsed ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
-                    href="/workers"
+                    href="/execution/active"
                     className={cn(
                       "flex items-center justify-center p-2 rounded-lg transition-colors",
-                      isWorkersActive
+                      isExecutionActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:text-foreground",
                     )}
@@ -236,7 +266,7 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                     <Zap className="w-5 h-5" />
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right">Workers</TooltipContent>
+                <TooltipContent side="right">Execution</TooltipContent>
               </Tooltip>
             ) : (
               <>
@@ -247,11 +277,13 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                   )}
                 >
                   <Zap className="w-4 h-4" />
-                  <span className="flex-1 text-left font-medium">Workers</span>
+                  <span className="flex-1 text-left font-medium">
+                    Execution
+                  </span>
                 </div>
 
                 <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
-                  {workersSubItems.map((item) => {
+                  {executionSubItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href;
                     return (
@@ -263,7 +295,7 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                           isActive
                             ? "bg-primary/10 text-primary font-medium"
                             : "text-muted-foreground hover:text-foreground",
-                          item.href === "/workers/failed" &&
+                          item.href === "/execution/failed" &&
                             !isActive &&
                             "text-amber-500/70 hover:text-amber-500",
                         )}
@@ -271,7 +303,8 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                         <Icon
                           className={cn(
                             "w-3.5 h-3.5",
-                            item.href === "/workers/failed" && "text-amber-500",
+                            item.href === "/execution/failed" &&
+                              "text-amber-500",
                           )}
                         />
                         {item.label}
@@ -327,18 +360,9 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                           isActive
                             ? "bg-primary/10 text-primary font-medium"
                             : "text-muted-foreground hover:text-foreground",
-                          item.href === "/settings/danger-zone" &&
-                            !isActive &&
-                            "text-red-500/70 hover:text-red-500",
                         )}
                       >
-                        <Icon
-                          className={cn(
-                            "w-3.5 h-3.5",
-                            item.href === "/settings/danger-zone" &&
-                              "text-red-500",
-                          )}
-                        />
+                        <Icon className="w-3.5 h-3.5" />
                         {item.label}
                       </Link>
                     );
@@ -348,38 +372,73 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
             )}
           </div>
 
-          {/* Analytics (no cascade) */}
+          {/* Billing (standalone) */}
           {collapsed ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link
-                  href="/analytics"
+                  href="/billing"
                   className={cn(
                     "flex items-center justify-center p-2 rounded-lg transition-colors",
-                    isAnalyticsActive
+                    isBillingActive
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <BarChart3 className="w-5 h-5" />
+                  <CreditCard className="w-5 h-5" />
                 </Link>
               </TooltipTrigger>
-              <TooltipContent side="right">Analytics</TooltipContent>
+              <TooltipContent side="right">Billing</TooltipContent>
             </Tooltip>
           ) : (
             <Link
-              href="/analytics"
+              href="/billing"
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                isAnalyticsActive
+                isBillingActive
                   ? "bg-primary/10 text-primary font-medium"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <BarChart3 className="w-4 h-4" />
-              Analytics
+              <CreditCard className="w-4 h-4" />
+              Billing
             </Link>
           )}
+
+          {/* Danger Zone (standalone with gap) */}
+          <div className={cn(!collapsed && "pt-2")}>
+            {collapsed ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/settings/danger-zone"
+                    className={cn(
+                      "flex items-center justify-center p-2 rounded-lg transition-colors",
+                      isDangerZoneActive
+                        ? "bg-red-500/10 text-red-500"
+                        : "text-red-500/70 hover:text-red-500",
+                    )}
+                  >
+                    <AlertTriangle className="w-5 h-5" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Danger Zone</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Link
+                href="/settings/danger-zone"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                  isDangerZoneActive
+                    ? "bg-red-500/10 text-red-500 font-medium"
+                    : "text-red-500/70 hover:text-red-500",
+                )}
+              >
+                <AlertTriangle className="w-4 h-4" />
+                Danger Zone
+              </Link>
+            )}
+          </div>
 
           {/* Experiments (no cascade) */}
           {enableABTesting && (

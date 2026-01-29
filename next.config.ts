@@ -35,6 +35,13 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     deviceSizes: [640, 750, 828, 1080, 1200],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "avatars.githubusercontent.com",
+        pathname: "/u/**",
+      },
+    ],
   },
 
   // Compress responses
@@ -42,6 +49,45 @@ const nextConfig: NextConfig = {
 
   // Strict-mode for catching issues
   reactStrictMode: true,
+
+  // Redirects for backward compatibility
+  redirects: async () => [
+    {
+      source: "/workers",
+      destination: "/execution/active",
+      permanent: true,
+    },
+    {
+      source: "/workers/history",
+      destination: "/execution/history",
+      permanent: true,
+    },
+    {
+      source: "/workers/failed",
+      destination: "/execution/failed",
+      permanent: true,
+    },
+    {
+      source: "/workers/:taskId*",
+      destination: "/execution/:taskId*",
+      permanent: true,
+    },
+    {
+      source: "/analytics",
+      destination: "/execution/performance",
+      permanent: true,
+    },
+    {
+      source: "/subscription",
+      destination: "/billing",
+      permanent: true,
+    },
+    {
+      source: "/subscription/:path*",
+      destination: "/billing/:path*",
+      permanent: true,
+    },
+  ],
 
   // Security headers
   headers: async () => [

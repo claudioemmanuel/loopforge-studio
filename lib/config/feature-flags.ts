@@ -76,21 +76,21 @@ export function loadFeatureFlags(): FeatureFlags {
   return {
     ENABLE_STUCK_DETECTOR: parseBoolean(
       process.env.ENABLE_STUCK_DETECTOR,
-      false,
+      true,
     ),
     ENABLE_RECOVERY_STRATEGIES: parseBoolean(
       process.env.ENABLE_RECOVERY_STRATEGIES,
-      false,
+      true,
     ),
     ENABLE_COMPLETION_VALIDATION: parseBoolean(
       process.env.ENABLE_COMPLETION_VALIDATION,
-      false,
+      true,
     ),
     ENABLE_ENHANCED_EXTRACTION: parseBoolean(
       process.env.ENABLE_ENHANCED_EXTRACTION,
-      false,
+      true,
     ),
-    ENABLE_TEST_GATES: parseBoolean(process.env.ENABLE_TEST_GATES, false),
+    ENABLE_TEST_GATES: parseBoolean(process.env.ENABLE_TEST_GATES, true),
     ENABLE_AB_TESTING: parseBoolean(process.env.ENABLE_AB_TESTING, false),
   };
 }

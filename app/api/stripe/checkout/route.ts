@@ -37,8 +37,8 @@ export async function POST(request: Request) {
       userEmail: session.user.email,
       planId,
       billingCycle,
-      successUrl: `${baseUrl}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${baseUrl}/subscription/cancel`,
+      successUrl: `${baseUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/billing/cancel`,
     });
 
     if ("error" in result) {

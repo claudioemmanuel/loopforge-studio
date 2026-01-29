@@ -22,6 +22,7 @@ import {
   History,
   CreditCard,
   FlaskConical,
+  FolderGit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,14 +54,13 @@ const settingsSubItems = [
   { href: "/settings/account", label: "Account", icon: User },
   { href: "/settings/preferences", label: "Preferences", icon: Sliders },
   { href: "/settings/integrations", label: "Integrations", icon: Plug },
-  { href: "/subscription", label: "Billing", icon: CreditCard },
-  { href: "/settings/danger-zone", label: "Danger Zone", icon: AlertTriangle },
 ];
 
-const workersSubItems = [
-  { href: "/workers", label: "Active", icon: Play },
-  { href: "/workers/history", label: "History", icon: History },
-  { href: "/workers/failed", label: "Failed", icon: AlertTriangle },
+const executionSubItems = [
+  { href: "/execution/active", label: "Active Tasks", icon: Play },
+  { href: "/execution/history", label: "History", icon: History },
+  { href: "/execution/failed", label: "Failed", icon: AlertTriangle },
+  { href: "/execution/performance", label: "Performance", icon: BarChart3 },
 ];
 
 export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
@@ -68,7 +68,13 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
   const { isOpen, closeSidebar } = useSidebar();
 
   const isDashboardActive = pathname === "/dashboard";
-  const isAnalyticsActive = pathname === "/analytics";
+  const isRepositoriesActive =
+    pathname === "/repositories" || pathname.startsWith("/repos/");
+  const isExecutionActive = pathname.startsWith("/execution");
+  const isSettingsActive =
+    pathname.startsWith("/settings") && pathname !== "/settings/danger-zone";
+  const isBillingActive = pathname.startsWith("/billing");
+  const isDangerZoneActive = pathname === "/settings/danger-zone";
   const isExperimentsActive = pathname === "/experiments";
 
   const enableABTesting = getFeatureFlag("ENABLE_AB_TESTING");
@@ -139,75 +145,84 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {/* Dashboard with cascade */}
+          {/* Dashboard (single view) */}
+          <Link
+            href="/dashboard"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+              isDashboardActive
+                ? "bg-primary/10 text-primary font-medium"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Home className="w-4 h-4" />
+            Dashboard
+          </Link>
+
+          {/* Repositories with cascade */}
           <div>
             <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground">
-              <Home className="w-4 h-4" />
-              <span className="flex-1 text-left font-medium">Dashboard</span>
+              <FolderGit2 className="w-4 h-4" />
+              <span className="flex-1 text-left font-medium">Repositories</span>
             </div>
 
-            <div className="ml-4 mt-1 space-y-1 border-l pl-3">
+            <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
               <Link
-                href="/dashboard"
+                href="/repositories"
                 className={cn(
                   "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                  isDashboardActive
+                  pathname === "/repositories"
                     ? "bg-primary/10 text-primary font-medium"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />
-                Overview
+                All Repositories
               </Link>
 
               {repos.length > 0 && (
-                <div className="pt-1">
-                  <span className="px-3 text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
-                    Repositories
-                  </span>
-                  <div className="mt-1 space-y-0.5">
-                    {repos.map((repo) => {
-                      const isRepoActive = pathname === `/repos/${repo.id}`;
-                      return (
-                        <Link
-                          key={repo.id}
-                          href={`/repos/${repo.id}`}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                            isRepoActive
-                              ? "bg-primary/10 text-primary font-medium"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="flex-1 truncate">{repo.name}</span>
-                          <RepoStatusDot
-                            isCloned={repo.isCloned}
-                            indexingStatus={repo.indexingStatus}
-                          />
-                          {repo.taskCount > 0 && (
-                            <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                              {repo.taskCount}
-                            </span>
-                          )}
-                        </Link>
-                      );
-                    })}
-                  </div>
+                <div className="mt-1 space-y-0.5">
+                  {repos.map((repo) => {
+                    const isRepoActive = pathname === `/repos/${repo.id}`;
+                    return (
+                      <Link
+                        key={repo.id}
+                        href={`/repos/${repo.id}`}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
+                          isRepoActive
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="flex-1 truncate">{repo.name}</span>
+                        <RepoStatusDot
+                          isCloned={repo.isCloned}
+                          indexingStatus={repo.indexingStatus}
+                        />
+                        {repo.taskCount > 0 && (
+                          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                            {repo.taskCount}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Workers with cascade */}
+          {/* Execution with cascade */}
           <div>
             <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground">
               <Zap className="w-4 h-4" />
-              <span className="flex-1 text-left font-medium">Workers</span>
+              <span className="flex-1 text-left font-medium">Execution</span>
             </div>
 
             <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
-              {workersSubItems.map((item) => {
+              {executionSubItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
                 return (
@@ -219,7 +234,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                       isActive
                         ? "bg-primary/10 text-primary font-medium"
                         : "text-muted-foreground hover:text-foreground",
-                      item.href === "/workers/failed" &&
+                      item.href === "/execution/failed" &&
                         !isActive &&
                         "text-amber-500/70 hover:text-amber-500",
                     )}
@@ -227,7 +242,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                     <Icon
                       className={cn(
                         "w-3.5 h-3.5",
-                        item.href === "/workers/failed" && "text-amber-500",
+                        item.href === "/execution/failed" && "text-amber-500",
                       )}
                     />
                     {item.label}
@@ -257,17 +272,9 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                       isActive
                         ? "bg-primary/10 text-primary font-medium"
                         : "text-muted-foreground hover:text-foreground",
-                      item.href === "/settings/danger-zone" &&
-                        !isActive &&
-                        "text-red-500/70 hover:text-red-500",
                     )}
                   >
-                    <Icon
-                      className={cn(
-                        "w-3.5 h-3.5",
-                        item.href === "/settings/danger-zone" && "text-red-500",
-                      )}
-                    />
+                    <Icon className="w-3.5 h-3.5" />
                     {item.label}
                   </Link>
                 );
@@ -275,19 +282,35 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
             </div>
           </div>
 
-          {/* Analytics */}
+          {/* Billing (standalone) */}
           <Link
-            href="/analytics"
+            href="/billing"
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-              isAnalyticsActive
+              isBillingActive
                 ? "bg-primary/10 text-primary font-medium"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <BarChart3 className="w-4 h-4" />
-            Analytics
+            <CreditCard className="w-4 h-4" />
+            Billing
           </Link>
+
+          {/* Danger Zone (standalone with gap) */}
+          <div className="pt-2">
+            <Link
+              href="/settings/danger-zone"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                isDangerZoneActive
+                  ? "bg-red-500/10 text-red-500 font-medium"
+                  : "text-red-500/70 hover:text-red-500",
+              )}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              Danger Zone
+            </Link>
+          </div>
 
           {/* Experiments */}
           {enableABTesting && (

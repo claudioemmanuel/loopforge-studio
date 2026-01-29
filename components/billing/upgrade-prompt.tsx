@@ -57,7 +57,7 @@ export function UpgradePrompt({
               </span>
             )}
           </p>
-          <Link href="/subscription">
+          <Link href="/billing">
             <Button variant="outline" size="sm" className="mt-3">
               <Sparkles className="w-4 h-4 mr-2" />
               {message.cta}
@@ -110,7 +110,7 @@ export function LimitWarning({
       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
       <span>{warningMessages[type]}</span>
       <Link
-        href="/subscription"
+        href="/billing"
         className="ml-auto font-medium hover:underline flex items-center gap-1"
       >
         Upgrade <ArrowRight className="w-3 h-3" />

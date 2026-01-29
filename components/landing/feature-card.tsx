@@ -35,7 +35,8 @@ export function FeatureCard({
       style={{
         transitionDelay: isVisible ? `${index * 100}ms` : "0ms",
         filter: "drop-shadow(0 0 0 transparent)",
-        transition: "all 300ms, filter 300ms",
+        transitionProperty: "all",
+        transitionDuration: "300ms",
       }}
     >
       <div className="flex flex-col gap-4">

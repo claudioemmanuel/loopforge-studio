@@ -158,7 +158,7 @@ export function UsageIndicator({
             asChild
             className="gap-1.5 h-7"
           >
-            <Link href="/settings/subscription">
+            <Link href="/billing">
               <TrendingUp className="w-3.5 h-3.5" />
               Upgrade
             </Link>
@@ -226,7 +226,7 @@ export function UsageLimitOverlay({ className }: UsageLimitOverlayProps) {
         </p>
 
         <Button size="lg" asChild className="gap-2">
-          <Link href="/settings/subscription">
+          <Link href="/billing">
             <TrendingUp className="w-4 h-4" />
             Upgrade Plan
           </Link>

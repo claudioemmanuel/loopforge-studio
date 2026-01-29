@@ -297,7 +297,7 @@ export function NotificationBell({
           {/* Footer */}
           <div className="border-t p-2">
             <Link
-              href="/workers"
+              href="/execution/active"
               className={cn(
                 "flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg",
                 "text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50",

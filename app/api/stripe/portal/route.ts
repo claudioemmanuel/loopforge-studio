@@ -19,7 +19,7 @@ export async function POST() {
 
     const result = await createPortalSession(
       session.user.id,
-      `${baseUrl}/subscription`,
+      `${baseUrl}/billing`,
     );
 
     if ("error" in result) {

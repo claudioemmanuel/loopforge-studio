@@ -55,7 +55,7 @@ const primaryFeatures = [
     icon: GitBranch,
     title: "Direct Git Integration",
     description:
-      "AI commits directly to your working branches. Review changes, approve PRs, and ship with confidence.",
+      "AI commits directly to your working branches. PRs can be created automatically (optional) or manually. You review and approve all changes before merging—maintaining full control.",
     phase: {
       bg: "bg-kanban-done/10",
       bgHover: "group-hover:bg-kanban-done/20",

@@ -21,7 +21,11 @@ Loopforge Studio is an AI-powered autonomous development platform that connects 
 3. Task moves to "Planning" → AI generates execution plan
 4. User approves → Task moves to "Ready"
 5. Background worker picks up task → "Executing" → AI implements changes
-6. AI commits code to GitHub → Task moves to "Done"
+6. AI commits code to GitHub → Optionally creates PR (if ENABLE_AUTO_PR_CREATION=true)
+7. User reviews PR in GitHub → Approves/requests changes → Merges when ready
+8. Task moves to "Done"
+
+**Important:** PR creation is optional (environment variable controlled). PR review and merge are ALWAYS manual.
 
 ### Important Directories
 

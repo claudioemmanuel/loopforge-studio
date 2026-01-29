@@ -88,6 +88,21 @@ const REPOS_DIR = process.env.REPOS_DIR || "/app/repos";
 const EXECUTION_MODE: ExecutionMode =
   (process.env.EXECUTION_MODE as ExecutionMode) || "multi-agent";
 
+// Parse boolean environment variable
+function parseBoolean(
+  value: string | undefined,
+  defaultValue: boolean,
+): boolean {
+  if (value === undefined) return defaultValue;
+  const normalized = value.toLowerCase().trim();
+  return (
+    normalized === "true" ||
+    normalized === "1" ||
+    normalized === "yes" ||
+    normalized === "on"
+  );
+}
+
 // Build PR description from task and execution result
 function buildPRDescription(
   taskTitle: string,
@@ -1717,6 +1732,145 @@ async function processExecution(
             updatedAt: new Date(),
           })
           .where(eq(tasks.id, taskId));
+
+        // === AUTO PR CREATION (OPTIONAL) ===
+        // Create PR automatically if feature flag is enabled
+        // PR is created but NOT merged (manual review required)
+        const autoCreatePR = parseBoolean(
+          process.env.ENABLE_AUTO_PR_CREATION,
+          false,
+        );
+
+        if (autoCreatePR && testsPassed !== false && fileChanges.length > 0) {
+          workerLogger.info(
+            { taskId, filesChanged: fileChanges.length },
+            "Auto-creating PR after successful execution",
+          );
+
+          try {
+            const { getPendingChangesByTask } =
+              await import("../lib/db/pending-changes");
+            const { createExecutionCommit } =
+              await import("../lib/db/execution-commits");
+            const { buildPrContent, generateBranchName } =
+              await import("../lib/github/pr-builder");
+            const {
+              commitAndPush,
+              createFilesFromChanges,
+              buildAuthenticatedUrl,
+            } = await import("../lib/ralph/git-operations");
+            const { createPullRequest } = await import("../lib/github/client");
+            const { getLatestTestRun } = await import("../lib/db/test-runs");
+
+            const pendingChanges = await getPendingChangesByTask(taskId);
+            if (pendingChanges.length > 0) {
+              const finalBranch = branch || generateBranchName(task);
+              const githubToken = await getUserGithubToken(userId);
+
+              if (githubToken) {
+                // Create files from pending changes
+                const filesChanged = await createFilesFromChanges(
+                  repoPath,
+                  pendingChanges,
+                );
+
+                // Commit and push
+                const commitMessage = `[LoopForge] ${task.title}`;
+                const remoteUrl = buildAuthenticatedUrl(
+                  task.repo.cloneUrl,
+                  githubToken,
+                );
+                const commitResult = await commitAndPush({
+                  repoPath,
+                  branch: finalBranch,
+                  message: commitMessage,
+                  files: filesChanged,
+                  remoteUrl,
+                });
+
+                // Record the commit
+                await createExecutionCommit({
+                  executionId,
+                  commitSha: commitResult.sha,
+                  commitMessage,
+                  filesChanged,
+                });
+
+                // Update execution with commit info
+                await db
+                  .update(executions)
+                  .set({
+                    commits: [commitResult.sha],
+                    branch: finalBranch,
+                  })
+                  .where(eq(executions.id, executionId));
+
+                // Create PR
+                const testRun = await getLatestTestRun(taskId);
+                const latestExecution = await db.query.executions.findFirst({
+                  where: eq(executions.id, executionId),
+                });
+
+                const prContent = buildPrContent({
+                  task,
+                  repo: task.repo,
+                  execution: latestExecution!,
+                  testRun,
+                  filesChanged,
+                  commitMessages: [commitMessage],
+                });
+
+                const pr = await createPullRequest(githubToken, {
+                  owner: task.repo.fullName.split("/")[0],
+                  repo: task.repo.fullName.split("/")[1],
+                  title: prContent.title,
+                  body: prContent.body,
+                  head: finalBranch,
+                  base: task.repo.prTargetBranch || task.repo.defaultBranch,
+                  draft: prContent.draft,
+                });
+
+                // Update task with PR info (but keep in review status)
+                await db
+                  .update(tasks)
+                  .set({
+                    prUrl: pr.html_url,
+                    prNumber: pr.number,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(tasks.id, taskId));
+
+                workerLogger.info(
+                  { prUrl: pr.html_url, prNumber: pr.number },
+                  "PR created automatically - awaiting manual review before merge",
+                );
+
+                // Emit PR creation event
+                await db.insert(executionEvents).values({
+                  executionId,
+                  eventType: "complete",
+                  content: `Pull request created: ${pr.html_url}`,
+                  metadata: { prUrl: pr.html_url, prNumber: pr.number },
+                  createdAt: new Date(),
+                });
+              }
+            }
+          } catch (prError) {
+            workerLogger.error(
+              { error: prError, taskId },
+              "Failed to auto-create PR - user can create manually",
+            );
+
+            // Don't fail the task - just log the error
+            await db.insert(executionEvents).values({
+              executionId,
+              eventType: "error",
+              content: `Auto PR creation failed: ${prError instanceof Error ? prError.message : "Unknown error"}. You can create the PR manually from the UI.`,
+              metadata: { error: String(prError) },
+              createdAt: new Date(),
+            });
+          }
+        }
 
         // Emit completion event to worker_events
         await db.insert(workerEvents).values({

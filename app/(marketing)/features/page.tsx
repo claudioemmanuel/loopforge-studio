@@ -43,7 +43,7 @@ const features = [
     icon: GitBranch,
     title: "Direct Git Integration",
     description:
-      "AI commits directly to your working branches. Review changes in GitHub, approve pull requests, and ship with confidence knowing every change is tracked.",
+      "AI commits directly to your working branches. Pull requests can be created automatically (optional) or manually from the UI. You review and approve all PRs in GitHub before merging—maintaining full control over what ships to production.",
     color: "text-kanban-done",
     bg: "bg-kanban-done/10",
   },
@@ -83,7 +83,7 @@ const features = [
     icon: Zap,
     title: "Autonomous Execution",
     description:
-      "Set tasks and walk away. AI handles the entire implementation cycle—reading code, making changes, running tests, and committing results.",
+      "Set tasks and walk away. AI handles the entire implementation cycle—reading code, making changes, running tests, committing results, and optionally creating pull requests. You review and approve before merging.",
     color: "text-primary",
     bg: "bg-primary/10",
   },
