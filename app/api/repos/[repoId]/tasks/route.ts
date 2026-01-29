@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db, repos, tasks } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
@@ -53,11 +54,30 @@ export async function POST(
   }
 
   const body = await request.json();
-  const { title, description, autonomousMode } = body;
 
-  if (!title) {
-    return handleError(Errors.invalidRequest("Title is required"));
+  // Validate request body
+  const bodySchema = z.object({
+    title: z.string().min(1, "Title is required"),
+    description: z.string().optional(),
+    autonomousMode: z.boolean().optional().default(false),
+    autoApprove: z.boolean().optional().default(false),
+  });
+
+  let validatedBody;
+  try {
+    validatedBody = bodySchema.parse(body);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return handleError(
+        Errors.invalidRequest(
+          error.errors[0]?.message || "Invalid request body",
+        ),
+      );
+    }
+    return handleError(Errors.invalidRequest("Invalid request body"));
   }
+
+  const { title, description, autonomousMode, autoApprove } = validatedBody;
 
   const taskId = crypto.randomUUID();
   const newTask = {
@@ -71,7 +91,8 @@ export async function POST(
     brainstormConversation: null,
     planContent: null,
     branch: null,
-    autonomousMode: autonomousMode || false,
+    autonomousMode,
+    autoApprove,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
