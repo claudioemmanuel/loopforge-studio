@@ -2,16 +2,17 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, executions, executionEvents } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ executionId: string }> }
+  { params }: { params: Promise<{ executionId: string }> },
 ) {
   const session = await auth();
   const { executionId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Get execution with task and repo to verify ownership
@@ -27,7 +28,7 @@ export async function GET(
   });
 
   if (!execution || execution.task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Execution"));
   }
 
   // Get events
@@ -42,6 +43,6 @@ export async function GET(
       type: e.eventType,
       content: e.content,
       timestamp: e.createdAt,
-    }))
+    })),
   );
 }

@@ -11,6 +11,7 @@ import {
   Bot,
 } from "lucide-react";
 import type { DemoCard, Column } from "./demo-data";
+import { useSquircle } from "@/components/ui/squircle";
 
 // ============================================================================
 // Tag Component
@@ -34,9 +35,13 @@ function Tag({
     red: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
   };
 
+  const squircle = useSquircle({ cornerRadius: "sm" });
+
   return (
     <span
+      ref={squircle.ref as React.RefObject<HTMLSpanElement>}
       className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${colorClasses[color] || colorClasses.violet}`}
+      style={squircle.style}
     >
       {children}
     </span>
@@ -54,10 +59,19 @@ function ProgressBar({
   value: number;
   isAnimating?: boolean;
 }) {
+  const outerSquircle = useSquircle({ cornerRadius: "full" });
+  const innerSquircle = useSquircle({ cornerRadius: "full" });
+
   return (
-    <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+    <div
+      ref={outerSquircle.ref as React.RefObject<HTMLDivElement>}
+      className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full"
+      style={outerSquircle.style}
+    >
       <motion.div
+        ref={innerSquircle.ref as React.RefObject<HTMLDivElement>}
         className="h-full bg-emerald-500 rounded-full"
+        style={innerSquircle.style}
         initial={{ width: 0 }}
         animate={{ width: `${value}%` }}
         transition={{ duration: isAnimating ? 3.5 : 0.5, ease: "easeOut" }}
@@ -90,6 +104,10 @@ export function TaskCard({
   const [timeInStage, setTimeInStage] = useState(0);
   const [wasBlocked, setWasBlocked] = useState(card.isBlocked);
   const [showUnlockAnimation, setShowUnlockAnimation] = useState(false);
+  const cardSquircle = useSquircle({ cornerRadius: "lg" });
+  const accentBarSquircle = useSquircle({ cornerRadius: "full" });
+  const botIconSquircle = useSquircle({ cornerRadius: "full" });
+  const pulseDotSquircle = useSquircle({ cornerRadius: "full" });
 
   // Track unlock animation
   useEffect(() => {
@@ -201,8 +219,12 @@ export function TaskCard({
       return (
         <div className="flex items-center gap-1.5">
           <div
+            ref={pulseDotSquircle.ref as React.RefObject<HTMLDivElement>}
             className="w-1.5 h-1.5 rounded-full animate-pulse"
-            style={{ backgroundColor: column.accent }}
+            style={{
+              ...pulseDotSquircle.style,
+              backgroundColor: column.accent,
+            }}
           />
           <span
             className="text-[9px] font-medium"
@@ -219,16 +241,17 @@ export function TaskCard({
 
   return (
     <motion.div
+      ref={cardSquircle.ref as React.RefObject<HTMLDivElement>}
       data-card-id={card.id}
       initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 10 }}
       animate={{
         opacity: 1,
         y: 0,
-        boxShadow: isHovered
-          ? "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)"
+        filter: isHovered
+          ? "drop-shadow(0 10px 15px rgba(0, 0, 0, 0.1))"
           : showUnlockAnimation
-            ? "0 0 20px 5px rgba(34, 197, 94, 0.3)"
-            : "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)",
+            ? "drop-shadow(0 0 10px rgba(34, 197, 94, 0.3))"
+            : "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))",
       }}
       exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }}
       transition={
@@ -239,30 +262,64 @@ export function TaskCard({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className={`
-        relative bg-white dark:bg-slate-800 rounded-lg border p-2.5 cursor-pointer transition-colors
-        ${card.isBlocked ? "border-amber-300 dark:border-amber-700" : "border-slate-200 dark:border-slate-700"}
+        relative bg-white dark:bg-slate-800 rounded-lg p-2.5 cursor-pointer transition-colors
         ${isExecuting && !shouldReduceMotion ? "executing-gradient-border" : ""}
       `}
+      style={cardSquircle.style}
     >
+      {/* SVG border overlay */}
+      {cardSquircle.svgPath && (
+        <svg
+          aria-hidden
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          style={{ position: "absolute", inset: 0, zIndex: 1 }}
+        >
+          <path
+            d={cardSquircle.svgPath}
+            fill="none"
+            stroke={card.isBlocked ? "rgb(252 211 77)" : "rgb(226 232 240)"}
+            strokeWidth={1}
+            className="dark:stroke-slate-700"
+          />
+        </svg>
+      )}
+
       {/* Executing gradient border animation */}
       {isExecuting && !shouldReduceMotion && (
-        <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
-          <div className="absolute inset-[-2px] rounded-lg bg-gradient-conic from-emerald-500 via-cyan-500 to-emerald-500 animate-spin-slow opacity-60" />
-          <div className="absolute inset-[1px] rounded-[6px] bg-white dark:bg-slate-800" />
+        <div
+          className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none"
+          style={cardSquircle.style}
+        >
+          <div
+            className="absolute inset-[-2px] rounded-lg bg-gradient-conic from-emerald-500 via-cyan-500 to-emerald-500 animate-spin-slow opacity-60"
+            style={cardSquircle.style}
+          />
+          <div
+            className="absolute inset-[1px] rounded-[6px] bg-white dark:bg-slate-800"
+            style={cardSquircle.style}
+          />
         </div>
       )}
 
       {/* Card content - relative to stack above the gradient border overlay */}
       <div className="relative">
         {/* Accent bar */}
-        <div className={`h-1 w-10 rounded-full ${column.accentLight} mb-2`} />
+        <div
+          ref={accentBarSquircle.ref as React.RefObject<HTMLDivElement>}
+          className={`h-1 w-10 rounded-full ${column.accentLight} mb-2`}
+          style={accentBarSquircle.style}
+        />
 
         {/* Header row */}
         <div className="flex items-start justify-between gap-2 mb-1">
           <h4 className="text-[10px] font-semibold text-slate-800 dark:text-slate-200 leading-tight line-clamp-2">
             {card.title}
           </h4>
-          <div className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+          <div
+            ref={botIconSquircle.ref as React.RefObject<HTMLDivElement>}
+            className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0"
+            style={botIconSquircle.style}
+          >
             <Bot className="w-2.5 h-2.5 text-slate-500 dark:text-slate-400" />
           </div>
         </div>

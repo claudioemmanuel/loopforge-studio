@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { auth, getUserGithubToken } from "@/lib/auth";
+import { getUserGithubToken } from "@/lib/auth";
 import { db, tasks, executions } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
@@ -21,34 +21,12 @@ import {
 } from "@/lib/ralph/git-operations";
 import { createPullRequest } from "@/lib/github/client";
 import type { StatusHistoryEntry } from "@/lib/db/schema";
+import { withTask } from "@/lib/api";
 import path from "path";
 
 const REPOS_DIR = process.env.REPOS_DIR || "/app/repos";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: { with: { user: true } },
-      executions: { limit: 1, orderBy: (e, { desc }) => [desc(e.createdAt)] },
-    },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export const POST = withTask(async (request, { user, task, taskId }) => {
   // Task must be in review status
   if (task.status !== "review") {
     return NextResponse.json(
@@ -67,7 +45,16 @@ export async function POST(
     );
   }
 
-  const latestExecution = task.executions?.[0];
+  // Re-fetch task with executions relation to get latest execution
+  const taskWithExecutions = await db.query.tasks.findFirst({
+    where: eq(tasks.id, taskId),
+    with: {
+      repo: { with: { user: true } },
+      executions: { limit: 1, orderBy: (e, { desc }) => [desc(e.createdAt)] },
+    },
+  });
+
+  const latestExecution = taskWithExecutions?.executions?.[0];
   if (!latestExecution) {
     return NextResponse.json(
       { error: "No execution found for task" },
@@ -89,7 +76,7 @@ export async function POST(
       path.join(REPOS_DIR, task.repo.fullName.replace("/", "_"));
 
     // Get GitHub token for authenticated push
-    const githubToken = await getUserGithubToken(session.user.id);
+    const githubToken = await getUserGithubToken(user.id);
     if (!githubToken) {
       return NextResponse.json(
         {
@@ -177,7 +164,7 @@ export async function POST(
       to: "done",
       timestamp: new Date().toISOString(),
       triggeredBy: "user",
-      userId: session.user.id,
+      userId: user.id,
     };
 
     await db
@@ -219,4 +206,4 @@ export async function POST(
       { status: 500 },
     );
   }
-}
+});

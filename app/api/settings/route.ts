@@ -3,12 +3,13 @@ import { auth } from "@/lib/auth";
 import { db, users, repos } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { format } from "date-fns";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function GET() {
   const session = await auth();
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Fetch user data
@@ -17,7 +18,7 @@ export async function GET() {
   });
 
   if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return handleError(Errors.notFound("User"));
   }
 
   // Fetch user repos

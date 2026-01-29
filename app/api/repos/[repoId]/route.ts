@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, repos } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function GET(
   request: Request,
@@ -11,7 +12,7 @@ export async function GET(
   const { repoId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   const repo = await db.query.repos.findFirst({
@@ -19,7 +20,7 @@ export async function GET(
   });
 
   if (!repo) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Repository"));
   }
 
   return NextResponse.json(repo);
@@ -33,7 +34,7 @@ export async function PATCH(
   const { repoId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   const repo = await db.query.repos.findFirst({
@@ -41,7 +42,7 @@ export async function PATCH(
   });
 
   if (!repo) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Repository"));
   }
 
   const body = await request.json();
@@ -52,10 +53,7 @@ export async function PATCH(
   }
 
   if (Object.keys(updates).length === 0) {
-    return NextResponse.json(
-      { error: "No valid fields to update" },
-      { status: 400 },
-    );
+    return handleError(Errors.invalidRequest("No valid fields to update"));
   }
 
   updates.updatedAt = new Date();
@@ -77,7 +75,7 @@ export async function DELETE(
   const { repoId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   const repo = await db.query.repos.findFirst({
@@ -85,7 +83,7 @@ export async function DELETE(
   });
 
   if (!repo) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Repository"));
   }
 
   await db.delete(repos).where(eq(repos.id, repoId));

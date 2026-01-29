@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth, getUserGithubToken } from "@/lib/auth";
+import { withAuth } from "@/lib/api";
+import { getUserGithubToken } from "@/lib/auth";
 import { fetchUserRepos } from "@/lib/github";
 import { apiLogger } from "@/lib/logger";
 
-export async function GET() {
-  const session = await auth();
-
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (_request, { user }) => {
   try {
     // Get decrypted GitHub token from database
-    const githubToken = await getUserGithubToken(session.user.id);
+    const githubToken = await getUserGithubToken(user.id);
 
     if (!githubToken) {
       return NextResponse.json(
@@ -32,4 +27,4 @@ export async function GET() {
       { status: 500 },
     );
   }
-}
+});

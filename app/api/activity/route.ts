@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { withAuth } from "@/lib/api";
 import { db, activityEvents, repos, tasks } from "@/lib/db";
 import { eq, and, desc, gte, lte, or, ilike, inArray } from "drizzle-orm";
 import type { ActivityEventCategory } from "@/lib/db/schema";
+import { handleError, Errors } from "@/lib/errors";
 
 // GET - Fetch activity events with filters
-export async function GET(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { user }) => {
   const { searchParams } = new URL(request.url);
 
   // Parse query params
@@ -29,16 +24,16 @@ export async function GET(request: Request) {
   const since = searchParams.get("since");
 
   // Build query conditions
-  const conditions = [eq(activityEvents.userId, session.user.id)];
+  const conditions = [eq(activityEvents.userId, user.id)];
 
   if (repoId) {
     // Verify repo ownership
     const repo = await db.query.repos.findFirst({
-      where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
+      where: and(eq(repos.id, repoId), eq(repos.userId, user.id)),
     });
 
     if (!repo) {
-      return NextResponse.json({ error: "Repo not found" }, { status: 404 });
+      return handleError(Errors.notFound("Repository"));
     }
 
     conditions.push(eq(activityEvents.repoId, repoId));
@@ -51,8 +46,8 @@ export async function GET(request: Request) {
       with: { repo: true },
     });
 
-    if (!task || task.repo.userId !== session.user.id) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    if (!task || task.repo.userId !== user.id) {
+      return handleError(Errors.notFound("Task"));
     }
 
     conditions.push(eq(activityEvents.taskId, taskId));
@@ -97,16 +92,10 @@ export async function GET(request: Request) {
     .offset(offset);
 
   return NextResponse.json({ events });
-}
+});
 
 // POST - Create a new activity event
-export async function POST(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { user }) => {
   const body = await request.json();
   const {
     taskId,
@@ -120,28 +109,24 @@ export async function POST(request: Request) {
   } = body;
 
   if (!eventType || !eventCategory || !title) {
-    return NextResponse.json(
-      { error: "eventType, eventCategory, and title are required" },
-      { status: 400 },
+    return handleError(
+      Errors.invalidRequest("eventType, eventCategory, and title are required"),
     );
   }
 
   // Validate category
   if (!["ai_action", "git", "system"].includes(eventCategory)) {
-    return NextResponse.json(
-      { error: "Invalid eventCategory" },
-      { status: 400 },
-    );
+    return handleError(Errors.invalidRequest("Invalid eventCategory"));
   }
 
   // If repoId provided, verify ownership
   if (repoId) {
     const repo = await db.query.repos.findFirst({
-      where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
+      where: and(eq(repos.id, repoId), eq(repos.userId, user.id)),
     });
 
     if (!repo) {
-      return NextResponse.json({ error: "Repo not found" }, { status: 404 });
+      return handleError(Errors.notFound("Repository"));
     }
   }
 
@@ -152,8 +137,8 @@ export async function POST(request: Request) {
       with: { repo: true },
     });
 
-    if (!task || task.repo.userId !== session.user.id) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    if (!task || task.repo.userId !== user.id) {
+      return handleError(Errors.notFound("Task"));
     }
   }
 
@@ -162,7 +147,7 @@ export async function POST(request: Request) {
     id: eventId,
     taskId: taskId || null,
     repoId: repoId || null,
-    userId: session.user.id,
+    userId: user.id,
     executionId: executionId || null,
     eventType,
     eventCategory: eventCategory as ActivityEventCategory,
@@ -175,4 +160,4 @@ export async function POST(request: Request) {
   await db.insert(activityEvents).values(newEvent);
 
   return NextResponse.json(newEvent);
-}
+});

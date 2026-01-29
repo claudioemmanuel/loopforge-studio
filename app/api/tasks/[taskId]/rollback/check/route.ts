@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { canRollback, getCommitsByExecution } from "@/lib/db/execution-commits";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function GET(
   request: Request,
@@ -17,7 +18,7 @@ export async function GET(
   const { taskId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Get task with repo to verify ownership
@@ -30,7 +31,7 @@ export async function GET(
   });
 
   if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Task"));
   }
 
   const latestExecution = task.executions?.[0];

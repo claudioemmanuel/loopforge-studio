@@ -1,24 +1,19 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { withAuth } from "@/lib/api";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { aiProviders, type AiProvider } from "@/lib/db/schema";
 import { apiLogger } from "@/lib/logger";
+import { handleError, Errors } from "@/lib/errors";
 
-export async function POST(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { user }) => {
   try {
     const body = await request.json();
     const { provider } = body;
 
     // Validate provider
     if (!provider || !aiProviders.includes(provider)) {
-      return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
+      return handleError(Errors.invalidRequest("Invalid provider"));
     }
 
     // Update user's preferred provider
@@ -28,42 +23,22 @@ export async function POST(request: Request) {
         preferredProvider: provider as AiProvider,
         updatedAt: new Date(),
       })
-      .where(eq(users.id, session.user.id));
+      .where(eq(users.id, user.id));
 
     return NextResponse.json({ success: true, provider });
   } catch (error) {
     apiLogger.error({ error }, "Failed to update provider");
-    return NextResponse.json(
-      { error: "Failed to update provider" },
-      { status: 500 },
-    );
+    return handleError(error);
   }
-}
+});
 
-export async function GET(_request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (_request, { user }) => {
   try {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
     return NextResponse.json({
       provider: user.preferredProvider || "anthropic",
     });
   } catch (error) {
     apiLogger.error({ error }, "Failed to get provider");
-    return NextResponse.json(
-      { error: "Failed to get provider" },
-      { status: 500 },
-    );
+    return handleError(error);
   }
-}
+});

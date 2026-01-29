@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getUsageSummary } from "@/lib/billing";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function GET() {
   const session = await auth();
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   try {
@@ -40,7 +41,6 @@ export async function GET() {
       plan: usage.plan,
     });
   } catch (error) {
-    console.error("Get usage error:", error);
-    return NextResponse.json({ error: "Failed to get usage" }, { status: 500 });
+    return handleError(error);
   }
 }

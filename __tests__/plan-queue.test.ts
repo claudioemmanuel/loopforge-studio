@@ -31,9 +31,6 @@ describe("Plan Queue", () => {
         taskId: "task-123",
         userId: "user-456",
         repoId: "repo-789",
-        apiKey: "encrypted-key",
-        aiProvider: "anthropic",
-        preferredModel: "claude-sonnet-4-20250514",
         brainstormResult: '{"summary": "Task analysis"}',
         continueToExecution: false,
         repoName: "test-repo",
@@ -44,9 +41,6 @@ describe("Plan Queue", () => {
       expect(jobData.taskId).toBe("task-123");
       expect(jobData.userId).toBe("user-456");
       expect(jobData.repoId).toBe("repo-789");
-      expect(jobData.apiKey).toBe("encrypted-key");
-      expect(jobData.aiProvider).toBe("anthropic");
-      expect(jobData.preferredModel).toBe("claude-sonnet-4-20250514");
       expect(jobData.brainstormResult).toBe('{"summary": "Task analysis"}');
       expect(jobData.continueToExecution).toBe(false);
       expect(jobData.repoName).toBe("test-repo");
@@ -54,25 +48,22 @@ describe("Plan Queue", () => {
       expect(jobData.repoDefaultBranch).toBe("main");
     });
 
-    it("should support all AI providers", () => {
-      const providers = ["anthropic", "openai", "gemini"] as const;
-
-      for (const provider of providers) {
-        const jobData: PlanJobData = {
-          taskId: "task-123",
-          userId: "user-456",
-          repoId: "repo-789",
-          apiKey: "key",
-          aiProvider: provider,
-          preferredModel: "model",
-          brainstormResult: "{}",
-          continueToExecution: true,
-          repoName: "test-repo",
-          repoFullName: "owner/test-repo",
-          repoDefaultBranch: "main",
-        };
-        expect(jobData.aiProvider).toBe(provider);
-      }
+    it("should not include sensitive fields like apiKey", () => {
+      // PlanJobData no longer contains apiKey, aiProvider, or preferredModel.
+      // Workers decrypt API keys on demand using userId.
+      const jobData: PlanJobData = {
+        taskId: "task-123",
+        userId: "user-456",
+        repoId: "repo-789",
+        brainstormResult: "{}",
+        continueToExecution: true,
+        repoName: "test-repo",
+        repoFullName: "owner/test-repo",
+        repoDefaultBranch: "main",
+      };
+      expect(jobData).not.toHaveProperty("apiKey");
+      expect(jobData).not.toHaveProperty("aiProvider");
+      expect(jobData).not.toHaveProperty("preferredModel");
     });
 
     it("should include brainstorm result from previous phase", () => {
@@ -87,9 +78,6 @@ describe("Plan Queue", () => {
         taskId: "task-123",
         userId: "user-456",
         repoId: "repo-789",
-        apiKey: "key",
-        aiProvider: "openai",
-        preferredModel: "gpt-4",
         brainstormResult,
         continueToExecution: false,
         repoName: "test-repo",
@@ -107,9 +95,6 @@ describe("Plan Queue", () => {
         taskId: "task-123",
         userId: "user-456",
         repoId: "repo-789",
-        apiKey: "key",
-        aiProvider: "anthropic",
-        preferredModel: "model",
         brainstormResult: "{}",
         continueToExecution: true,
         repoName: "test-repo",
@@ -125,7 +110,8 @@ describe("Plan Queue", () => {
     it("should represent successful result", () => {
       const result: PlanJobResult = {
         success: true,
-        planContent: "# Implementation Plan\n\n1. Create auth module\n2. Add routes",
+        planContent:
+          "# Implementation Plan\n\n1. Create auth module\n2. Add routes",
         branch: "feature/add-auth",
         completedAt: new Date(),
       };
@@ -145,7 +131,9 @@ describe("Plan Queue", () => {
       };
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe("Failed to generate plan: insufficient context");
+      expect(result.error).toBe(
+        "Failed to generate plan: insufficient context",
+      );
       expect(result.planContent).toBeUndefined();
       expect(result.branch).toBeUndefined();
     });
@@ -178,9 +166,8 @@ describe("Plan Queue", () => {
     });
 
     it("should be able to import queue functions", async () => {
-      const { queuePlan, getPlanJobStatus, createPlanWorker } = await import(
-        "@/lib/queue/plan-queue"
-      );
+      const { queuePlan, getPlanJobStatus, createPlanWorker } =
+        await import("@/lib/queue/plan-queue");
 
       expect(queuePlan).toBeDefined();
       expect(getPlanJobStatus).toBeDefined();
@@ -194,9 +181,6 @@ describe("Plan Queue", () => {
         taskId: "task-123",
         userId: "user-456",
         repoId: "repo-789",
-        apiKey: "key",
-        aiProvider: "anthropic",
-        preferredModel: "model",
         brainstormResult: '{"summary": "test"}',
         continueToExecution: false,
         repoName: "test-repo",
@@ -213,21 +197,21 @@ describe("Plan Queue", () => {
     });
 
     it("should get job status by ID", async () => {
-      const { getPlanJobStatus, planQueue } = await import(
-        "@/lib/queue/plan-queue"
-      );
+      const { getPlanJobStatus, planQueue } =
+        await import("@/lib/queue/plan-queue");
 
       // Mock job not found
-      (planQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+      (planQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        null,
+      );
 
       const status = await getPlanJobStatus("non-existent");
       expect(status).toBeNull();
     });
 
     it("should return job status when job exists", async () => {
-      const { getPlanJobStatus, planQueue } = await import(
-        "@/lib/queue/plan-queue"
-      );
+      const { getPlanJobStatus, planQueue } =
+        await import("@/lib/queue/plan-queue");
 
       const mockJob = {
         id: "job-456",
@@ -238,7 +222,9 @@ describe("Plan Queue", () => {
         getState: vi.fn().mockResolvedValue("completed"),
       };
 
-      (planQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockJob);
+      (planQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockJob,
+      );
 
       const status = await getPlanJobStatus("job-456");
       expect(status).toEqual({
@@ -252,9 +238,8 @@ describe("Plan Queue", () => {
     });
 
     it("should return job status with failed state", async () => {
-      const { getPlanJobStatus, planQueue } = await import(
-        "@/lib/queue/plan-queue"
-      );
+      const { getPlanJobStatus, planQueue } =
+        await import("@/lib/queue/plan-queue");
 
       const mockJob = {
         id: "job-789",
@@ -265,7 +250,9 @@ describe("Plan Queue", () => {
         getState: vi.fn().mockResolvedValue("failed"),
       };
 
-      (planQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockJob);
+      (planQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockJob,
+      );
 
       const status = await getPlanJobStatus("job-789");
       expect(status?.state).toBe("failed");
@@ -294,7 +281,11 @@ describe("Plan Queue", () => {
       // Simulate brainstorm result
       const brainstormResult = JSON.stringify({
         summary: "Implement user registration",
-        requirements: ["Create signup form", "Email validation", "Password rules"],
+        requirements: [
+          "Create signup form",
+          "Email validation",
+          "Password rules",
+        ],
         considerations: ["GDPR compliance", "Rate limiting"],
         suggestedApproach: "Use React Hook Form with Zod validation",
       });
@@ -304,9 +295,6 @@ describe("Plan Queue", () => {
         taskId: "task-123",
         userId: "user-456",
         repoId: "repo-789",
-        apiKey: "key",
-        aiProvider: "anthropic",
-        preferredModel: "claude-sonnet-4-20250514",
         brainstormResult,
         continueToExecution: true,
         repoName: "test-repo",

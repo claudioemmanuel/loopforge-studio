@@ -6,6 +6,7 @@
  */
 
 import { githubLogger } from "@/lib/logger";
+import { fetchWithRateLimit } from "./rate-limit";
 
 export interface GitHubRepoContext {
   techStack: string[];
@@ -41,7 +42,7 @@ export async function scanRepoViaGitHub(
 ): Promise<GitHubRepoContext> {
   try {
     // Get repo tree (recursive for full structure)
-    const treeResponse = await fetch(
+    const treeResponse = await fetchWithRateLimit(
       `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
       {
         headers: {
@@ -238,7 +239,7 @@ async function detectTechStack(
   // Try to read package.json for more detailed detection
   if (configFiles.includes("package.json")) {
     try {
-      const pkgResponse = await fetch(
+      const pkgResponse = await fetchWithRateLimit(
         `https://api.github.com/repos/${owner}/${repo}/contents/package.json?ref=${branch}`,
         {
           headers: {

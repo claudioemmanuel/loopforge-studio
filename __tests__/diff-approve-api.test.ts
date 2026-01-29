@@ -71,16 +71,16 @@ describe("Diff Approve API", () => {
 
   describe("Authorization", () => {
     it("should return 401 when user is not authenticated", () => {
-      const session = null;
+      const session = null as { user?: { id: string } | null } | null;
 
-      const isAuthorized = session?.user?.id != null;
+      const isAuthorized = session != null && session.user?.id != null;
       expect(isAuthorized).toBe(false);
     });
 
     it("should return 401 when session has no user", () => {
-      const session = { user: null };
+      const session = { user: null } as { user: { id: string } | null };
 
-      const isAuthorized = session?.user?.id != null;
+      const isAuthorized = session.user?.id != null;
       expect(isAuthorized).toBe(false);
     });
 
@@ -94,10 +94,10 @@ describe("Diff Approve API", () => {
 
   describe("Task Ownership Validation", () => {
     it("should return 404 when task not found", () => {
-      const task: MockTask | undefined = undefined;
+      const task = undefined as MockTask | undefined;
       const sessionUserId = "user-123";
 
-      const isValid = task && task.repo.userId === sessionUserId;
+      const isValid = task != null && task.repo.userId === sessionUserId;
       expect(isValid).toBeFalsy();
     });
 
@@ -425,7 +425,7 @@ describe("Diff Approve API", () => {
 
   describe("PR Creation", () => {
     it("should create PR when createPr option is true (default)", async () => {
-      const body = {};
+      const body: { createPr?: boolean } = {};
       const createPr = body.createPr !== false; // Default to true
 
       expect(createPr).toBe(true);

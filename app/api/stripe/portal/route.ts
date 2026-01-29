@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { createPortalSession, isStripeConfigured } from "@/lib/stripe";
+import { createPortalSession, isStripeConfigured } from "@/lib/billing";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function POST() {
   if (!isStripeConfigured()) {
-    return NextResponse.json(
-      { error: "Stripe is not configured" },
-      { status: 503 },
-    );
+    return handleError(Errors.invalidRequest("Stripe is not configured"));
   }
 
   const session = await auth();
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   try {
@@ -25,15 +23,11 @@ export async function POST() {
     );
 
     if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+      return handleError(Errors.invalidRequest(result.error));
     }
 
     return NextResponse.json({ url: result.url });
   } catch (error) {
-    console.error("Portal session error:", error);
-    return NextResponse.json(
-      { error: "Failed to create portal session" },
-      { status: 500 },
-    );
+    return handleError(error);
   }
 }

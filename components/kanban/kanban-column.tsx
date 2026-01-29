@@ -9,21 +9,20 @@ import {
 import { cn } from "@/lib/utils";
 import { KanbanCard } from "./kanban-card";
 import {
-  Clock,
-  Lightbulb,
   FileText,
   Zap,
   Play,
   CheckCircle2,
   AlertTriangle,
   Plus,
-  Inbox,
   Sparkles,
   CircleDashed,
   Eye,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import type { CardProcessingState } from "@/components/hooks/use-card-processing";
+import { STATUS_CONFIG } from "@/lib/constants/status-config";
 
 interface KanbanColumnProps {
   id: TaskStatus;
@@ -43,24 +42,21 @@ interface KanbanColumnProps {
   slidingCards?: Set<string>;
 }
 
-// Column configuration with icons, colors, and empty state messages
-const columnConfig: Record<
-  TaskStatus,
-  {
-    icon: typeof Lightbulb;
-    color: string;
-    bgColor: string;
-    headerBg: string;
-    borderColor: string;
-    dropTargetBg: string;
-    emptyIcon: typeof Inbox;
-    emptyMessage: string;
-    emptyHint: string;
-    accentColor: string;
-  }
-> = {
+// Column-specific visual configuration (Tailwind classes, empty state text).
+// The column icon is derived from STATUS_CONFIG; everything else is local.
+interface ColumnStyle {
+  color: string;
+  bgColor: string;
+  headerBg: string;
+  borderColor: string;
+  dropTargetBg: string;
+  emptyIcon: LucideIcon;
+  emptyMessage: string;
+  emptyHint: string;
+}
+
+const columnStyles: Record<TaskStatus, ColumnStyle> = {
   todo: {
-    icon: Clock,
     color: "text-slate-600 dark:text-slate-400",
     bgColor: "bg-slate-50/30 dark:bg-slate-900/20",
     headerBg: "bg-slate-100/80 dark:bg-slate-800/40",
@@ -69,10 +65,8 @@ const columnConfig: Record<
     emptyIcon: CircleDashed,
     emptyMessage: "No tasks yet",
     emptyHint: "Create a task to get started",
-    accentColor: "slate",
   },
   brainstorming: {
-    icon: Lightbulb,
     color: "text-violet-600 dark:text-violet-400",
     bgColor: "bg-violet-50/30 dark:bg-violet-900/10",
     headerBg: "bg-violet-100/80 dark:bg-violet-900/30",
@@ -81,10 +75,8 @@ const columnConfig: Record<
     emptyIcon: Sparkles,
     emptyMessage: "Nothing to brainstorm",
     emptyHint: "AI will help generate ideas",
-    accentColor: "violet",
   },
   planning: {
-    icon: FileText,
     color: "text-blue-600 dark:text-blue-400",
     bgColor: "bg-blue-50/30 dark:bg-blue-900/10",
     headerBg: "bg-blue-100/80 dark:bg-blue-900/30",
@@ -93,10 +85,8 @@ const columnConfig: Record<
     emptyIcon: FileText,
     emptyMessage: "Nothing in planning",
     emptyHint: "Tasks will be planned here",
-    accentColor: "blue",
   },
   ready: {
-    icon: Zap,
     color: "text-amber-600 dark:text-amber-400",
     bgColor: "bg-amber-50/30 dark:bg-amber-900/10",
     headerBg: "bg-amber-100/80 dark:bg-amber-900/30",
@@ -105,10 +95,8 @@ const columnConfig: Record<
     emptyIcon: Zap,
     emptyMessage: "Nothing ready",
     emptyHint: "Planned tasks appear here",
-    accentColor: "amber",
   },
   executing: {
-    icon: Play,
     color: "text-primary",
     bgColor: "bg-primary/5 dark:bg-primary/10",
     headerBg: "bg-primary/10 dark:bg-primary/15",
@@ -117,10 +105,8 @@ const columnConfig: Record<
     emptyIcon: Play,
     emptyMessage: "Nothing executing",
     emptyHint: "Start a task to see it here",
-    accentColor: "primary",
   },
   review: {
-    icon: Eye,
     color: "text-cyan-600 dark:text-cyan-400",
     bgColor: "bg-cyan-50/30 dark:bg-cyan-900/10",
     headerBg: "bg-cyan-100/80 dark:bg-cyan-900/30",
@@ -129,10 +115,8 @@ const columnConfig: Record<
     emptyIcon: Eye,
     emptyMessage: "Nothing to review",
     emptyHint: "Changes will appear here for approval",
-    accentColor: "cyan",
   },
   done: {
-    icon: CheckCircle2,
     color: "text-emerald-600 dark:text-emerald-400",
     bgColor: "bg-emerald-50/30 dark:bg-emerald-900/10",
     headerBg: "bg-emerald-100/80 dark:bg-emerald-900/30",
@@ -141,10 +125,8 @@ const columnConfig: Record<
     emptyIcon: CheckCircle2,
     emptyMessage: "Nothing completed",
     emptyHint: "Finished tasks will appear here",
-    accentColor: "emerald",
   },
   stuck: {
-    icon: AlertTriangle,
     color: "text-red-600 dark:text-red-400",
     bgColor: "bg-red-50/30 dark:bg-red-900/10",
     headerBg: "bg-red-100/80 dark:bg-red-900/30",
@@ -153,9 +135,15 @@ const columnConfig: Record<
     emptyIcon: AlertTriangle,
     emptyMessage: "No stuck tasks",
     emptyHint: "Tasks needing attention appear here",
-    accentColor: "red",
   },
 };
+
+// Merged config: shared icon + column-specific styling
+function getColumnConfig(status: TaskStatus) {
+  const base = STATUS_CONFIG[status];
+  const style = columnStyles[status];
+  return { icon: base.icon, accentColor: base.accentColor, ...style };
+}
 
 export const KanbanColumn = React.memo(function KanbanColumn({
   id,
@@ -172,7 +160,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   slidingCards,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver, active } = useDroppable({ id });
-  const config = columnConfig[id];
+  const config = getColumnConfig(id);
   const Icon = config.icon;
   const EmptyIcon = config.emptyIcon;
 

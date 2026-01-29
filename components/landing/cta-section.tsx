@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { Squircle, useSquircle } from "@/components/ui/squircle";
 
 export function CTASection() {
+  const primaryCta = useSquircle({ cornerRadius: "lg" });
+  const secondaryCta = useSquircle({ cornerRadius: "lg" });
+
   return (
     <section className="py-24 px-6 relative overflow-hidden bg-background">
-      {/* Decorative blur circles */}
+      {/* Decorative blur circles — keep rounded-full */}
       <div className="absolute top-0 left-1/4 w-64 h-64 bg-primary/20 rounded-full blur-3xl -z-10" />
       <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-accent/20 rounded-full blur-3xl -z-10" />
 
@@ -39,21 +43,38 @@ export function CTASection() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-base font-medium text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/30 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring animate-glow-pulse"
+            <div
+              className="animate-glow-pulse"
+              style={{
+                filter: "drop-shadow(0 10px 15px hsl(var(--primary) / 0.25))",
+              }}
             >
-              Start Building Free
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <a
-              href="https://github.com/claudioemmanuel/loopforge-studio"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background/50 px-8 py-4 text-base font-medium shadow-sm transition-all hover:bg-muted/50 hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Link
+                href="/login"
+                ref={primaryCta.ref as React.RefObject<HTMLAnchorElement>}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-base font-medium text-primary-foreground transition-all hover:bg-primary/90 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                style={primaryCta.style}
+              >
+                Start Building Free
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+            <Squircle
+              cornerRadius="lg"
+              borderWidth={1}
+              borderColor="hsl(var(--border))"
             >
-              View on GitHub
-            </a>
+              <a
+                href="https://github.com/claudioemmanuel/loopforge-studio"
+                target="_blank"
+                rel="noopener noreferrer"
+                ref={secondaryCta.ref as React.RefObject<HTMLAnchorElement>}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-background/50 px-8 py-4 text-base font-medium transition-all hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                style={secondaryCta.style}
+              >
+                View on GitHub
+              </a>
+            </Squircle>
           </div>
 
           <p className="text-sm text-muted-foreground">

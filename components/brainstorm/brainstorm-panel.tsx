@@ -1,52 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { clientLogger } from "@/lib/logger";
-import {
-  X,
-  Send,
-  Loader2,
-  Sparkles,
-  CheckCircle2,
-  Code,
-  FileText,
-} from "lucide-react";
+import { X, Loader2, Sparkles, Code, FileText } from "lucide-react";
 import type { Task } from "@/lib/db/schema";
 import { useAPIError } from "@/components/hooks/use-api-error";
 import { ErrorDialog } from "@/components/ui/error-dialog";
-
-// Simple markdown-like text renderer for **bold** syntax
-function renderFormattedText(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    return part;
-  });
-}
-
-interface BrainstormOption {
-  label: string;
-  value: string;
-}
-
-interface BrainstormPreview {
-  summary: string;
-  requirements: string[];
-  considerations: string[];
-  suggestedApproach: string;
-}
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  options?: BrainstormOption[];
-  preview?: BrainstormPreview;
-  suggestComplete?: boolean;
-}
+import { ChatMessage } from "./chat-message";
+import { ChatInput } from "./chat-input";
+import type { ChatMessageData, BrainstormPreview } from "./chat-message";
 
 interface BrainstormPanelProps {
   taskId: string;
@@ -65,7 +28,7 @@ export function BrainstormPanel({
   onFinalize,
   onSave,
 }: BrainstormPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(false);
@@ -107,7 +70,7 @@ export function BrainstormPanel({
           data.existingMessages.length > 0
         ) {
           // Restore full conversation history
-          const restoredMessages: ChatMessage[] = data.existingMessages.map(
+          const restoredMessages: ChatMessageData[] = data.existingMessages.map(
             (msg: { role: "user" | "assistant"; content: string }) => {
               if (msg.role === "assistant") {
                 // Try to parse assistant messages as JSON to extract options/preview
@@ -292,13 +255,6 @@ export function BrainstormPanel({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
-  };
-
   // Auto-save on close
   const handleClose = async () => {
     // Only save if we have messages (conversation has started)
@@ -322,6 +278,18 @@ export function BrainstormPanel({
       }
     }
     onClose();
+  };
+
+  const handleSend = (content: string) => {
+    sendMessage(content);
+  };
+
+  const handleOptionClick = (label: string) => {
+    sendMessage(label, true);
+  };
+
+  const handleKeepRefining = () => {
+    sendMessage("I'd like to continue refining");
   };
 
   if (!isOpen) return null;
@@ -395,81 +363,15 @@ export function BrainstormPanel({
             </div>
           ) : (
             messages.map((msg, i) => (
-              <div
+              <ChatMessage
                 key={i}
-                className={cn(
-                  "flex flex-col gap-2",
-                  msg.role === "user" ? "items-end" : "items-start",
-                )}
-              >
-                <div
-                  className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-2.5",
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted",
-                  )}
-                >
-                  <p className="text-sm whitespace-pre-wrap">
-                    {renderFormattedText(msg.content)}
-                  </p>
-                </div>
-
-                {/* Options */}
-                {msg.role === "assistant" &&
-                  msg.options &&
-                  msg.options.length > 0 && (
-                    <div className="flex flex-col gap-1.5 w-full max-w-[85%]">
-                      {msg.options.map((opt, j) => (
-                        <button
-                          key={j}
-                          onClick={() => sendMessage(opt.label, true)}
-                          disabled={loading || i !== messages.length - 1}
-                          className={cn(
-                            "text-left px-3 py-2 rounded-lg text-sm border transition-colors",
-                            i === messages.length - 1
-                              ? "hover:bg-muted/80 hover:border-primary/50 cursor-pointer"
-                              : "opacity-50 cursor-not-allowed",
-                            "disabled:opacity-50 disabled:cursor-not-allowed",
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                {/* Suggest Complete */}
-                {msg.role === "assistant" &&
-                  msg.suggestComplete &&
-                  i === messages.length - 1 && (
-                    <div className="flex gap-2 mt-2">
-                      <Button
-                        size="sm"
-                        onClick={handleFinalize}
-                        disabled={loading}
-                        className="gap-1.5"
-                      >
-                        {loading ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="w-4 h-4" />
-                        )}
-                        Save & Continue
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          sendMessage("I'd like to continue refining")
-                        }
-                        disabled={loading}
-                      >
-                        Keep Refining
-                      </Button>
-                    </div>
-                  )}
-              </div>
+                message={msg}
+                isLast={i === messages.length - 1}
+                loading={loading}
+                onOptionClick={handleOptionClick}
+                onFinalize={handleFinalize}
+                onKeepRefining={handleKeepRefining}
+              />
             ))
           )}
           <div ref={messagesEndRef} />
@@ -511,35 +413,14 @@ export function BrainstormPanel({
         )}
 
         {/* Input */}
-        <div className="p-4 border-t">
-          <div className="flex gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type to refine your brainstorm..."
-              disabled={loading || initializing}
-              className={cn(
-                "flex-1 px-3 py-2 rounded-lg border bg-background text-sm",
-                "focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary",
-                "disabled:opacity-50 disabled:cursor-not-allowed",
-              )}
-            />
-            <Button
-              size="icon"
-              onClick={() => sendMessage(input)}
-              disabled={loading || initializing || !input.trim()}
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-        </div>
+        <ChatInput
+          ref={inputRef}
+          value={input}
+          onChange={setInput}
+          onSend={handleSend}
+          loading={loading}
+          disabled={loading || initializing}
+        />
       </div>
 
       {/* Error Dialog */}

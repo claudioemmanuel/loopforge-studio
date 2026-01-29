@@ -7,22 +7,19 @@ import {
   handleSubscriptionDeleted,
   handlePaymentFailed,
   isStripeConfigured,
-} from "@/lib/stripe";
+} from "@/lib/billing";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function POST(request: Request) {
   if (!isStripeConfigured()) {
-    return NextResponse.json(
-      { error: "Stripe is not configured" },
-      { status: 503 },
-    );
+    return handleError(Errors.invalidRequest("Stripe is not configured"));
   }
 
   const signature = request.headers.get("stripe-signature");
 
   if (!signature) {
-    return NextResponse.json(
-      { error: "Missing stripe-signature header" },
-      { status: 400 },
+    return handleError(
+      Errors.invalidRequest("Missing stripe-signature header"),
     );
   }
 
@@ -32,7 +29,7 @@ export async function POST(request: Request) {
 
     if ("error" in event) {
       console.error("Webhook verification failed:", event.error);
-      return NextResponse.json({ error: event.error }, { status: 400 });
+      return handleError(Errors.invalidRequest(event.error));
     }
 
     // Handle the event
@@ -69,11 +66,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Webhook error:", error);
-    return NextResponse.json(
-      { error: "Webhook handler failed" },
-      { status: 500 },
-    );
+    return handleError(error);
   }
 }
 

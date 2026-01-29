@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { handleError, Errors } from "@/lib/errors";
 
 // Common development directories to check
 const COMMON_DEV_PATHS = [
@@ -40,7 +41,7 @@ export async function POST(
   const { repoId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   const repo = await db.query.repos.findFirst({
@@ -48,10 +49,7 @@ export async function POST(
   });
 
   if (!repo) {
-    return NextResponse.json(
-      { error: "Repository not found" },
-      { status: 404 },
-    );
+    return handleError(Errors.notFound("Repository"));
   }
 
   // Get path to verify from request body

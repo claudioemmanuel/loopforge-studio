@@ -1,14 +1,10 @@
 import { Queue, Worker, Job } from "bullmq";
 import { connectionOptions, createConnectionOptions } from "./connection";
-import type { AiProvider } from "@/lib/db/schema";
 
 export interface PlanJobData {
   taskId: string;
   userId: string;
   repoId: string;
-  apiKey: string;
-  aiProvider: AiProvider;
-  preferredModel: string;
   brainstormResult: string; // JSON string of brainstorm
   continueToExecution: boolean; // For autonomous mode
   // Repository context for AI planning
@@ -27,14 +23,13 @@ export interface PlanJobResult {
 }
 
 // Queue for plan jobs
-export const planQueue = new Queue<PlanJobData, PlanJobResult>(
-  "plan",
-  { connection: connectionOptions }
-);
+export const planQueue = new Queue<PlanJobData, PlanJobResult>("plan", {
+  connection: connectionOptions,
+});
 
 // Add a job to the queue
 export async function queuePlan(
-  data: PlanJobData
+  data: PlanJobData,
 ): Promise<Job<PlanJobData, PlanJobResult>> {
   return planQueue.add("plan", data, {
     removeOnComplete: {
@@ -66,14 +61,10 @@ export async function getPlanJobStatus(jobId: string) {
 
 // Create worker (to be used in separate process)
 export function createPlanWorker(
-  processor: (job: Job<PlanJobData, PlanJobResult>) => Promise<PlanJobResult>
+  processor: (job: Job<PlanJobData, PlanJobResult>) => Promise<PlanJobResult>,
 ) {
-  return new Worker<PlanJobData, PlanJobResult>(
-    "plan",
-    processor,
-    {
-      connection: createConnectionOptions(),
-      concurrency: 3, // Process up to 3 jobs at a time
-    }
-  );
+  return new Worker<PlanJobData, PlanJobResult>("plan", processor, {
+    connection: createConnectionOptions(),
+    concurrency: 3, // Process up to 3 jobs at a time
+  });
 }

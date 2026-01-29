@@ -1,22 +1,16 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { withAuth } from "@/lib/api";
 import { db, tasks, repos, executions } from "@/lib/db";
 import type { TaskStatus, Execution } from "@/lib/db/schema";
 import { eq, and, or, inArray, desc, isNotNull } from "drizzle-orm";
 
-export async function GET(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { user }) => {
   const url = new URL(request.url);
   const filter = url.searchParams.get("filter") || "all"; // all, active, completed, stuck
 
   // Get user's repos
   const userRepos = await db.query.repos.findMany({
-    where: eq(repos.userId, session.user.id),
+    where: eq(repos.userId, user.id),
   });
 
   if (userRepos.length === 0) {
@@ -39,7 +33,14 @@ export async function GET(request: Request) {
       statusFilter = ["stuck"];
       break;
     default:
-      statusFilter = ["brainstorming", "planning", "ready", "executing", "done", "stuck"];
+      statusFilter = [
+        "brainstorming",
+        "planning",
+        "ready",
+        "executing",
+        "done",
+        "stuck",
+      ];
   }
 
   // Query tasks with ACTIVE workers:
@@ -56,8 +57,8 @@ export async function GET(request: Request) {
         // Any task currently processing (background job running)
         isNotNull(tasks.processingPhase),
         // Failed tasks
-        eq(tasks.status, "stuck" as TaskStatus)
-      )
+        eq(tasks.status, "stuck" as TaskStatus),
+      ),
     ),
     orderBy: [desc(tasks.updatedAt)],
     limit: 50,
@@ -118,7 +119,9 @@ export async function GET(request: Request) {
         break;
       case "stuck":
         // Keep last known progress
-        progress = execution?.iteration ? Math.min(60 + execution.iteration * 5, 95) : 50;
+        progress = execution?.iteration
+          ? Math.min(60 + execution.iteration * 5, 95)
+          : 50;
         break;
     }
 
@@ -133,7 +136,9 @@ export async function GET(request: Request) {
       currentAction,
       error: execution?.errorMessage || undefined,
       branch: task.branch,
-      brainstormResult: task.brainstormResult ? JSON.parse(task.brainstormResult) : null,
+      brainstormResult: task.brainstormResult
+        ? JSON.parse(task.brainstormResult)
+        : null,
       planContent: task.planContent ? JSON.parse(task.planContent) : null,
       startedAt: execution?.startedAt?.toISOString(),
       completedAt: execution?.completedAt?.toISOString(),
@@ -143,4 +148,4 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.json(workers);
-}
+});
