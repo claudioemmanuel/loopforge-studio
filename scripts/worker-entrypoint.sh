@@ -48,7 +48,14 @@ log_success "Database is ready!"
 log_info "Waiting for database schema (timeout: ${SCHEMA_WAIT_TIMEOUT}s)..."
 elapsed=0
 while [ $elapsed -lt $SCHEMA_WAIT_TIMEOUT ]; do
-  if PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h ${DB_HOST:-postgres} -p ${DB_PORT:-5432} -U ${DB_USER:-postgres} -d loopforge -c "SELECT 1 FROM users LIMIT 1" > /dev/null 2>&1; then
+  # Use DB_PASSWORD if set, otherwise use POSTGRES_PASSWORD for postgres user, or loopforge for loopforge user
+  DB_USER_VAL="${DB_USER:-postgres}"
+  if [ "$DB_USER_VAL" = "loopforge" ]; then
+    DB_PASSWORD_VAL="${DB_PASSWORD:-loopforge}"
+  else
+    DB_PASSWORD_VAL="${POSTGRES_PASSWORD:-postgres}"
+  fi
+  if PGPASSWORD="$DB_PASSWORD_VAL" psql -h ${DB_HOST:-postgres} -p ${DB_PORT:-5432} -U $DB_USER_VAL -d loopforge -c "SELECT 1 FROM users LIMIT 1" > /dev/null 2>&1; then
     log_success "Database schema is ready!"
     break
   fi
