@@ -6,3 +6,11 @@ export type { PlanStep, PlanResult } from "./task-plan";
 export { parsePlanContent, calculatePlanSummary } from "./task-plan";
 export { TaskActions } from "./task-actions";
 export { statusConfig, workflowSteps } from "./task-config";
+export { DetailsTab } from "./details-tab";
+export { ExecutionSummary } from "./execution-summary";
+export {
+  stripMarkdownCodeBlocks,
+  parseBrainstormResult,
+  renderFormattedText,
+  type BrainstormResult,
+} from "./utils";

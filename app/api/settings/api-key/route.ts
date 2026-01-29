@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/api";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -7,49 +7,49 @@ import { encryptApiKey } from "@/lib/crypto/keys";
 import type { AiProvider } from "@/lib/db/schema";
 
 // POST: Set or update an API key for a provider
-export async function POST(request: NextRequest) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { user }) => {
   const body = await request.json();
   const { provider, apiKey } = body as { provider: AiProvider; apiKey: string };
 
   if (!provider || !apiKey) {
     return NextResponse.json(
       { error: "Provider and API key are required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (!["anthropic", "openai", "gemini"].includes(provider)) {
     return NextResponse.json(
       { error: "Invalid provider. Supported: anthropic, openai, gemini" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   // Validate API key format
   if (provider === "anthropic" && !apiKey.startsWith("sk-ant-")) {
     return NextResponse.json(
-      { error: "Invalid Anthropic API key format. Key should start with sk-ant-" },
-      { status: 400 }
+      {
+        error:
+          "Invalid Anthropic API key format. Key should start with sk-ant-",
+      },
+      { status: 400 },
     );
   }
 
   if (provider === "openai" && !apiKey.startsWith("sk-")) {
     return NextResponse.json(
       { error: "Invalid OpenAI API key format. Key should start with sk-" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (provider === "gemini" && !apiKey.startsWith("AIza")) {
     return NextResponse.json(
-      { error: "Invalid Google Gemini API key format. Key should start with AIza" },
-      { status: 400 }
+      {
+        error:
+          "Invalid Google Gemini API key format. Key should start with AIza",
+      },
+      { status: 400 },
     );
   }
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       ...updateData,
       updatedAt: new Date(),
     })
-    .where(eq(users.id, session.user.id));
+    .where(eq(users.id, user.id));
 
   // Return masked key
   const maskedKey =
@@ -85,30 +85,24 @@ export async function POST(request: NextRequest) {
     provider,
     maskedKey,
   });
-}
+});
 
 // DELETE: Remove an API key for a provider
-export async function DELETE(request: NextRequest) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const DELETE = withAuth(async (request, { user }) => {
   const { searchParams } = new URL(request.url);
   const provider = searchParams.get("provider") as AiProvider | null;
 
   if (!provider) {
     return NextResponse.json(
       { error: "Provider is required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (!["anthropic", "openai", "gemini"].includes(provider)) {
     return NextResponse.json(
       { error: "Invalid provider. Supported: anthropic, openai, gemini" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -126,10 +120,10 @@ export async function DELETE(request: NextRequest) {
       ...updateData,
       updatedAt: new Date(),
     })
-    .where(eq(users.id, session.user.id));
+    .where(eq(users.id, user.id));
 
   return NextResponse.json({
     success: true,
     provider,
   });
-}
+});

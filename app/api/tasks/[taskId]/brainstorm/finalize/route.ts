@@ -1,31 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getConversation, deleteConversation } from "@/lib/ai";
+import { withTask } from "@/lib/api";
 import { apiLogger } from "@/lib/logger";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export const POST = withTask(async (request, { taskId }) => {
   // Get conversation
   const conversation = getConversation(taskId);
   if (!conversation || !conversation.currentPreview) {
@@ -64,4 +44,4 @@ export async function POST(
       { status: 500 },
     );
   }
-}
+});

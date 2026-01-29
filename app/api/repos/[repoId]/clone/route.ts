@@ -7,6 +7,7 @@ import { queueIndexing } from "@/lib/queue";
 import simpleGit from "simple-git";
 import path from "path";
 import fs from "fs/promises";
+import { handleError, Errors } from "@/lib/errors";
 
 const REPOS_DIR = process.env.REPOS_DIR || "/app/repos";
 
@@ -22,7 +23,7 @@ export async function POST(
   const { repoId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Get repo
@@ -31,10 +32,7 @@ export async function POST(
   });
 
   if (!repo) {
-    return NextResponse.json(
-      { error: "Repository not found" },
-      { status: 404 },
-    );
+    return handleError(Errors.notFound("Repository"));
   }
 
   // Check if already cloned
@@ -71,10 +69,7 @@ export async function POST(
   });
 
   if (!user?.encryptedGithubToken || !user?.githubTokenIv) {
-    return NextResponse.json(
-      { error: "GitHub token not configured" },
-      { status: 400 },
-    );
+    return handleError(Errors.invalidRequest("GitHub token not configured"));
   }
 
   let githubToken: string;
@@ -84,10 +79,7 @@ export async function POST(
       iv: user.githubTokenIv,
     });
   } catch {
-    return NextResponse.json(
-      { error: "Failed to decrypt GitHub token" },
-      { status: 500 },
-    );
+    return handleError(Errors.serverError());
   }
 
   // Build authenticated clone URL
@@ -170,13 +162,6 @@ export async function POST(
       indexingJobId,
     });
   } catch (error) {
-    console.error("Clone error:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to clone repository",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    );
+    return handleError(error);
   }
 }

@@ -4,6 +4,7 @@ import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getConversation } from "@/lib/ai";
 import { apiLogger } from "@/lib/logger";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function POST(
   request: Request,
@@ -13,7 +14,7 @@ export async function POST(
   const { taskId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Get task with repo to verify ownership
@@ -23,7 +24,7 @@ export async function POST(
   });
 
   if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Task"));
   }
 
   // Get conversation from memory
@@ -74,9 +75,6 @@ export async function POST(
     });
   } catch (error) {
     apiLogger.error({ taskId, error }, "Brainstorm save error");
-    return NextResponse.json(
-      { error: "Failed to save brainstorm progress." },
-      { status: 500 },
-    );
+    return handleError(error);
   }
 }

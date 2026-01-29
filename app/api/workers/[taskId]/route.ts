@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, executions, executionEvents } from "@/lib/db";
 import { eq, desc, asc } from "drizzle-orm";
+import { handleError, Errors } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   const session = await auth();
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   const { taskId } = await params;
@@ -28,12 +29,12 @@ export async function GET(request: Request, { params }: RouteParams) {
   });
 
   if (!task) {
-    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    return handleError(Errors.notFound("Task"));
   }
 
   // Verify the user owns the repo
   if (task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    return handleError(Errors.forbidden());
   }
 
   // Get the latest execution for this task
@@ -43,7 +44,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   });
 
   // Get execution events if there's an execution
-  let events: typeof executionEvents.$inferSelect[] = [];
+  let events: (typeof executionEvents.$inferSelect)[] = [];
   if (execution) {
     events = await db.query.executionEvents.findMany({
       where: eq(executionEvents.executionId, execution.id),

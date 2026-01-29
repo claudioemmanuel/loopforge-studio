@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   Clock,
   FileText,
-  Lightbulb,
   Play,
   Terminal,
   BookOpen,
@@ -23,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { WorkerJobPhase } from "@/lib/db/schema";
+import { STATUS_CONFIG } from "@/lib/constants/status-config";
 
 // Event icons mapping
 const eventIcons: Record<
@@ -50,6 +50,7 @@ const eventColors: Record<string, string> = {
 };
 
 // Phase badge configuration - using app's muted palette
+// Icons are derived from the shared STATUS_CONFIG; colors are component-specific.
 const phaseBadgeConfig: Record<
   WorkerJobPhase,
   {
@@ -61,19 +62,19 @@ const phaseBadgeConfig: Record<
 > = {
   brainstorming: {
     label: "Brainstorm",
-    icon: Lightbulb,
+    icon: STATUS_CONFIG.brainstorming.icon,
     bgColor: "bg-secondary",
     textColor: "text-secondary-foreground",
   },
   planning: {
     label: "Planning",
-    icon: FileText,
+    icon: STATUS_CONFIG.planning.icon,
     bgColor: "bg-secondary",
     textColor: "text-secondary-foreground",
   },
   executing: {
     label: "Execution",
-    icon: Play,
+    icon: STATUS_CONFIG.executing.icon,
     bgColor: "bg-primary/10",
     textColor: "text-primary",
   },

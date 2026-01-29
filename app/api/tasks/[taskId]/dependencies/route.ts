@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { db, tasks, taskDependencies } from "@/lib/db";
 import { eq, and, notInArray } from "drizzle-orm";
+import { withTask } from "@/lib/api";
+import { handleError, Errors } from "@/lib/errors";
 
 // GET - Get task dependencies
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get task and verify ownership
-  const task = await db.query.tasks.findFirst({
+export const GET = withTask(async (request, { task, taskId }) => {
+  // Re-fetch task with dependency relations (withTask only provides { repo })
+  const taskWithDeps = await db.query.tasks.findFirst({
     where: eq(tasks.id, taskId),
     with: {
       repo: true,
@@ -33,12 +24,12 @@ export async function GET(
     },
   });
 
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!taskWithDeps) {
+    return handleError(Errors.notFound("Task"));
   }
 
   // Get tasks that block this one (dependencies)
-  const blockedBy = task.dependencies.map((dep) => ({
+  const blockedBy = taskWithDeps.dependencies.map((dep) => ({
     dependency: {
       id: dep.id,
       taskId: dep.taskId,
@@ -49,7 +40,7 @@ export async function GET(
   }));
 
   // Get tasks that this task blocks (dependents)
-  const blocks = task.dependents.map((dep) => ({
+  const blocks = taskWithDeps.dependents.map((dep) => ({
     dependency: {
       id: dep.id,
       taskId: dep.taskId,
@@ -75,38 +66,15 @@ export async function GET(
     autoExecuteWhenUnblocked: task.autoExecuteWhenUnblocked ?? false,
     dependencyPriority: task.dependencyPriority ?? 0,
   });
-}
+});
 
 // POST - Add a dependency
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withTask(async (request, { task, taskId }) => {
   const body = await request.json();
   const { blockedById } = body;
 
   if (!blockedById) {
-    return NextResponse.json(
-      { error: "blockedById is required" },
-      { status: 400 },
-    );
-  }
-
-  // Get task and verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    return handleError(Errors.invalidRequest("blockedById is required"));
   }
 
   // Verify blocker task exists and is in same repo
@@ -115,18 +83,12 @@ export async function POST(
   });
 
   if (!blockerTask) {
-    return NextResponse.json(
-      { error: "Blocker task not found" },
-      { status: 404 },
-    );
+    return handleError(Errors.notFound("Blocker task"));
   }
 
   // Prevent self-dependency
   if (taskId === blockedById) {
-    return NextResponse.json(
-      { error: "Cannot depend on self" },
-      { status: 400 },
-    );
+    return handleError(Errors.invalidRequest("Cannot depend on self"));
   }
 
   // Check for circular dependency
@@ -153,9 +115,8 @@ export async function POST(
   };
 
   if (await checkCircular(blockedById)) {
-    return NextResponse.json(
-      { error: "Would create circular dependency" },
-      { status: 400 },
+    return handleError(
+      Errors.invalidRequest("Would create circular dependency"),
     );
   }
 
@@ -168,10 +129,7 @@ export async function POST(
   });
 
   if (existing) {
-    return NextResponse.json(
-      { error: "Dependency already exists" },
-      { status: 409 },
-    );
+    return handleError(Errors.conflict("Dependency already exists"));
   }
 
   // Create the dependency
@@ -196,38 +154,15 @@ export async function POST(
     .where(eq(tasks.id, taskId));
 
   return NextResponse.json(newDependency);
-}
+});
 
 // DELETE - Remove a dependency
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const DELETE = withTask(async (request, { task, taskId }) => {
   const body = await request.json();
   const { blockedById } = body;
 
   if (!blockedById) {
-    return NextResponse.json(
-      { error: "blockedById is required" },
-      { status: 400 },
-    );
-  }
-
-  // Get task and verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    return handleError(Errors.invalidRequest("blockedById is required"));
   }
 
   // Delete the dependency
@@ -251,32 +186,12 @@ export async function DELETE(
     .where(eq(tasks.id, taskId));
 
   return NextResponse.json({ success: true });
-}
+});
 
 // PATCH - Update dependency settings
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const PATCH = withTask(async (request, { taskId }) => {
   const body = await request.json();
   const { autoExecuteWhenUnblocked, dependencyPriority } = body;
-
-  // Get task and verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Task not found" }, { status: 404 });
-  }
 
   // Build update object
   const updates: Record<string, unknown> = {
@@ -295,4 +210,4 @@ export async function PATCH(
   await db.update(tasks).set(updates).where(eq(tasks.id, taskId));
 
   return NextResponse.json({ success: true, ...updates });
-}
+});

@@ -7,7 +7,6 @@ export interface ExecutionJobData {
   taskId: string;
   repoId: string;
   userId: string;
-  apiKey: string;
   aiProvider: AiProvider;
   preferredModel: string;
   planContent: string;

@@ -4,7 +4,6 @@
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
@@ -15,20 +14,11 @@ import {
 } from "@/lib/db/execution-commits";
 import { revertCommits } from "@/lib/ralph/git-operations";
 import type { StatusHistoryEntry } from "@/lib/db/schema";
+import { withTask } from "@/lib/api";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
+export const POST = withTask(async (request, { user, task, taskId }) => {
+  // Re-fetch task with executions relation (withTask only provides { repo })
+  const taskWithExecutions = await db.query.tasks.findFirst({
     where: eq(tasks.id, taskId),
     with: {
       repo: true,
@@ -36,11 +26,7 @@ export async function POST(
     },
   });
 
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  const latestExecution = task.executions?.[0];
+  const latestExecution = taskWithExecutions?.executions?.[0];
   if (!latestExecution) {
     return NextResponse.json(
       { error: "No execution found for task" },
@@ -115,7 +101,7 @@ export async function POST(
       to: "stuck",
       timestamp: new Date().toISOString(),
       triggeredBy: "user",
-      userId: session.user.id,
+      userId: user.id,
     };
 
     await db
@@ -148,4 +134,4 @@ export async function POST(
       { status: 500 },
     );
   }
-}
+});

@@ -1,81 +1,17 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, tasks, users, executions } from "@/lib/db";
+import { db, tasks, executions } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
-import { decryptApiKey } from "@/lib/crypto";
-import type { AiProvider, User } from "@/lib/db/schema";
-import { getDefaultModel } from "@/lib/ai/client";
+import {
+  withTask,
+  getProviderApiKey,
+  getPreferredModel,
+  findConfiguredProvider,
+} from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 
-// Helper to get API key for a specific provider
-function getProviderApiKey(
-  user: User,
-  provider: AiProvider,
-): { encrypted: string; iv: string } | null {
-  switch (provider) {
-    case "anthropic":
-      if (user.encryptedApiKey && user.apiKeyIv) {
-        return { encrypted: user.encryptedApiKey, iv: user.apiKeyIv };
-      }
-      return null;
-    case "openai":
-      if (user.openaiEncryptedApiKey && user.openaiApiKeyIv) {
-        return {
-          encrypted: user.openaiEncryptedApiKey,
-          iv: user.openaiApiKeyIv,
-        };
-      }
-      return null;
-    case "gemini":
-      if (user.geminiEncryptedApiKey && user.geminiApiKeyIv) {
-        return {
-          encrypted: user.geminiEncryptedApiKey,
-          iv: user.geminiApiKeyIv,
-        };
-      }
-      return null;
-    default:
-      return null;
-  }
-}
-
-// Helper to get preferred model for a provider
-function getPreferredModel(user: User, provider: AiProvider): string {
-  switch (provider) {
-    case "anthropic":
-      return user.preferredAnthropicModel || getDefaultModel("anthropic");
-    case "openai":
-      return user.preferredOpenaiModel || getDefaultModel("openai");
-    case "gemini":
-      return user.preferredGeminiModel || getDefaultModel("gemini");
-    default:
-      return getDefaultModel("anthropic");
-  }
-}
-
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export const POST = withTask(async (request, { user, task, taskId }) => {
   if (task.status !== "ready") {
     return NextResponse.json(
       { error: "Task must be in ready status to execute" },
@@ -117,40 +53,8 @@ export async function POST(
     }
   }
 
-  // Get user details
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, session.user.id),
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  // Determine AI provider and API key based on billing mode
-  // Find a valid provider with an API key configured
-  const findConfiguredProvider = (): AiProvider | null => {
-    const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
-
-    // First try the user's preferred provider
-    if (
-      user.preferredProvider &&
-      getProviderApiKey(user, user.preferredProvider)
-    ) {
-      return user.preferredProvider;
-    }
-
-    // Fall back to any configured provider
-    for (const provider of providers) {
-      if (getProviderApiKey(user, provider)) {
-        return provider;
-      }
-    }
-
-    return null;
-  };
-
   // BYOK only: User needs at least one API key configured
-  const configuredProvider = findConfiguredProvider();
+  const configuredProvider = findConfiguredProvider(user);
   if (!configuredProvider) {
     return handleError(Errors.noProviderConfigured());
   }
@@ -160,7 +64,6 @@ export async function POST(
     return handleError(Errors.authError(configuredProvider));
   }
 
-  const apiKey = decryptApiKey(encryptedKey);
   const finalProvider = configuredProvider;
   const finalModel = getPreferredModel(user, configuredProvider);
 
@@ -203,12 +106,12 @@ export async function POST(
     });
 
     // Queue the execution job
+    // Worker will decrypt API key on demand using userId
     const job = await queueExecution({
       executionId,
       taskId: task.id,
       repoId: task.repoId,
-      userId: session.user.id,
-      apiKey,
+      userId: user.id,
       aiProvider: finalProvider,
       preferredModel: finalModel,
       planContent: task.planContent,
@@ -242,4 +145,4 @@ export async function POST(
 
     return handleError(error);
   }
-}
+});

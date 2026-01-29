@@ -15,22 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Task } from "@/lib/db/schema";
-
-// Helper to strip markdown code blocks
-function stripMarkdownCodeBlocks(text: string): string {
-  let cleaned = text.trim();
-  // Remove opening code fence with optional language
-  if (cleaned.startsWith("```json")) {
-    cleaned = cleaned.slice(7);
-  } else if (cleaned.startsWith("```")) {
-    cleaned = cleaned.slice(3);
-  }
-  // Remove closing code fence
-  if (cleaned.endsWith("```")) {
-    cleaned = cleaned.slice(0, -3);
-  }
-  return cleaned.trim();
-}
+import { stripMarkdownCodeBlocks } from "./utils";
 
 // Plan data interfaces
 export interface PlanStep {

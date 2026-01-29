@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { Squircle, useSquircle } from "@/components/ui/squircle";
 
 // Brand icons as SVG components - Official Anthropic "A" mark
 function ClaudeIcon({ className }: { className?: string }) {
@@ -137,6 +139,109 @@ const stats = [
   { value: "Self-Host", label: "Deploy Anywhere", numericValue: null },
 ];
 
+function CapabilityDot() {
+  const squircle = useSquircle({ cornerRadius: "full" });
+  return (
+    <span
+      ref={squircle.ref as React.RefObject<HTMLSpanElement>}
+      className="w-1.5 h-1.5 rounded-full bg-primary/60"
+      style={squircle.style}
+    />
+  );
+}
+
+function ProviderCard({
+  provider,
+  index,
+}: {
+  provider: (typeof providers)[0];
+  index: number;
+}) {
+  const Icon = provider.Icon;
+  const animationDelay = `animation-delay-${(index + 1) * 100}`;
+  const [isHovered, setIsHovered] = useState(false);
+  const cardSquircle = useSquircle({ cornerRadius: "xl" });
+
+  return (
+    <HoverCard openDelay={200} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <div
+          ref={cardSquircle.ref as React.RefObject<HTMLDivElement>}
+          className={`group relative flex items-center gap-4 px-6 py-4 rounded-xl bg-card/50
+            opacity-0 animate-fade-up ${animationDelay}
+            transition-all duration-300 ease-out cursor-pointer
+            hover:scale-[1.03] hover:bg-card/80`}
+          style={{
+            ...cardSquircle.style,
+            filter: isHovered
+              ? "drop-shadow(0 20px 25px hsl(var(--primary) / 0.1))"
+              : "none",
+          }}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          <div className="w-10 h-10 flex items-center justify-center">
+            <Icon
+              className={`w-8 h-8 ${provider.color} transition-transform duration-300 group-hover:scale-110`}
+            />
+          </div>
+          <div>
+            <h3 className="font-semibold">{provider.name}</h3>
+            <p className="text-sm text-muted-foreground">
+              {provider.description}
+            </p>
+          </div>
+          {/* SVG border overlay */}
+          {cardSquircle.svgPath && (
+            <svg
+              aria-hidden
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{ position: "absolute", inset: 0 }}
+            >
+              <path
+                d={cardSquircle.svgPath}
+                fill="none"
+                stroke={
+                  isHovered ? "hsl(var(--primary) / 0.3)" : "hsl(var(--border))"
+                }
+                strokeWidth={1}
+                className="transition-all duration-300"
+              />
+            </svg>
+          )}
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-80" align="center">
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <Icon className={`w-6 h-6 ${provider.color}`} />
+            <h4 className="font-semibold">{provider.name}</h4>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Capabilities
+            </p>
+            <ul className="space-y-1">
+              {provider.capabilities.map((cap) => (
+                <li key={cap} className="text-sm flex items-center gap-2">
+                  <CapabilityDot />
+                  {cap}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+              Best For
+            </p>
+            <p className="text-sm text-foreground">{provider.bestFor}</p>
+          </div>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
 function StatItem({ stat, index }: { stat: (typeof stats)[0]; index: number }) {
   return (
     <div
@@ -192,78 +297,29 @@ export function Integrations() {
         </div>
 
         <div className="flex flex-wrap justify-center gap-4 mb-20">
-          {providers.map((provider, index) => {
-            const Icon = provider.Icon;
-            const animationDelay = `animation-delay-${(index + 1) * 100}`;
-
-            return (
-              <HoverCard key={provider.name} openDelay={200} closeDelay={100}>
-                <HoverCardTrigger asChild>
-                  <div
-                    className={`group relative flex items-center gap-4 px-6 py-4 rounded-xl border bg-card/50
-                      opacity-0 animate-fade-up ${animationDelay}
-                      transition-all duration-300 ease-out cursor-pointer
-                      hover:scale-[1.03] hover:shadow-xl hover:shadow-primary/10
-                      border-border hover:border-primary/30 hover:bg-card/80`}
-                  >
-                    <div className="w-10 h-10 flex items-center justify-center">
-                      <Icon
-                        className={`w-8 h-8 ${provider.color} transition-transform duration-300 group-hover:scale-110`}
-                      />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">{provider.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {provider.description}
-                      </p>
-                    </div>
-                  </div>
-                </HoverCardTrigger>
-                <HoverCardContent className="w-80" align="center">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Icon className={`w-6 h-6 ${provider.color}`} />
-                      <h4 className="font-semibold">{provider.name}</h4>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-                        Capabilities
-                      </p>
-                      <ul className="space-y-1">
-                        {provider.capabilities.map((cap) => (
-                          <li
-                            key={cap}
-                            className="text-sm flex items-center gap-2"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary/60" />
-                            {cap}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                        Best For
-                      </p>
-                      <p className="text-sm text-foreground">
-                        {provider.bestFor}
-                      </p>
-                    </div>
-                  </div>
-                </HoverCardContent>
-              </HoverCard>
-            );
-          })}
+          {providers.map((provider, index) => (
+            <ProviderCard
+              key={provider.name}
+              provider={provider}
+              index={index}
+            />
+          ))}
         </div>
 
         {/* Platform Highlights */}
         <div className="relative">
+          {/* Blurred bg — keep as-is */}
           <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 rounded-2xl blur-xl -z-10 animate-gradient-shift" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 p-8 md:p-12 rounded-2xl border border-border bg-card/30 backdrop-blur-sm">
+          <Squircle
+            cornerRadius="2xl"
+            borderWidth={1}
+            borderColor="hsl(var(--border))"
+            className="grid grid-cols-2 md:grid-cols-4 gap-8 p-8 md:p-12 rounded-2xl bg-card/30 backdrop-blur-sm"
+          >
             {stats.map((stat, index) => (
               <StatItem key={stat.label} stat={stat} index={index} />
             ))}
-          </div>
+          </Squircle>
         </div>
       </div>
     </section>

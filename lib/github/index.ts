@@ -12,3 +12,8 @@ export {
   getTestCoverageContext,
   type GitHubRepoContext,
 } from "./repo-scanner";
+export {
+  fetchWithRateLimit,
+  RateLimitError,
+  TokenExpiredError,
+} from "./rate-limit";

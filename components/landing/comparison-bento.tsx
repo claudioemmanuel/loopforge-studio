@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ComparisonTable } from "./comparison-table";
+import { Squircle } from "@/components/ui/squircle";
 
 export function ComparisonBento() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -78,9 +79,12 @@ export function ComparisonBento() {
         <ComparisonTable isVisible={isVisible} />
 
         {/* Positioning Callout */}
-        <div
+        <Squircle
+          cornerRadius="xl"
+          borderWidth={1}
+          borderColor="hsl(var(--primary) / 0.2)"
           className={cn(
-            "mt-8 rounded-xl border border-primary/20 bg-primary/5 p-6 text-center transition-all duration-500 md:p-8",
+            "mt-8 rounded-xl bg-primary/5 p-6 text-center transition-all duration-500 md:p-8",
             isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
           )}
           style={{ transitionDelay: isVisible ? "400ms" : "0ms" }}
@@ -93,7 +97,7 @@ export function ComparisonBento() {
             shows you a complete visual workflow of AI agents building your
             software.
           </p>
-        </div>
+        </Squircle>
       </div>
     </section>
   );

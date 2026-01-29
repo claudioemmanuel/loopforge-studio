@@ -1,5 +1,5 @@
 import type { AIClient } from "./client";
-import { extractJSON } from "./brainstorm-chat";
+import { extractJSON } from "./json-extractor";
 import { aiLogger } from "@/lib/logger";
 
 export interface BrainstormResult {

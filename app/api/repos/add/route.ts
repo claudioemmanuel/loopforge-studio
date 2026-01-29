@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { withAuth } from "@/lib/api";
 import { db, repos } from "@/lib/db";
 import { apiLogger } from "@/lib/logger";
 
@@ -16,13 +16,7 @@ interface AddReposRequest {
   repos: GitHubRepo[];
 }
 
-export async function POST(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { user }) => {
   try {
     const body: AddReposRequest = await request.json();
     const { repos: reposToAdd } = body;
@@ -48,7 +42,7 @@ export async function POST(request: Request) {
         .insert(repos)
         .values({
           id: repoId,
-          userId: session.user.id,
+          userId: user.id,
           githubRepoId: String(repoData.id),
           name: repoData.name,
           fullName: repoData.full_name,
@@ -84,4 +78,4 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-}
+});

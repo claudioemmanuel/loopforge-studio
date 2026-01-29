@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { createCheckoutSession, isStripeConfigured } from "@/lib/stripe";
+import { createCheckoutSession, isStripeConfigured } from "@/lib/billing";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function POST(request: Request) {
   if (!isStripeConfigured()) {
-    return NextResponse.json(
-      { error: "Stripe is not configured" },
-      { status: 503 },
-    );
+    return handleError(Errors.invalidRequest("Stripe is not configured"));
   }
 
   const session = await auth();
 
   if (!session?.user?.id || !session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   try {
@@ -21,16 +19,14 @@ export async function POST(request: Request) {
     const { planId, billingCycle } = body;
 
     if (!planId || !billingCycle) {
-      return NextResponse.json(
-        { error: "planId and billingCycle are required" },
-        { status: 400 },
+      return handleError(
+        Errors.invalidRequest("planId and billingCycle are required"),
       );
     }
 
     if (billingCycle !== "monthly" && billingCycle !== "yearly") {
-      return NextResponse.json(
-        { error: "billingCycle must be 'monthly' or 'yearly'" },
-        { status: 400 },
+      return handleError(
+        Errors.invalidRequest("billingCycle must be 'monthly' or 'yearly'"),
       );
     }
 
@@ -46,15 +42,11 @@ export async function POST(request: Request) {
     });
 
     if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+      return handleError(Errors.invalidRequest(result.error));
     }
 
     return NextResponse.json({ url: result.url });
   } catch (error) {
-    console.error("Checkout session error:", error);
-    return NextResponse.json(
-      { error: "Failed to create checkout session" },
-      { status: 500 },
-    );
+    return handleError(error);
   }
 }

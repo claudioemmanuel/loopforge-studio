@@ -1,30 +1,25 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { withAuth } from "@/lib/api";
 import { db, executions, repos, tasks, executionCommits } from "@/lib/db";
 import { eq, and, desc, inArray, count } from "drizzle-orm";
+import { handleError, Errors } from "@/lib/errors";
 
-export async function GET(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { user }) => {
   const { searchParams } = new URL(request.url);
   const repoId = searchParams.get("repoId");
   const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 50);
 
   if (!repoId) {
-    return NextResponse.json({ error: "repoId is required" }, { status: 400 });
+    return handleError(Errors.invalidRequest("repoId is required"));
   }
 
   // Verify repo ownership
   const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
+    where: and(eq(repos.id, repoId), eq(repos.userId, user.id)),
   });
 
   if (!repo) {
-    return NextResponse.json({ error: "Repo not found" }, { status: 404 });
+    return handleError(Errors.notFound("Repository"));
   }
 
   // Get all tasks for this repo
@@ -94,4 +89,4 @@ export async function GET(request: Request) {
   }));
 
   return NextResponse.json({ executions: enrichedExecutions });
-}
+});

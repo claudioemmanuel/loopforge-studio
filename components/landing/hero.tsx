@@ -4,15 +4,19 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { LoopforgeLogo } from "@/components/loopforge-logo";
 import { ArrowRight, Play } from "lucide-react";
+import { Squircle, useSquircle } from "@/components/ui/squircle";
 
 const ModernKanban = dynamic(() =>
   import("./modern-kanban").then((mod) => mod.ModernKanban),
 );
 
 export function Hero() {
+  const primaryCta = useSquircle({ cornerRadius: "lg" });
+  const secondaryCta = useSquircle({ cornerRadius: "lg" });
+
   return (
     <section className="min-h-screen pt-24 pb-8 px-6 flex flex-col items-center justify-center relative overflow-hidden">
-      {/* Background gradient orbs */}
+      {/* Background gradient orbs — keep rounded-full, decorative blurs */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl -z-10" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl -z-10" />
 
@@ -57,20 +61,36 @@ export function Hero() {
 
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4 animate-fade-up animation-delay-400">
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-base font-medium text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/30 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          <div
+            style={{
+              filter: "drop-shadow(0 10px 15px hsl(var(--primary) / 0.25))",
+            }}
           >
-            Start Building Free
-            <ArrowRight className="w-5 h-5" />
-          </Link>
-          <a
-            href="#workflow"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background/50 px-8 py-4 text-base font-medium shadow-sm transition-all hover:bg-muted/50 hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <Link
+              href="/login"
+              ref={primaryCta.ref as React.RefObject<HTMLAnchorElement>}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-base font-medium text-primary-foreground transition-all hover:bg-primary/90 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              style={primaryCta.style}
+            >
+              Start Building Free
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          </div>
+          <Squircle
+            cornerRadius="lg"
+            borderWidth={1}
+            borderColor="hsl(var(--border))"
           >
-            <Play className="w-5 h-5" />
-            See How It Works
-          </a>
+            <a
+              href="#workflow"
+              ref={secondaryCta.ref as React.RefObject<HTMLAnchorElement>}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-background/50 px-8 py-4 text-base font-medium transition-all hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              style={secondaryCta.style}
+            >
+              <Play className="w-5 h-5" />
+              See How It Works
+            </a>
+          </Squircle>
         </div>
       </div>
 

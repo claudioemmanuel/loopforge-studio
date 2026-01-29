@@ -4,7 +4,6 @@
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
@@ -12,31 +11,9 @@ import {
   countPendingChanges,
 } from "@/lib/db/pending-changes";
 import { getLatestTestRun, getTestRunSummary } from "@/lib/db/test-runs";
+import { withTask } from "@/lib/api";
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: true,
-      executions: { limit: 1, orderBy: (e, { desc }) => [desc(e.createdAt)] },
-    },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export const GET = withTask(async (request, { task, taskId }) => {
   // Task should be in review status to have pending changes
   if (task.status !== "review" && task.status !== "executing") {
     return NextResponse.json({
@@ -50,8 +27,15 @@ export async function GET(
   // Get pending changes
   const changes = await getPendingChangesByTask(taskId);
 
-  // Get the latest execution to check for test runs
-  const latestExecution = task.executions?.[0];
+  // Re-fetch task with executions relation to get latest execution
+  const taskWithExecutions = await db.query.tasks.findFirst({
+    where: eq(tasks.id, taskId),
+    with: {
+      executions: { limit: 1, orderBy: (e, { desc }) => [desc(e.createdAt)] },
+    },
+  });
+
+  const latestExecution = taskWithExecutions?.executions?.[0];
   let testRunData = null;
 
   if (latestExecution) {
@@ -85,4 +69,4 @@ export async function GET(
     canApprove: false,
     canReject: false,
   });
-}
+});

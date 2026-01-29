@@ -11,6 +11,7 @@ import { deletePendingChangesByTask } from "@/lib/db/pending-changes";
 import { deleteTestRunsByExecution } from "@/lib/db/test-runs";
 import { discardBranchChanges } from "@/lib/ralph/git-operations";
 import type { StatusHistoryEntry, TaskStatus } from "@/lib/db/schema";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function POST(
   request: Request,
@@ -20,7 +21,7 @@ export async function POST(
   const { taskId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Get task with repo to verify ownership
@@ -33,14 +34,15 @@ export async function POST(
   });
 
   if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Task"));
   }
 
   // Task must be in review status
   if (task.status !== "review") {
-    return NextResponse.json(
-      { error: `Cannot reject changes: task status is ${task.status}` },
-      { status: 400 },
+    return handleError(
+      Errors.invalidRequest(
+        `Cannot reject changes: task status is ${task.status}`,
+      ),
     );
   }
 
@@ -108,13 +110,6 @@ export async function POST(
       reason,
     });
   } catch (error) {
-    console.error("Error rejecting changes:", error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Failed to reject changes",
-      },
-      { status: 500 },
-    );
+    return handleError(error);
   }
 }

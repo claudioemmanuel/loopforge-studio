@@ -38,6 +38,7 @@ import {
   type PlanJobResult,
 } from "../lib/queue";
 import { decryptGithubToken } from "../lib/crypto";
+import { getAIClientConfig } from "../lib/api";
 import {
   createAIClient,
   generatePlan,
@@ -821,26 +822,20 @@ async function handleTaskOrchestration(
           where: eq(users.id, userId),
         });
 
-        if (!user || !user.encryptedApiKey) {
+        if (!user) {
           workerLogger.warn(
             { taskId: task.id, userId },
-            "Cannot auto-execute: user API key not found",
+            "Cannot auto-execute: user not found",
           );
           continue;
         }
 
-        // Decrypt API key
-        let apiKey: string;
-        try {
-          const { decryptApiKey } = await import("../lib/crypto");
-          apiKey = decryptApiKey({
-            encrypted: user.encryptedApiKey,
-            iv: user.apiKeyIv!,
-          });
-        } catch (err) {
-          workerLogger.error(
-            { taskId: task.id, error: err },
-            "Cannot auto-execute: failed to decrypt API key",
+        // Resolve AI config on demand (never store plaintext keys in Redis)
+        const autoExecConfig = getAIClientConfig(user);
+        if (!autoExecConfig) {
+          workerLogger.warn(
+            { taskId: task.id, userId },
+            "Cannot auto-execute: no AI provider configured",
           );
           continue;
         }
@@ -913,16 +908,14 @@ async function handleTaskOrchestration(
           );
         }
 
-        // Queue execution
+        // Queue execution (worker will decrypt API key on demand using userId)
         await queueExecution({
           executionId: execution.id,
           taskId: task.id,
           repoId: task.repoId,
           userId,
-          apiKey,
-          aiProvider: user.preferredProvider || "anthropic",
-          preferredModel:
-            user.preferredAnthropicModel || "claude-sonnet-4-20250514",
+          aiProvider: autoExecConfig.provider,
+          preferredModel: autoExecConfig.model,
           planContent: enhancedPlan,
           branch: task.branch || `loopforge/${task.id.slice(0, 8)}`,
           defaultBranch: task.repo.defaultBranch || "main",
@@ -1001,7 +994,6 @@ async function processExecution(
     executionId,
     taskId,
     userId,
-    apiKey,
     aiProvider,
     preferredModel,
     planContent,
@@ -1024,8 +1016,24 @@ async function processExecution(
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
 
-  // Create AI client with the specified provider
-  const aiClient = await createAIClient(aiProvider, apiKey, preferredModel);
+  // Decrypt API key on demand from user record (never stored in Redis job data)
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+  });
+  if (!user) {
+    throw new Error("User not found");
+  }
+  const aiConfig = getAIClientConfig(user);
+  if (!aiConfig) {
+    throw new Error("No AI provider configured for user");
+  }
+
+  // Create AI client with the decrypted key
+  const aiClient = await createAIClient(
+    aiProvider,
+    aiConfig.apiKey,
+    preferredModel,
+  );
 
   // Update execution status to running
   await db
@@ -2059,15 +2067,7 @@ async function processExecution(
 async function processBrainstorm(
   job: Job<BrainstormJobData, BrainstormJobResult>,
 ): Promise<BrainstormJobResult> {
-  const {
-    taskId,
-    userId,
-    repoId,
-    apiKey,
-    aiProvider,
-    preferredModel,
-    continueToPlanning,
-  } = job.data;
+  const { taskId, userId, repoId, continueToPlanning } = job.data;
 
   workerLogger.info({ taskId }, "Starting brainstorm");
 
@@ -2096,15 +2096,31 @@ async function processBrainstorm(
 
     const startedAt = task.processingStartedAt || new Date();
 
+    // Decrypt API key on demand from user record (never stored in Redis job data)
+    const brainstormUser = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!brainstormUser) {
+      throw new Error("User not found");
+    }
+    const brainstormAiConfig = getAIClientConfig(brainstormUser);
+    if (!brainstormAiConfig) {
+      throw new Error("No AI provider configured for user");
+    }
+
     // Create AI client
-    const client = await createAIClient(aiProvider, apiKey, preferredModel);
+    const client = await createAIClient(
+      brainstormAiConfig.provider,
+      brainstormAiConfig.apiKey,
+      brainstormAiConfig.model,
+    );
 
     // Emit thinking event to worker_events
     await db.insert(workerEvents).values({
       workerJobId: workerJob.id,
       eventType: "thinking",
       content: "Scanning repository context...",
-      metadata: { model: preferredModel } as WorkerEventMetadata,
+      metadata: { model: brainstormAiConfig.model } as WorkerEventMetadata,
     });
 
     // Update status: Scanning repository...
@@ -2191,7 +2207,7 @@ async function processBrainstorm(
       workerJobId: workerJob.id,
       eventType: "action",
       content: "Generating ideas and requirements...",
-      metadata: { model: preferredModel } as WorkerEventMetadata,
+      metadata: { model: brainstormAiConfig.model } as WorkerEventMetadata,
     });
 
     // Update status: Generating ideas...
@@ -2332,9 +2348,6 @@ async function processBrainstorm(
         taskId,
         userId,
         repoId,
-        apiKey,
-        aiProvider,
-        preferredModel,
         brainstormResult: brainstormResultJson,
         continueToExecution: true,
         repoName: task.repo.name,
@@ -2470,9 +2483,6 @@ async function processPlan(
     taskId,
     userId,
     repoId,
-    apiKey,
-    aiProvider,
-    preferredModel,
     brainstormResult,
     continueToExecution,
     repoName,
@@ -2508,15 +2518,31 @@ async function processPlan(
 
     const startedAt = task.processingStartedAt || new Date();
 
+    // Decrypt API key on demand from user record (never stored in Redis job data)
+    const planUser = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!planUser) {
+      throw new Error("User not found");
+    }
+    const planAiConfig = getAIClientConfig(planUser);
+    if (!planAiConfig) {
+      throw new Error("No AI provider configured for user");
+    }
+
     // Create AI client
-    const client = await createAIClient(aiProvider, apiKey, preferredModel);
+    const client = await createAIClient(
+      planAiConfig.provider,
+      planAiConfig.apiKey,
+      planAiConfig.model,
+    );
 
     // Emit thinking event to worker_events
     await db.insert(workerEvents).values({
       workerJobId: workerJob.id,
       eventType: "thinking",
       content: "Reviewing brainstorm results...",
-      metadata: { model: preferredModel } as WorkerEventMetadata,
+      metadata: { model: planAiConfig.model } as WorkerEventMetadata,
     });
 
     // Update status: Reviewing brainstorm...
@@ -2547,7 +2573,7 @@ async function processPlan(
       workerJobId: workerJob.id,
       eventType: "action",
       content: "Designing implementation plan...",
-      metadata: { model: preferredModel } as WorkerEventMetadata,
+      metadata: { model: planAiConfig.model } as WorkerEventMetadata,
     });
 
     // Update status: Designing plan...
@@ -2731,14 +2757,14 @@ async function processPlan(
         .where(eq(tasks.id, taskId));
 
       // Queue execution
+      // Worker will decrypt API key on demand using userId
       await queueExecution({
         executionId: execution.id,
         taskId,
         repoId,
         userId,
-        apiKey,
-        aiProvider,
-        preferredModel,
+        aiProvider: planAiConfig.provider,
+        preferredModel: planAiConfig.model,
         planContent: planContentJson,
         branch: branchName,
         defaultBranch: repoDefaultBranch || task.repo.defaultBranch || "main",
@@ -2954,6 +2980,21 @@ planWorker.on("error", (err) => {
 });
 
 workerLogger.info("Plan worker started");
+
+// Graceful shutdown handler
+async function gracefulShutdown(signal: string) {
+  workerLogger.info({ signal }, "Received shutdown signal, closing workers...");
+  await Promise.allSettled([
+    worker.close(),
+    autonomousWorker.close(),
+    brainstormWorker.close(),
+    planWorker.close(),
+  ]);
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 export { worker, autonomousWorker, brainstormWorker, planWorker };
 export default worker;

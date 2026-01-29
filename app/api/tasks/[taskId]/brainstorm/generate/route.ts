@@ -4,51 +4,19 @@ import { db, tasks, users } from "@/lib/db";
 import { eq, and, isNull } from "drizzle-orm";
 import {
   createAIClient,
-  getDefaultModel,
   generateInitialBrainstorm,
   type RepoContext,
 } from "@/lib/ai";
 import { decryptApiKey, decryptGithubToken } from "@/lib/crypto";
-import type { AiProvider, User } from "@/lib/db/schema";
+import {
+  getProviderApiKey,
+  getPreferredModel,
+  findConfiguredProvider,
+} from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { queueAutonomousFlow } from "@/lib/queue";
 import { scanRepoViaGitHub, getTestCoverageContext } from "@/lib/github";
 import { apiLogger } from "@/lib/logger";
-
-function getProviderApiKey(
-  user: User,
-  provider: AiProvider,
-): { encrypted: string; iv: string } | null {
-  switch (provider) {
-    case "anthropic":
-      return user.encryptedApiKey && user.apiKeyIv
-        ? { encrypted: user.encryptedApiKey, iv: user.apiKeyIv }
-        : null;
-    case "openai":
-      return user.openaiEncryptedApiKey && user.openaiApiKeyIv
-        ? { encrypted: user.openaiEncryptedApiKey, iv: user.openaiApiKeyIv }
-        : null;
-    case "gemini":
-      return user.geminiEncryptedApiKey && user.geminiApiKeyIv
-        ? { encrypted: user.geminiEncryptedApiKey, iv: user.geminiApiKeyIv }
-        : null;
-    default:
-      return null;
-  }
-}
-
-function getPreferredModel(user: User, provider: AiProvider): string {
-  switch (provider) {
-    case "anthropic":
-      return user.preferredAnthropicModel || getDefaultModel("anthropic");
-    case "openai":
-      return user.preferredOpenaiModel || getDefaultModel("openai");
-    case "gemini":
-      return user.preferredGeminiModel || getDefaultModel("gemini");
-    default:
-      return getDefaultModel("anthropic");
-  }
-}
 
 /**
  * POST /api/tasks/[taskId]/brainstorm/generate
@@ -66,7 +34,7 @@ export async function POST(
   const { taskId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Get task with repo
@@ -76,7 +44,7 @@ export async function POST(
   });
 
   if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Task"));
   }
 
   // Check if autonomous mode is enabled
@@ -106,13 +74,7 @@ export async function POST(
 
     // If no rows were updated, another request already claimed the slot
     if (claimResult.length === 0) {
-      return NextResponse.json(
-        {
-          error: "Task is already processing",
-          phase: task.processingPhase || "unknown",
-        },
-        { status: 409 },
-      );
+      return handleError(Errors.conflict("Task is already processing"));
     }
 
     try {
@@ -143,10 +105,7 @@ export async function POST(
         .where(eq(tasks.id, taskId));
 
       apiLogger.error({ taskId, error }, "Failed to queue autonomous flow");
-      return NextResponse.json(
-        { error: "Failed to start autonomous flow" },
-        { status: 500 },
-      );
+      return handleError(error);
     }
   }
 
@@ -156,26 +115,11 @@ export async function POST(
   });
 
   if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return handleError(Errors.notFound("User"));
   }
 
   // Find configured provider
-  const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
-  let aiProvider: AiProvider | null = null;
-
-  if (
-    user.preferredProvider &&
-    getProviderApiKey(user, user.preferredProvider)
-  ) {
-    aiProvider = user.preferredProvider;
-  } else {
-    for (const provider of providers) {
-      if (getProviderApiKey(user, provider)) {
-        aiProvider = provider;
-        break;
-      }
-    }
-  }
+  const aiProvider = findConfiguredProvider(user);
 
   if (!aiProvider) {
     return handleError(Errors.noProviderConfigured());
@@ -275,13 +219,7 @@ export async function POST(
 
     // If no rows were updated, another request already claimed the slot
     if (claimResult.length === 0) {
-      return NextResponse.json(
-        {
-          error: "Task is already processing",
-          phase: task.processingPhase || "unknown",
-        },
-        { status: 409 },
-      );
+      return handleError(Errors.conflict("Task is already processing"));
     }
 
     // Generate the initial brainstorm

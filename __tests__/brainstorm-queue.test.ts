@@ -34,36 +34,27 @@ describe("Brainstorm Queue", () => {
         taskId: "task-123",
         userId: "user-456",
         repoId: "repo-789",
-        apiKey: "encrypted-key",
-        aiProvider: "anthropic",
-        preferredModel: "claude-sonnet-4-20250514",
         continueToPlanning: false,
       };
 
       expect(jobData.taskId).toBe("task-123");
       expect(jobData.userId).toBe("user-456");
       expect(jobData.repoId).toBe("repo-789");
-      expect(jobData.apiKey).toBe("encrypted-key");
-      expect(jobData.aiProvider).toBe("anthropic");
-      expect(jobData.preferredModel).toBe("claude-sonnet-4-20250514");
       expect(jobData.continueToPlanning).toBe(false);
     });
 
-    it("should support all AI providers", () => {
-      const providers = ["anthropic", "openai", "gemini"] as const;
-
-      for (const provider of providers) {
-        const jobData: BrainstormJobData = {
-          taskId: "task-123",
-          userId: "user-456",
-          repoId: "repo-789",
-          apiKey: "key",
-          aiProvider: provider,
-          preferredModel: "model",
-          continueToPlanning: true,
-        };
-        expect(jobData.aiProvider).toBe(provider);
-      }
+    it("should not include sensitive fields like apiKey", () => {
+      // BrainstormJobData no longer contains apiKey, aiProvider, or preferredModel.
+      // Workers decrypt API keys on demand using userId.
+      const jobData: BrainstormJobData = {
+        taskId: "task-123",
+        userId: "user-456",
+        repoId: "repo-789",
+        continueToPlanning: true,
+      };
+      expect(jobData).not.toHaveProperty("apiKey");
+      expect(jobData).not.toHaveProperty("aiProvider");
+      expect(jobData).not.toHaveProperty("preferredModel");
     });
 
     it("should support autonomous mode with continueToPlanning flag", () => {
@@ -71,9 +62,6 @@ describe("Brainstorm Queue", () => {
         taskId: "task-123",
         userId: "user-456",
         repoId: "repo-789",
-        apiKey: "key",
-        aiProvider: "anthropic",
-        preferredModel: "model",
         continueToPlanning: true,
       };
 
@@ -124,8 +112,11 @@ describe("Brainstorm Queue", () => {
     });
 
     it("should be able to import queue functions", async () => {
-      const { queueBrainstorm, getBrainstormJobStatus, createBrainstormWorker } =
-        await import("@/lib/queue/brainstorm-queue");
+      const {
+        queueBrainstorm,
+        getBrainstormJobStatus,
+        createBrainstormWorker,
+      } = await import("@/lib/queue/brainstorm-queue");
 
       expect(queueBrainstorm).toBeDefined();
       expect(getBrainstormJobStatus).toBeDefined();
@@ -133,17 +124,13 @@ describe("Brainstorm Queue", () => {
     });
 
     it("should queue a brainstorm job", async () => {
-      const { queueBrainstorm, brainstormQueue } = await import(
-        "@/lib/queue/brainstorm-queue"
-      );
+      const { queueBrainstorm, brainstormQueue } =
+        await import("@/lib/queue/brainstorm-queue");
 
       const jobData: BrainstormJobData = {
         taskId: "task-123",
         userId: "user-456",
         repoId: "repo-789",
-        apiKey: "key",
-        aiProvider: "anthropic",
-        preferredModel: "model",
         continueToPlanning: false,
       };
 
@@ -156,21 +143,21 @@ describe("Brainstorm Queue", () => {
     });
 
     it("should get job status by ID", async () => {
-      const { getBrainstormJobStatus, brainstormQueue } = await import(
-        "@/lib/queue/brainstorm-queue"
-      );
+      const { getBrainstormJobStatus, brainstormQueue } =
+        await import("@/lib/queue/brainstorm-queue");
 
       // Mock job not found
-      (brainstormQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+      (
+        brainstormQueue.getJob as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(null);
 
       const status = await getBrainstormJobStatus("non-existent");
       expect(status).toBeNull();
     });
 
     it("should return job status when job exists", async () => {
-      const { getBrainstormJobStatus, brainstormQueue } = await import(
-        "@/lib/queue/brainstorm-queue"
-      );
+      const { getBrainstormJobStatus, brainstormQueue } =
+        await import("@/lib/queue/brainstorm-queue");
 
       const mockJob = {
         id: "job-123",
@@ -181,7 +168,9 @@ describe("Brainstorm Queue", () => {
         getState: vi.fn().mockResolvedValue("active"),
       };
 
-      (brainstormQueue.getJob as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockJob);
+      (
+        brainstormQueue.getJob as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(mockJob);
 
       const status = await getBrainstormJobStatus("job-123");
       expect(status).toEqual({
@@ -197,9 +186,8 @@ describe("Brainstorm Queue", () => {
 
   describe("Worker creation", () => {
     it("should create a worker with processor function", async () => {
-      const { createBrainstormWorker } = await import(
-        "@/lib/queue/brainstorm-queue"
-      );
+      const { createBrainstormWorker } =
+        await import("@/lib/queue/brainstorm-queue");
 
       const processor = vi.fn().mockResolvedValue({
         success: true,

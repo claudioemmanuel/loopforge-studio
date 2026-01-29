@@ -1,19 +1,14 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { withAuth } from "@/lib/api";
 import { db, users, subscriptionPlans } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { handleError, Errors } from "@/lib/errors";
 
-export async function GET() {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (_request, { user }) => {
   try {
-    // Get user with subscription and plan
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
+    // Re-fetch user with subscription and plan relations
+    const userWithSubscription = await db.query.users.findFirst({
+      where: eq(users.id, user.id),
       with: {
         subscription: {
           with: {
@@ -23,11 +18,11 @@ export async function GET() {
       },
     });
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!userWithSubscription) {
+      return handleError(Errors.notFound("User"));
     }
 
-    const subscription = user.subscription;
+    const subscription = userWithSubscription.subscription;
     const plan = subscription?.plan;
 
     // Determine effective plan (free tier if no subscription)
@@ -38,7 +33,7 @@ export async function GET() {
     const effectivePlan = plan || freePlan;
 
     return NextResponse.json({
-      billingMode: user.billingMode || "byok",
+      billingMode: userWithSubscription.billingMode || "byok",
       hasActiveSubscription: !!subscription && subscription.status === "active",
       subscription: subscription
         ? {
@@ -60,10 +55,6 @@ export async function GET() {
         : null,
     });
   } catch (error) {
-    console.error("Get subscription error:", error);
-    return NextResponse.json(
-      { error: "Failed to get subscription" },
-      { status: 500 },
-    );
+    return handleError(error);
   }
-}
+});

@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { withAuth } from "@/lib/api";
 import { db, activitySummaries, activityEvents, repos } from "@/lib/db";
 import { eq, and, desc, gte, lte } from "drizzle-orm";
+import { handleError, Errors } from "@/lib/errors";
 
 // GET - Fetch daily activity summaries
-export async function GET(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withAuth(async (request, { user }) => {
   const { searchParams } = new URL(request.url);
 
   const repoId = searchParams.get("repoId");
@@ -19,16 +14,16 @@ export async function GET(request: Request) {
   const limit = Math.min(parseInt(searchParams.get("limit") || "30", 10), 90);
 
   // Build query conditions
-  const conditions = [eq(activitySummaries.userId, session.user.id)];
+  const conditions = [eq(activitySummaries.userId, user.id)];
 
   if (repoId) {
     // Verify repo ownership
     const repo = await db.query.repos.findFirst({
-      where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
+      where: and(eq(repos.id, repoId), eq(repos.userId, user.id)),
     });
 
     if (!repo) {
-      return NextResponse.json({ error: "Repo not found" }, { status: 404 });
+      return handleError(Errors.notFound("Repository"));
     }
 
     conditions.push(eq(activitySummaries.repoId, repoId));
@@ -59,7 +54,7 @@ export async function GET(request: Request) {
 
     // Aggregate events by day
     const eventConditions = [
-      eq(activityEvents.userId, session.user.id),
+      eq(activityEvents.userId, user.id),
       gte(activityEvents.createdAt, thirtyDaysAgo),
     ];
 
@@ -130,7 +125,7 @@ export async function GET(request: Request) {
     const generatedSummaries = Array.from(dayStats.values())
       .map((stats) => ({
         id: crypto.randomUUID(),
-        userId: session.user.id,
+        userId: user.id,
         repoId: repoId || null,
         date: stats.date,
         tasksCompleted: stats.tasksCompleted,
@@ -153,31 +148,25 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ summaries });
-}
+});
 
 // POST - Generate or update a daily summary
-export async function POST(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { user }) => {
   const body = await request.json();
   const { repoId, date } = body;
 
   if (!date) {
-    return NextResponse.json({ error: "date is required" }, { status: 400 });
+    return handleError(Errors.invalidRequest("date is required"));
   }
 
   // Verify repo ownership if provided
   if (repoId) {
     const repo = await db.query.repos.findFirst({
-      where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
+      where: and(eq(repos.id, repoId), eq(repos.userId, user.id)),
     });
 
     if (!repo) {
-      return NextResponse.json({ error: "Repo not found" }, { status: 404 });
+      return handleError(Errors.notFound("Repository"));
     }
   }
 
@@ -190,7 +179,7 @@ export async function POST(request: Request) {
 
   // Aggregate events for the day
   const eventConditions = [
-    eq(activityEvents.userId, session.user.id),
+    eq(activityEvents.userId, user.id),
     gte(activityEvents.createdAt, dayStart),
     lte(activityEvents.createdAt, dayEnd),
   ];
@@ -236,7 +225,7 @@ export async function POST(request: Request) {
   const summaryId = crypto.randomUUID();
   const summary = {
     id: summaryId,
-    userId: session.user.id,
+    userId: user.id,
     repoId: repoId || null,
     date: dayStart,
     tasksCompleted,
@@ -264,4 +253,4 @@ export async function POST(request: Request) {
     });
 
   return NextResponse.json(summary);
-}
+});

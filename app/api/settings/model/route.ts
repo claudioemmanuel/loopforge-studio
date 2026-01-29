@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/api";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
@@ -17,13 +17,7 @@ const VALID_MODELS = {
 
 type Provider = keyof typeof VALID_MODELS;
 
-export async function POST(request: NextRequest) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { user }) => {
   try {
     const body = await request.json();
     const { provider, model } = body as { provider: Provider; model: string };
@@ -58,7 +52,7 @@ export async function POST(request: NextRequest) {
       updateData.preferredGeminiModel = model;
     }
 
-    await db.update(users).set(updateData).where(eq(users.id, session.user.id));
+    await db.update(users).set(updateData).where(eq(users.id, user.id));
 
     return NextResponse.json({ success: true, provider, model });
   } catch (error) {
@@ -68,4 +62,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
+});
