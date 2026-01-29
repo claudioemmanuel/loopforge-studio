@@ -1,40 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, tasks, executions, executionEvents } from "@/lib/db";
+import { db, executions, executionEvents } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
+import { withTask } from "@/lib/api";
 
 /**
  * GET /api/tasks/[taskId]/execution
  * Returns task details, latest execution, and all events for the execution page
  */
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get task with repo
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: true,
-    },
-  });
-
-  if (!task) {
-    return NextResponse.json({ error: "Task not found" }, { status: 404 });
-  }
-
-  // Verify user owns the repo
-  if (task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withTask(async (request, { task, taskId }) => {
   // Get latest execution for this task
   const execution = await db.query.executions.findFirst({
     where: eq(executions.taskId, taskId),
@@ -63,4 +36,4 @@ export async function GET(
     execution,
     events,
   });
-}
+});

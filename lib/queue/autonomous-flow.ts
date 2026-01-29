@@ -5,14 +5,17 @@ import { db, tasks, users, repos, executions } from "@/lib/db";
 import { eq, and, or } from "drizzle-orm";
 import {
   createAIClient,
-  getDefaultModel,
   generateInitialBrainstorm,
   generatePlan,
   type RepoContext,
 } from "@/lib/ai";
 import { decryptApiKey, decryptGithubToken } from "@/lib/crypto";
 import { scanRepoViaGitHub } from "@/lib/github/repo-scanner";
-import type { AiProvider, User } from "@/lib/db/schema";
+import {
+  getProviderApiKey,
+  getPreferredModel,
+  findConfiguredProvider,
+} from "@/lib/api";
 import {
   publishWorkerEvent,
   createWorkerUpdateEvent,
@@ -51,42 +54,6 @@ export async function queueAutonomousFlow(
   });
 }
 
-// Helper functions for getting API keys and models
-function getProviderApiKey(
-  user: User,
-  provider: AiProvider,
-): { encrypted: string; iv: string } | null {
-  switch (provider) {
-    case "anthropic":
-      return user.encryptedApiKey && user.apiKeyIv
-        ? { encrypted: user.encryptedApiKey, iv: user.apiKeyIv }
-        : null;
-    case "openai":
-      return user.openaiEncryptedApiKey && user.openaiApiKeyIv
-        ? { encrypted: user.openaiEncryptedApiKey, iv: user.openaiApiKeyIv }
-        : null;
-    case "gemini":
-      return user.geminiEncryptedApiKey && user.geminiApiKeyIv
-        ? { encrypted: user.geminiEncryptedApiKey, iv: user.geminiApiKeyIv }
-        : null;
-    default:
-      return null;
-  }
-}
-
-function getPreferredModel(user: User, provider: AiProvider): string {
-  switch (provider) {
-    case "anthropic":
-      return user.preferredAnthropicModel || getDefaultModel("anthropic");
-    case "openai":
-      return user.preferredOpenaiModel || getDefaultModel("openai");
-    case "gemini":
-      return user.preferredGeminiModel || getDefaultModel("gemini");
-    default:
-      return getDefaultModel("anthropic");
-  }
-}
-
 // Process autonomous flow
 async function processAutonomousFlow(
   job: Job<AutonomousFlowJobData, AutonomousFlowJobResult>,
@@ -106,22 +73,7 @@ async function processAutonomousFlow(
     }
 
     // Find configured AI provider
-    const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
-    let aiProvider: AiProvider | null = null;
-
-    if (
-      user.preferredProvider &&
-      getProviderApiKey(user, user.preferredProvider)
-    ) {
-      aiProvider = user.preferredProvider;
-    } else {
-      for (const provider of providers) {
-        if (getProviderApiKey(user, provider)) {
-          aiProvider = provider;
-          break;
-        }
-      }
-    }
+    const aiProvider = findConfiguredProvider(user);
 
     if (!aiProvider) {
       throw new Error("No AI provider configured");
@@ -363,12 +315,12 @@ async function processAutonomousFlow(
     await job.updateProgress({ step: "executing", progress: 80 });
 
     // Queue the execution job
+    // Worker will decrypt API key on demand using userId
     const executionData: ExecutionJobData = {
       executionId: execution.id,
       taskId,
       repoId,
       userId,
-      apiKey,
       aiProvider,
       preferredModel: model,
       planContent: JSON.stringify(planResult),

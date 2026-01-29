@@ -133,7 +133,7 @@ describe("Activity Events Schema", () => {
         {
           userId: user.id,
           eventType: "test_run",
-          eventCategory: "test",
+          eventCategory: "system",
           title: "Test run event",
         },
       ]);
@@ -160,8 +160,6 @@ describe("Activity Events Schema", () => {
         "ai_action",
         "git",
         "system",
-        "test",
-        "review",
       ];
 
       for (const category of categories) {

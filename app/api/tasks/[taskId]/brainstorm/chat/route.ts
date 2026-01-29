@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, tasks, users } from "@/lib/db";
+import { db, tasks } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
   createAIClient,
@@ -12,6 +11,7 @@ import {
 } from "@/lib/ai";
 import { handleError, Errors } from "@/lib/errors";
 import {
+  withTask,
   findConfiguredProvider,
   getProviderApiKey,
   getPreferredModel,
@@ -19,17 +19,7 @@ import {
 import { decryptApiKey } from "@/lib/crypto";
 import { apiLogger } from "@/lib/logger";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withTask(async (request, { user, task, taskId }) => {
   // Parse request body early (before other checks) since we need it
   const body = await request.json();
   const { message, choice } = body as { message?: string; choice?: string };
@@ -39,16 +29,6 @@ export async function POST(
       { error: "Message or choice is required" },
       { status: 400 },
     );
-  }
-
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   // Get existing conversation or restore from database/re-initialize
@@ -112,15 +92,6 @@ export async function POST(
       };
       setConversation(taskId, conversation);
     }
-  }
-
-  // Get user
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, session.user.id),
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
   // Find configured provider using shared helper
@@ -190,4 +161,4 @@ export async function POST(
     apiLogger.error({ error }, "Brainstorm chat error");
     return handleError(error);
   }
-}
+});

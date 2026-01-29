@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db, subscriptionPlans } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { isStripeConfigured, getPublishableKey } from "@/lib/stripe";
+import { isStripeConfigured, getPublishableKey } from "@/lib/billing";
+import { handleError } from "@/lib/errors";
 
 export async function GET() {
   try {
@@ -37,7 +38,6 @@ export async function GET() {
       stripePublishableKey: getPublishableKey(),
     });
   } catch (error) {
-    console.error("Get plans error:", error);
-    return NextResponse.json({ error: "Failed to get plans" }, { status: 500 });
+    return handleError(error);
   }
 }

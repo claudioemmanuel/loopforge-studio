@@ -560,7 +560,7 @@ describe("Execution Worker P0 Integration", () => {
     });
 
     it("should format result summary correctly for multiple files", () => {
-      const filesCount = 5;
+      const filesCount: number = 5;
       const testsPassed = false;
 
       const summary = `${filesCount} file${filesCount !== 1 ? "s" : ""} ready for review${testsPassed !== null ? (testsPassed ? ", tests passed" : ", tests failed") : ""}`;
@@ -569,7 +569,7 @@ describe("Execution Worker P0 Integration", () => {
     });
 
     it("should format result summary without test info when tests skipped", () => {
-      const filesCount = 3;
+      const filesCount: number = 3;
       const testsPassed: boolean | null = null;
 
       const summary = `${filesCount} file${filesCount !== 1 ? "s" : ""} ready for review${testsPassed !== null ? (testsPassed ? ", tests passed" : ", tests failed") : ""}`;

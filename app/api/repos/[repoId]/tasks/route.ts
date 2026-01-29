@@ -2,16 +2,17 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, repos, tasks } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { handleError, Errors } from "@/lib/errors";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ repoId: string }> }
+  { params }: { params: Promise<{ repoId: string }> },
 ) {
   const session = await auth();
   const { repoId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Verify repo ownership
@@ -20,7 +21,7 @@ export async function GET(
   });
 
   if (!repo) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Repository"));
   }
 
   const repoTasks = await db.query.tasks.findMany({
@@ -33,13 +34,13 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ repoId: string }> }
+  { params }: { params: Promise<{ repoId: string }> },
 ) {
   const session = await auth();
   const { repoId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Verify repo ownership
@@ -48,14 +49,14 @@ export async function POST(
   });
 
   if (!repo) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Repository"));
   }
 
   const body = await request.json();
   const { title, description, autonomousMode } = body;
 
   if (!title) {
-    return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    return handleError(Errors.invalidRequest("Title is required"));
   }
 
   const taskId = crypto.randomUUID();

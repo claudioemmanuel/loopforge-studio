@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/api";
 import { subDays, startOfDay, endOfDay } from "date-fns";
 import {
   getTaskMetrics,
@@ -8,14 +8,8 @@ import {
   getRepoActivity,
 } from "@/lib/api/analytics";
 
-export async function GET(request: NextRequest) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const searchParams = request.nextUrl.searchParams;
+export const GET = withAuth(async (request, { user }) => {
+  const searchParams = new URL(request.url).searchParams;
   const range = searchParams.get("range") || "week";
 
   let start: Date;
@@ -40,17 +34,13 @@ export async function GET(request: NextRequest) {
 
   const dateRange = { start, end };
 
-  const [
-    taskMetrics,
-    tasksByStatus,
-    dailyCompletions,
-    repoActivity,
-  ] = await Promise.all([
-    getTaskMetrics(session.user.id, dateRange),
-    getTasksByStatus(session.user.id, dateRange),
-    getDailyCompletions(session.user.id, dateRange),
-    getRepoActivity(session.user.id, dateRange),
-  ]);
+  const [taskMetrics, tasksByStatus, dailyCompletions, repoActivity] =
+    await Promise.all([
+      getTaskMetrics(user.id, dateRange),
+      getTasksByStatus(user.id, dateRange),
+      getDailyCompletions(user.id, dateRange),
+      getRepoActivity(user.id, dateRange),
+    ]);
 
   return NextResponse.json({
     taskMetrics,
@@ -59,4 +49,4 @@ export async function GET(request: NextRequest) {
     repoActivity,
     dateRange: { start: start.toISOString(), end: end.toISOString() },
   });
-}
+});

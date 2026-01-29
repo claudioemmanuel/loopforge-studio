@@ -38,7 +38,7 @@ describe("useActivityFeed Hook", () => {
     {
       id: "event-3",
       eventType: "test_run",
-      eventCategory: "test",
+      eventCategory: "system",
       title: "Tests passed",
       createdAt: new Date("2024-01-14T10:00:00Z"),
     },

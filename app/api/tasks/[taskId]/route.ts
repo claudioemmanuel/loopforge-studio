@@ -1,109 +1,22 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, tasks, users, executions } from "@/lib/db";
+import { db, tasks, executions } from "@/lib/db";
 import { eq, and, ne } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
-import { decryptApiKey } from "@/lib/crypto";
-import type {
-  TaskStatus,
-  AiProvider,
-  User,
-  StatusHistoryEntry,
-} from "@/lib/db/schema";
-import { getDefaultModel } from "@/lib/ai/client";
+import type { TaskStatus, StatusHistoryEntry } from "@/lib/db/schema";
+import {
+  withTask,
+  getProviderApiKey,
+  getPreferredModel,
+  findConfiguredProvider,
+} from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 
-// Helper to get API key for a specific provider
-function getProviderApiKey(
-  user: User,
-  provider: AiProvider,
-): { encrypted: string; iv: string } | null {
-  switch (provider) {
-    case "anthropic":
-      if (user.encryptedApiKey && user.apiKeyIv) {
-        return { encrypted: user.encryptedApiKey, iv: user.apiKeyIv };
-      }
-      return null;
-    case "openai":
-      if (user.openaiEncryptedApiKey && user.openaiApiKeyIv) {
-        return {
-          encrypted: user.openaiEncryptedApiKey,
-          iv: user.openaiApiKeyIv,
-        };
-      }
-      return null;
-    case "gemini":
-      if (user.geminiEncryptedApiKey && user.geminiApiKeyIv) {
-        return {
-          encrypted: user.geminiEncryptedApiKey,
-          iv: user.geminiApiKeyIv,
-        };
-      }
-      return null;
-    default:
-      return null;
-  }
-}
-
-// Helper to get preferred model for a provider
-function getPreferredModel(user: User, provider: AiProvider): string {
-  switch (provider) {
-    case "anthropic":
-      return user.preferredAnthropicModel || getDefaultModel("anthropic");
-    case "openai":
-      return user.preferredOpenaiModel || getDefaultModel("openai");
-    case "gemini":
-      return user.preferredGeminiModel || getDefaultModel("gemini");
-    default:
-      return getDefaultModel("anthropic");
-  }
-}
-
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export const GET = withTask(async (request, { task }) => {
   return NextResponse.json(task);
-}
+});
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export const PATCH = withTask(async (request, { user, task, taskId }) => {
   const body = await request.json();
   const updates: Partial<{
     title: string;
@@ -135,7 +48,7 @@ export async function PATCH(
       to: body.status as TaskStatus,
       timestamp: new Date().toISOString(),
       triggeredBy: "user",
-      userId: session.user.id,
+      userId: user.id,
     };
     updates.statusHistory = [...(task.statusHistory || []), historyEntry];
   }
@@ -163,46 +76,13 @@ export async function PATCH(
   if (isMovingToExecuting) {
     // Validate task has a plan
     if (!task.planContent) {
-      return NextResponse.json(
-        { error: "Task must have a plan to execute" },
-        { status: 400 },
+      return handleError(
+        Errors.invalidRequest("Task must have a plan to execute"),
       );
     }
 
-    // Get user details for API key
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    // Determine AI provider and API key based on billing mode
-    // Find a valid provider with an API key configured
-    const findConfiguredProvider = (): AiProvider | null => {
-      const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
-
-      // First try the user's preferred provider
-      if (
-        user.preferredProvider &&
-        getProviderApiKey(user, user.preferredProvider)
-      ) {
-        return user.preferredProvider;
-      }
-
-      // Fall back to any configured provider
-      for (const provider of providers) {
-        if (getProviderApiKey(user, provider)) {
-          return provider;
-        }
-      }
-
-      return null;
-    };
-
     // BYOK only: User needs at least one API key configured
-    const configuredProvider = findConfiguredProvider();
+    const configuredProvider = findConfiguredProvider(user);
     if (!configuredProvider) {
       return handleError(Errors.noProviderConfigured());
     }
@@ -212,7 +92,6 @@ export async function PATCH(
       return handleError(Errors.authError(configuredProvider));
     }
 
-    const apiKey = decryptApiKey(encryptedKey);
     const finalProvider = configuredProvider;
     const finalModel = getPreferredModel(user, configuredProvider);
 
@@ -235,10 +114,7 @@ export async function PATCH(
 
       // If no rows were updated, another request already started execution
       if (claimResult.length === 0) {
-        return NextResponse.json(
-          { error: "Task is already executing" },
-          { status: 409 },
-        );
+        return handleError(Errors.conflict("Task is already executing"));
       }
 
       // Now create execution record (we have exclusive execution rights)
@@ -252,12 +128,12 @@ export async function PATCH(
       });
 
       // Queue the execution job
+      // Worker will decrypt API key on demand using userId
       const job = await queueExecution({
         executionId,
         taskId: task.id,
         repoId: task.repoId,
-        userId: session.user.id,
-        apiKey,
+        userId: user.id,
         aiProvider: finalProvider,
         preferredModel: finalModel,
         planContent: task.planContent,
@@ -304,29 +180,10 @@ export async function PATCH(
   });
 
   return NextResponse.json(updatedTask);
-}
+});
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export const DELETE = withTask(async (request, { taskId }) => {
   await db.delete(tasks).where(eq(tasks.id, taskId));
 
   return NextResponse.json({ success: true });
-}
+});

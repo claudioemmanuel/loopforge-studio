@@ -4,6 +4,7 @@ import { db, tasks, repos, workerJobs, workerEvents } from "@/lib/db";
 import type { WorkerJobPhase, WorkerJobStatus } from "@/lib/db/schema";
 import { eq, and, inArray, desc, asc, sql } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
+import { handleError, Errors } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
   const session = await auth();
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   const userId = session.user.id;
@@ -282,9 +283,6 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     apiLogger.error({ error }, "Error fetching worker history");
-    return NextResponse.json(
-      { error: "Failed to fetch history" },
-      { status: 500 },
-    );
+    return handleError(error);
   }
 }

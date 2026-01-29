@@ -1,14 +1,10 @@
 import { Queue, Worker, Job } from "bullmq";
 import { connectionOptions, createConnectionOptions } from "./connection";
-import type { AiProvider } from "@/lib/db/schema";
 
 export interface BrainstormJobData {
   taskId: string;
   userId: string;
   repoId: string;
-  apiKey: string;
-  aiProvider: AiProvider;
-  preferredModel: string;
   continueToPlanning: boolean; // For autonomous mode
 }
 
@@ -20,14 +16,14 @@ export interface BrainstormJobResult {
 }
 
 // Queue for brainstorm jobs
-export const brainstormQueue = new Queue<BrainstormJobData, BrainstormJobResult>(
-  "brainstorm",
-  { connection: connectionOptions }
-);
+export const brainstormQueue = new Queue<
+  BrainstormJobData,
+  BrainstormJobResult
+>("brainstorm", { connection: connectionOptions });
 
 // Add a job to the queue
 export async function queueBrainstorm(
-  data: BrainstormJobData
+  data: BrainstormJobData,
 ): Promise<Job<BrainstormJobData, BrainstormJobResult>> {
   return brainstormQueue.add("brainstorm", data, {
     removeOnComplete: {
@@ -59,7 +55,9 @@ export async function getBrainstormJobStatus(jobId: string) {
 
 // Create worker (to be used in separate process)
 export function createBrainstormWorker(
-  processor: (job: Job<BrainstormJobData, BrainstormJobResult>) => Promise<BrainstormJobResult>
+  processor: (
+    job: Job<BrainstormJobData, BrainstormJobResult>,
+  ) => Promise<BrainstormJobResult>,
 ) {
   return new Worker<BrainstormJobData, BrainstormJobResult>(
     "brainstorm",
@@ -67,6 +65,6 @@ export function createBrainstormWorker(
     {
       connection: createConnectionOptions(),
       concurrency: 3, // Process up to 3 jobs at a time
-    }
+    },
   );
 }

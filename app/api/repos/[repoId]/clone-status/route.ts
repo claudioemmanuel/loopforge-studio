@@ -4,6 +4,7 @@ import { db, repos } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
+import { handleError, Errors } from "@/lib/errors";
 
 /**
  * GET /api/repos/[repoId]/clone-status
@@ -17,7 +18,7 @@ export async function GET(
   const { repoId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   const repo = await db.query.repos.findFirst({
@@ -28,10 +29,7 @@ export async function GET(
   });
 
   if (!repo) {
-    return NextResponse.json(
-      { error: "Repository not found" },
-      { status: 404 },
-    );
+    return handleError(Errors.notFound("Repository"));
   }
 
   // Check if local path still exists

@@ -97,13 +97,13 @@ describe("Activity Feed Components", () => {
     });
 
     it("should support all event categories", () => {
-      const categories = ["ai_action", "git", "system", "test", "review"];
+      const categories = ["ai_action", "git", "system"] as const;
 
       categories.forEach((category) => {
         const event = {
           id: `event-${category}`,
           eventType: "test",
-          eventCategory: category as const,
+          eventCategory: category,
           title: `Event with ${category}`,
           createdAt: new Date(),
         };
@@ -185,11 +185,16 @@ describe("Activity Feed Components", () => {
 
   describe("Activity Feed Integration", () => {
     it("should handle filter state changes", () => {
-      let filters = {
+      let filters: {
+        search: string;
+        categories: readonly string[];
+        eventTypes: string[];
+        dateRange: { start: Date | null; end: Date | null };
+      } = {
         search: "",
-        categories: ["ai_action", "git", "system"] as const,
-        eventTypes: [] as string[],
-        dateRange: { start: null as Date | null, end: null as Date | null },
+        categories: ["ai_action", "git", "system"],
+        eventTypes: [],
+        dateRange: { start: null, end: null },
       };
 
       const onFiltersChange = (newFilters: typeof filters) => {

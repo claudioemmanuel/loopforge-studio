@@ -79,7 +79,7 @@ export const Errors = {
   rateLimit(
     provider: AiProvider,
     retryAfter: number = 60,
-    originalError?: unknown
+    originalError?: unknown,
   ): APIError {
     const displayName = PROVIDER_DISPLAY_NAMES[provider];
     return new APIError({
@@ -232,6 +232,54 @@ export const Errors = {
         retryAfter: 30,
       },
       originalError,
+    });
+  },
+
+  /**
+   * Unauthorized - user is not authenticated
+   */
+  unauthorized(message?: string): APIError {
+    return new APIError({
+      code: "UNAUTHORIZED",
+      message: message || "You must be signed in to access this resource.",
+      statusCode: 401,
+      severity: "error",
+    });
+  },
+
+  /**
+   * Forbidden - user lacks permission
+   */
+  forbidden(message?: string): APIError {
+    return new APIError({
+      code: "FORBIDDEN",
+      message: message || "You do not have permission to access this resource.",
+      statusCode: 403,
+      severity: "error",
+    });
+  },
+
+  /**
+   * Resource not found
+   */
+  notFound(resource?: string): APIError {
+    return new APIError({
+      code: "NOT_FOUND",
+      message: resource ? `${resource} not found` : "Resource not found",
+      statusCode: 404,
+      severity: "error",
+    });
+  },
+
+  /**
+   * Resource conflict
+   */
+  conflict(message?: string): APIError {
+    return new APIError({
+      code: "CONFLICT",
+      message: message || "Resource conflict",
+      statusCode: 409,
+      severity: "warning",
     });
   },
 

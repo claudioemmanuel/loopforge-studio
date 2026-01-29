@@ -13,6 +13,10 @@ export type ErrorCode =
   | "INVALID_REQUEST"
   | "CONTENT_FILTERED"
   | "MODEL_OVERLOADED"
+  | "NOT_FOUND"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "CONFLICT"
   | "UNKNOWN";
 
 /**

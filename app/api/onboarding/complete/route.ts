@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { withAuth } from "@/lib/api";
 import { db, users, repos } from "@/lib/db";
 import { encryptApiKey } from "@/lib/crypto";
 import { eq } from "drizzle-orm";
@@ -25,13 +25,7 @@ interface CompleteOnboardingRequest {
   model?: string; // Optional, uses default for provider if not specified
 }
 
-export async function POST(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withAuth(async (request, { user }) => {
   try {
     const body: CompleteOnboardingRequest = await request.json();
     const {
@@ -110,10 +104,7 @@ export async function POST(request: Request) {
         break;
     }
 
-    await db
-      .update(users)
-      .set(updateFields)
-      .where(eq(users.id, session.user.id));
+    await db.update(users).set(updateFields).where(eq(users.id, user.id));
 
     // Create repo records using atomic upsert to prevent race condition duplicates
     const repoIds: string[] = [];
@@ -126,7 +117,7 @@ export async function POST(request: Request) {
         .insert(repos)
         .values({
           id: repoId,
-          userId: session.user.id,
+          userId: user.id,
           githubRepoId: String(repoData.id),
           name: repoData.name,
           fullName: repoData.full_name,
@@ -167,4 +158,4 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-}
+});

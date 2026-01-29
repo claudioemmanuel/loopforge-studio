@@ -1,3 +1,5 @@
+import { fetchWithRateLimit } from "./rate-limit";
+
 export interface GitHubRepo {
   id: number;
   name: string;
@@ -20,7 +22,7 @@ export interface GitHubRepo {
 export async function fetchUserRepos(
   accessToken: string,
 ): Promise<GitHubRepo[]> {
-  const response = await fetch(
+  const response = await fetchWithRateLimit(
     "https://api.github.com/user/repos?per_page=100&sort=updated",
     {
       headers: {
@@ -42,7 +44,7 @@ export async function getRepo(
   owner: string,
   repo: string,
 ): Promise<GitHubRepo> {
-  const response = await fetch(
+  const response = await fetchWithRateLimit(
     `https://api.github.com/repos/${owner}/${repo}`,
     {
       headers: {
@@ -82,7 +84,7 @@ export async function createPullRequest(
   accessToken: string,
   input: CreatePullRequestInput,
 ): Promise<PullRequestResult> {
-  const response = await fetch(
+  const response = await fetchWithRateLimit(
     `https://api.github.com/repos/${input.owner}/${input.repo}/pulls`,
     {
       method: "POST",

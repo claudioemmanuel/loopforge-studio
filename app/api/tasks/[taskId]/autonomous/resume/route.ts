@@ -3,57 +3,14 @@ import { auth } from "@/lib/auth";
 import { db, tasks, users, executions } from "@/lib/db";
 import { eq, and, ne } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
-import { decryptApiKey } from "@/lib/crypto";
-import type { AiProvider, User } from "@/lib/db/schema";
-import { getDefaultModel } from "@/lib/ai/client";
+import type { AiProvider } from "@/lib/db/schema";
+import {
+  getProviderApiKey,
+  getPreferredModel,
+  findConfiguredProvider,
+} from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
-
-// Helper to get API key for a specific provider
-function getProviderApiKey(
-  user: User,
-  provider: AiProvider,
-): { encrypted: string; iv: string } | null {
-  switch (provider) {
-    case "anthropic":
-      if (user.encryptedApiKey && user.apiKeyIv) {
-        return { encrypted: user.encryptedApiKey, iv: user.apiKeyIv };
-      }
-      return null;
-    case "openai":
-      if (user.openaiEncryptedApiKey && user.openaiApiKeyIv) {
-        return {
-          encrypted: user.openaiEncryptedApiKey,
-          iv: user.openaiApiKeyIv,
-        };
-      }
-      return null;
-    case "gemini":
-      if (user.geminiEncryptedApiKey && user.geminiApiKeyIv) {
-        return {
-          encrypted: user.geminiEncryptedApiKey,
-          iv: user.geminiApiKeyIv,
-        };
-      }
-      return null;
-    default:
-      return null;
-  }
-}
-
-// Helper to get preferred model for a provider
-function getPreferredModel(user: User, provider: AiProvider): string {
-  switch (provider) {
-    case "anthropic":
-      return user.preferredAnthropicModel || getDefaultModel("anthropic");
-    case "openai":
-      return user.preferredOpenaiModel || getDefaultModel("openai");
-    case "gemini":
-      return user.preferredGeminiModel || getDefaultModel("gemini");
-    default:
-      return getDefaultModel("anthropic");
-  }
-}
 
 // Helper to queue execution for a task with atomic claim
 async function queueTaskExecution(
@@ -65,7 +22,6 @@ async function queueTaskExecution(
     repo: { cloneUrl: string; defaultBranch: string };
   },
   userId: string,
-  apiKey: string,
   provider: AiProvider,
   model: string,
 ) {
@@ -109,12 +65,12 @@ async function queueTaskExecution(
     });
 
     // Queue the execution job
+    // Worker will decrypt API key on demand using userId
     const job = await queueExecution({
       executionId,
       taskId: task.id,
       repoId: task.repoId,
       userId,
-      apiKey,
       aiProvider: provider,
       preferredModel: model,
       planContent: task.planContent,
@@ -159,7 +115,7 @@ export async function POST(
   const { taskId } = await params;
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return handleError(Errors.unauthorized());
   }
 
   // Get task with repo to verify ownership
@@ -169,21 +125,21 @@ export async function POST(
   });
 
   if (!task || task.repo.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return handleError(Errors.notFound("Task"));
   }
 
   // Don't allow enabling autonomous mode during execution or after completion
   if (task.status === "executing") {
-    return NextResponse.json(
-      { error: "Cannot enable autonomous mode while executing" },
-      { status: 400 },
+    return handleError(
+      Errors.invalidRequest("Cannot enable autonomous mode while executing"),
     );
   }
 
   if (task.status === "done") {
-    return NextResponse.json(
-      { error: "Cannot enable autonomous mode for completed tasks" },
-      { status: 400 },
+    return handleError(
+      Errors.invalidRequest(
+        "Cannot enable autonomous mode for completed tasks",
+      ),
     );
   }
 
@@ -195,9 +151,8 @@ export async function POST(
       .set({ autonomousMode: true, updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
     if (!task.planContent) {
-      return NextResponse.json(
-        { error: "Task must have a plan to execute" },
-        { status: 400 },
+      return handleError(
+        Errors.invalidRequest("Task must have a plan to execute"),
       );
     }
 
@@ -207,34 +162,11 @@ export async function POST(
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return handleError(Errors.notFound("User"));
     }
 
-    // Determine AI provider and API key based on billing mode
-    // Find a valid provider with an API key configured
-    const findConfiguredProvider = (): AiProvider | null => {
-      const providers: AiProvider[] = ["anthropic", "openai", "gemini"];
-
-      // First try the user's preferred provider
-      if (
-        user.preferredProvider &&
-        getProviderApiKey(user, user.preferredProvider)
-      ) {
-        return user.preferredProvider;
-      }
-
-      // Fall back to any configured provider
-      for (const provider of providers) {
-        if (getProviderApiKey(user, provider)) {
-          return provider;
-        }
-      }
-
-      return null;
-    };
-
     // BYOK only: User needs at least one API key configured
-    const configuredProvider = findConfiguredProvider();
+    const configuredProvider = findConfiguredProvider(user);
     if (!configuredProvider) {
       return handleError(Errors.noProviderConfigured());
     }
@@ -244,7 +176,6 @@ export async function POST(
       return handleError(Errors.authError(configuredProvider));
     }
 
-    const apiKey = decryptApiKey(encryptedKey);
     const finalProvider = configuredProvider;
     const finalModel = getPreferredModel(user, configuredProvider);
 
@@ -252,7 +183,6 @@ export async function POST(
       const { executionId, jobId } = await queueTaskExecution(
         task,
         session.user.id,
-        apiKey,
         finalProvider,
         finalModel,
       );
