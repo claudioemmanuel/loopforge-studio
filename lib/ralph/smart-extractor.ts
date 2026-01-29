@@ -579,7 +579,9 @@ export async function smartExtractFiles(
         break;
     }
 
-    if (files.length > 0) {
+    // When strategy is explicitly specified, return the result even if no files found
+    // This ensures the method reflects what was actually attempted
+    if (method !== "none") {
       const confidence = calculateConfidence(method, files);
       const retry = shouldRetryExtraction(method, files, previousAttempts);
 

@@ -882,17 +882,20 @@ Loopforge implements 5 critical reliability improvements to strengthen autonomou
 4. **Enhanced File Extraction** - Progressive strategies with confidence scoring
 5. **Test Gate Enforcement** - Policy-based test failure handling
 
-All features are **disabled by default** and controlled via environment variables.
+All features are **enabled by default** for maximum reliability out-of-the-box. They can be disabled individually via environment variables if needed.
 
 #### Feature Flags
 
 ```bash
-# Enable reliability features (all default to false)
+# Reliability features (all default to true - enabled by default)
 ENABLE_STUCK_DETECTOR=true          # Multi-signal stuck detection
 ENABLE_RECOVERY_STRATEGIES=true     # 4-tier error recovery
 ENABLE_COMPLETION_VALIDATION=true   # Plan matching validation
 ENABLE_ENHANCED_EXTRACTION=true     # Progressive extraction strategies
 ENABLE_TEST_GATES=true              # Test policy enforcement
+
+# To disable a feature, set it to false (not recommended for production)
+# ENABLE_STUCK_DETECTOR=false
 ```
 
 #### 1. Multi-Signal Stuck Detection

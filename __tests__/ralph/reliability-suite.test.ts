@@ -26,6 +26,13 @@ const createMockAIClient = (
       reasoning: "Implementation looks good",
     }),
     recovery: "Simplified prompt response",
+    extraction: JSON.stringify([
+      {
+        path: "src/main.ts",
+        action: "modify",
+        content: "export function main() { return 'fixed'; }",
+      },
+    ]),
     ...responses,
   };
 
@@ -36,6 +43,8 @@ const createMockAIClient = (
         return Promise.resolve(defaultResponses.validation);
       if (prompt.includes("recovery"))
         return Promise.resolve(defaultResponses.recovery);
+      if (prompt.includes("extraction") || prompt.includes("file changes"))
+        return Promise.resolve(defaultResponses.extraction);
       return Promise.resolve(defaultResponses.default);
     }),
     getProvider: () => "anthropic",
@@ -129,8 +138,21 @@ describe("Integration: Stuck Detection → Recovery", () => {
   });
 
   it("should generate report with recovery recommendations", () => {
-    const signals = detector.analyze({
+    // Need 3 consecutive errors to trigger consecutive_errors signal
+    detector.analyze({
       iteration: 1,
+      error: "Fatal error",
+      commits: 0,
+      extractionSuccess: false,
+    });
+    detector.analyze({
+      iteration: 2,
+      error: "Fatal error",
+      commits: 0,
+      extractionSuccess: false,
+    });
+    const signals = detector.analyze({
+      iteration: 3,
       error: "Fatal error",
       commits: 0,
       extractionSuccess: false,
@@ -234,6 +256,7 @@ describe("Integration: Completion Validation → Test Gate", () => {
 
   it("should pass validation and test gate for successful completion", async () => {
     // Create and commit files
+    mkdirSync(join(testDir, "src"), { recursive: true });
     writeFileSync(join(testDir, "src/main.ts"), "export const main = 1;");
     execSync("git add .", { cwd: testDir });
     execSync('git commit -m "Add main"', { cwd: testDir });

@@ -135,6 +135,21 @@ export function analyzeTestResults(
     };
   }
 
+  // Check critical failures first (applies to all policies except skip/autoApprove)
+  // This ensures critical failures get proper "critical" messaging
+  if (criticalFailures.length > 0) {
+    return {
+      shouldBlock: true,
+      reason: `${criticalFailures.length} critical test(s) failed: ${criticalFailures.map((f) => f.testName).join(", ")}`,
+      metadata: {
+        policy,
+        failureRate,
+        criticalFailures: criticalFailures.length,
+        totalFailures: results.failed,
+      },
+    };
+  }
+
   // Policy: strict → block on any failure
   if (policy === "strict") {
     if (results.failed > 0) {
@@ -151,21 +166,7 @@ export function analyzeTestResults(
     }
   }
 
-  // Check critical failures (applies to all policies except skip/autoApprove)
-  if (criticalFailures.length > 0) {
-    return {
-      shouldBlock: true,
-      reason: `${criticalFailures.length} critical test(s) failed: ${criticalFailures.map((f) => f.testName).join(", ")}`,
-      metadata: {
-        policy,
-        failureRate,
-        criticalFailures: criticalFailures.length,
-        totalFailures: results.failed,
-      },
-    };
-  }
-
-  // Check failure rate threshold
+  // Check requireAllPassing (applies before warn policy check)
   if (requireAllPassing && results.failed > 0) {
     return {
       shouldBlock: true,
@@ -179,27 +180,50 @@ export function analyzeTestResults(
     };
   }
 
-  if (failureRate > allowedFailureRate) {
+  // For warn policy: check failure rate threshold only if explicitly set
+  // allowedFailureRate=0 (default) means "use policy alone", not "zero tolerance"
+  if (policy === "warn") {
+    if (
+      results.failed > 0 &&
+      allowedFailureRate > 0 &&
+      failureRate > allowedFailureRate
+    ) {
+      // Failure rate explicitly set and exceeded
+      return {
+        shouldBlock: true,
+        reason: `Failure rate ${(failureRate * 100).toFixed(1)}% exceeds threshold ${(allowedFailureRate * 100).toFixed(1)}%`,
+        metadata: {
+          policy,
+          failureRate,
+          criticalFailures: 0,
+          totalFailures: results.failed,
+        },
+      };
+    }
+
+    // Warn policy + failures within limits (or no explicit limit) = don't block
+    if (results.failed > 0) {
+      return {
+        shouldBlock: false,
+        warnings: [
+          `${results.failed} test(s) failed but policy is 'warn'`,
+          "These failures will be noted in PR but not blocked",
+        ],
+        metadata: {
+          policy,
+          failureRate,
+          criticalFailures: 0,
+          totalFailures: results.failed,
+        },
+      };
+    }
+  }
+
+  // Check failure rate thresholds (for other policies)
+  if (allowedFailureRate > 0 && failureRate > allowedFailureRate) {
     return {
       shouldBlock: true,
       reason: `Failure rate ${(failureRate * 100).toFixed(1)}% exceeds threshold ${(allowedFailureRate * 100).toFixed(1)}%`,
-      metadata: {
-        policy,
-        failureRate,
-        criticalFailures: 0,
-        totalFailures: results.failed,
-      },
-    };
-  }
-
-  // Policy: warn → log warnings but don't block
-  if (policy === "warn" && results.failed > 0) {
-    return {
-      shouldBlock: false,
-      warnings: [
-        `${results.failed} test(s) failed but policy is 'warn'`,
-        "These failures will be noted in PR but not blocked",
-      ],
       metadata: {
         policy,
         failureRate,
@@ -288,14 +312,14 @@ export function parseTestOutput(output: string): TestRunResult | null {
     };
   }
 
-  // Try Vitest format
+  // Try Vitest format (supports both "10 total" and "(10)" formats)
   const vitestMatch = output.match(
-    /Test Files\s+(\d+) failed.*?(\d+) passed.*?(\d+) total/is,
+    /Test Files\s+(\d+) failed.*?(\d+) passed.*?(?:(\d+) total|\((\d+)\))/is,
   );
   if (vitestMatch) {
     const failed = parseInt(vitestMatch[1], 10);
     const passed = parseInt(vitestMatch[2], 10);
-    const total = parseInt(vitestMatch[3], 10);
+    const total = parseInt(vitestMatch[3] || vitestMatch[4], 10);
 
     const failures: TestFailure[] = [];
     const failurePattern = /❯\s+(.+?)\n/g;

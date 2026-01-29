@@ -119,6 +119,10 @@ beforeAll(async () => {
     ALTER TABLE repos ADD COLUMN IF NOT EXISTS pr_draft_default BOOLEAN DEFAULT false;
     ALTER TABLE repos ADD COLUMN IF NOT EXISTS pr_reviewers JSONB;
     ALTER TABLE repos ADD COLUMN IF NOT EXISTS pr_labels JSONB;
+    -- Auto-approve and Ralph reliability columns
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS auto_approve BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS test_gate_policy TEXT DEFAULT 'warn';
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS critical_test_patterns JSONB DEFAULT '[]'::jsonb;
 
     CREATE TABLE IF NOT EXISTS tasks (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -158,6 +162,10 @@ beforeAll(async () => {
     -- P0: PR configuration overrides
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pr_target_branch TEXT;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS pr_draft BOOLEAN;
+    -- Auto-approve column (task-level control)
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS auto_approve BOOLEAN NOT NULL DEFAULT false;
+    -- Brainstorm summary column
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS brainstorm_summary TEXT;
 
     CREATE TABLE IF NOT EXISTS executions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -179,6 +187,10 @@ beforeAll(async () => {
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS branch TEXT;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS pr_url TEXT;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS pr_number INTEGER;
+    -- Ralph Loop Reliability Features (2026-01-29)
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS stuck_signals JSONB;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS recovery_attempts JSONB;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS validation_report JSONB;
 
     CREATE TABLE IF NOT EXISTS execution_events (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
