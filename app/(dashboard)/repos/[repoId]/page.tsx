@@ -277,7 +277,11 @@ export default function RepoPage() {
         taskStats={taskStats}
         refreshing={refreshing}
         onRefresh={handleRefresh}
-        onNewTask={() => setShowNewTask(true)}
+        onNewTask={() => {
+          if (repo?.isCloned) {
+            setShowNewTask(true);
+          }
+        }}
         onRepoUpdate={setRepo}
       />
 
@@ -333,7 +337,7 @@ export default function RepoPage() {
       )}
 
       {/* New Task Modal */}
-      {showNewTask && (
+      {showNewTask && repo?.isCloned && (
         <NewTaskModal
           repoId={repoId}
           onClose={() => setShowNewTask(false)}
