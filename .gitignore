@@ -47,6 +47,7 @@ dump.rdb
 
 # Claude Code
 .claude/
+PROMPT-ENGINEERING.md
 
 # OS
 .DS_Store
