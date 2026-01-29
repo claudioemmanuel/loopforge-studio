@@ -5,9 +5,23 @@
 -- Enums
 -- =============================================================================
 
-CREATE TYPE "billing_mode" AS ENUM ('byok', 'managed');
-CREATE TYPE "billing_cycle" AS ENUM ('monthly', 'yearly');
-CREATE TYPE "subscription_status" AS ENUM ('active', 'canceled', 'past_due', 'trialing');
+DO $$ BEGIN
+  CREATE TYPE "billing_mode" AS ENUM ('byok', 'managed');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "billing_cycle" AS ENUM ('monthly', 'yearly');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "subscription_status" AS ENUM ('active', 'canceled', 'past_due', 'trialing');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- =============================================================================
 -- Add billing columns to users table
