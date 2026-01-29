@@ -144,6 +144,7 @@ export const tasks = pgTable("tasks", {
   planContent: text("plan_content"),
   branch: text("branch"),
   autonomousMode: boolean("autonomous_mode").notNull().default(false),
+  autoApprove: boolean("auto_approve").notNull().default(false),
   // Processing state tracking for async operations
   processingPhase: processingPhaseEnum("processing_phase"), // null when not processing
   processingJobId: text("processing_job_id"),
