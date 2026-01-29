@@ -16,7 +16,10 @@ export class AnthropicClient implements AIClient {
     try {
       // Extract system message if present
       let systemPrompt: string | undefined;
-      const conversationMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+      const conversationMessages: Array<{
+        role: "user" | "assistant";
+        content: string;
+      }> = [];
 
       for (const msg of messages) {
         if (msg.role === "system") {
@@ -35,6 +38,17 @@ export class AnthropicClient implements AIClient {
         ...(systemPrompt && { system: systemPrompt }),
         messages: conversationMessages,
       });
+
+      // Extract token usage from response
+      if (options?.onTokenUsage && response.usage) {
+        const tokenUsage = {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+          totalTokens:
+            response.usage.input_tokens + response.usage.output_tokens,
+        };
+        await Promise.resolve(options.onTokenUsage(tokenUsage));
+      }
 
       // Extract text from response
       const text = response.content

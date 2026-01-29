@@ -217,7 +217,7 @@ cat > "$ENV_FILE" << EOF
 
 # Database
 DATABASE_URL=postgresql://loopforge:loopforge@localhost:5432/loopforge
-DATABASE_URL_DOCKER=postgresql://loopforge:loopforge@db:5432/loopforge
+DATABASE_URL_DOCKER=postgresql://loopforge:loopforge@postgres:5432/loopforge
 
 # Redis
 REDIS_URL=redis://localhost:6379

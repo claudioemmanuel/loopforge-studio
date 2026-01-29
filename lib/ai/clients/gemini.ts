@@ -60,6 +60,16 @@ export class GeminiClient implements AIClient {
       const response = result.response;
       const text = response.text();
 
+      // Extract token usage from response
+      if (options?.onTokenUsage && response.usageMetadata) {
+        const tokenUsage = {
+          inputTokens: response.usageMetadata.promptTokenCount || 0,
+          outputTokens: response.usageMetadata.candidatesTokenCount || 0,
+          totalTokens: response.usageMetadata.totalTokenCount || 0,
+        };
+        await Promise.resolve(options.onTokenUsage(tokenUsage));
+      }
+
       return text;
     } catch (error) {
       // Parse and re-throw as APIError

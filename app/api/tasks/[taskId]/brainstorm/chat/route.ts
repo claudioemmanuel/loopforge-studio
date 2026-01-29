@@ -62,6 +62,9 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
           messages: persistedMessages,
           repoContext,
           currentPreview: existingBrainstorm,
+          summary: task.brainstormSummary || undefined,
+          messageCount: task.brainstormMessageCount || undefined,
+          compactedAt: task.brainstormCompactedAt || undefined,
         };
         setConversation(taskId, conversation);
       } catch {
@@ -89,6 +92,9 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
         messages: [],
         repoContext,
         currentPreview: existingBrainstorm,
+        summary: task.brainstormSummary || undefined,
+        messageCount: task.brainstormMessageCount || undefined,
+        compactedAt: task.brainstormCompactedAt || undefined,
       };
       setConversation(taskId, conversation);
     }
@@ -116,12 +122,28 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     // Add user message to conversation
     conversation.messages.push({ role: "user", content: userMessage });
 
+    // Compaction callback to update conversation state
+    const handleCompaction = (
+      summary: string,
+      originalMessageCount: number,
+    ) => {
+      conversation.summary = summary;
+      conversation.messageCount = originalMessageCount;
+      conversation.compactedAt = new Date();
+      apiLogger.info(
+        { taskId, originalMessageCount },
+        "Conversation compacted",
+      );
+    };
+
     // Get AI response (pass task title to keep AI focused on the original task)
     const response = await chatWithAI(
       client,
       conversation,
       userMessage,
       task.title,
+      undefined, // onTokenUsage callback (not needed here)
+      handleCompaction,
     );
 
     // Add AI response to conversation
@@ -147,6 +169,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
         brainstormResult: conversation.currentPreview
           ? JSON.stringify(conversation.currentPreview, null, 2)
           : undefined,
+        // Persist compaction metadata
+        brainstormSummary: conversation.summary,
+        brainstormMessageCount: conversation.messageCount || 0,
+        brainstormCompactedAt: conversation.compactedAt,
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, taskId));

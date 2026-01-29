@@ -95,6 +95,14 @@ export interface ExecutionEventMetadata {
   testStatus?: string;
   /** Duration in milliseconds */
   durationMs?: number;
+  /** Manual steps for recovery (when recovery exhausted) */
+  manualSteps?: string[];
+  /** Reliability data for stuck detection and recovery */
+  reliabilityData?: unknown;
+  /** Validation report for completion validation */
+  validation?: unknown;
+  /** Stuck detection report */
+  report?: unknown;
 }
 
 export interface ExecutionEvent {

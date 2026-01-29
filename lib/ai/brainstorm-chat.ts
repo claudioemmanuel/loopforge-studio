@@ -4,6 +4,7 @@ import { readdir, readFile, stat } from "fs/promises";
 import { join } from "path";
 import { aiLogger } from "@/lib/logger";
 import { extractJSON } from "./json-extractor";
+import { shouldCompact, compactMessages } from "./context-compactor";
 
 export interface BrainstormOption {
   label: string;
@@ -177,6 +178,11 @@ export async function chatWithAI(
   conversation: BrainstormConversation,
   userMessage: string,
   taskTitle?: string,
+  onTokenUsage?: (usage: import("./client").TokenUsage) => void | Promise<void>,
+  onCompaction?: (
+    summary: string,
+    messageCount: number,
+  ) => void | Promise<void>,
 ): Promise<BrainstormChatResponse> {
   // Build comprehensive context message with current state
   let contextMsg = `Repository Context:
@@ -200,15 +206,55 @@ IMPORTANT: All questions and refinements MUST relate to this specific task.`;
 Your brainstormPreview response MUST include ALL existing items plus any new refinements.`;
   }
 
-  // Build messages array
-  const messages: ChatMessage[] = [
+  // Build initial messages array
+  let messages: ChatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: contextMsg },
     ...conversation.messages,
     { role: "user", content: userMessage },
   ];
 
-  const response = await client.chat(messages, { maxTokens: 2048 });
+  // Check if compaction is needed BEFORE sending to AI
+  const provider = client.getProvider();
+  if (shouldCompact(messages, provider)) {
+    aiLogger.info(
+      {
+        originalMessageCount: messages.length,
+        provider,
+      },
+      "Compacting brainstorm conversation",
+    );
+
+    const compactionResult = await compactMessages(
+      client,
+      messages,
+      conversation.summary || null,
+    );
+
+    messages = compactionResult.messages;
+
+    aiLogger.info(
+      {
+        ...compactionResult.metrics,
+      },
+      "Compaction complete",
+    );
+
+    // Notify caller about compaction
+    if (onCompaction) {
+      await Promise.resolve(
+        onCompaction(
+          compactionResult.summary,
+          compactionResult.metrics.originalMessageCount,
+        ),
+      );
+    }
+  }
+
+  const response = await client.chat(messages, {
+    maxTokens: 2048,
+    onTokenUsage,
+  });
 
   // Use robust JSON extraction
   const parsed = extractJSON(response);

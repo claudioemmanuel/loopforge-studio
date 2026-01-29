@@ -15,6 +15,20 @@ import { runParallelExecution, getExecutionSummary } from "./parallel-executor";
 import { applyFileChanges } from "./file-writer";
 import { smartExtractFiles, getFormatInstructions } from "./smart-extractor";
 import { commitChanges } from "./git-operations";
+import {
+  StuckDetector,
+  LegacyStuckChecker,
+  type StuckSignal,
+} from "./stuck-detector";
+import { RecoveryOrchestrator } from "./recovery-strategies";
+import {
+  CompletionValidator,
+  LegacyCompletionChecker,
+} from "./completion-validator";
+import {
+  getFeatureFlag,
+  areReliabilityFeaturesEnabled,
+} from "@/lib/config/feature-flags";
 
 export type ExecutionMode = "classic" | "multi-agent";
 
@@ -153,6 +167,38 @@ async function runClassicLoop(
   let consecutiveNoFileIterations = 0;
   const maxNoFileRetries = 2; // Retry with format instructions if no files found
 
+  // Initialize reliability modules based on feature flags
+  const useStuckDetector = getFeatureFlag("ENABLE_STUCK_DETECTOR");
+  const useRecovery = getFeatureFlag("ENABLE_RECOVERY_STRATEGIES");
+  const useCompletionValidation = getFeatureFlag(
+    "ENABLE_COMPLETION_VALIDATION",
+  );
+
+  const stuckDetector = useStuckDetector
+    ? new StuckDetector({
+        maxConsecutiveErrors: stuckThreshold,
+        iterationTimeoutMinutes: 10,
+        progressCommitThreshold: 3,
+      })
+    : new LegacyStuckChecker(stuckThreshold);
+
+  const recoveryOrchestrator = useRecovery ? new RecoveryOrchestrator() : null;
+
+  const completionValidator = useCompletionValidation
+    ? new CompletionValidator()
+    : new LegacyCompletionChecker();
+
+  // Track reliability data
+  const reliabilityData: {
+    stuckSignals?: StuckSignal[];
+    recoveryAttempts?: Array<{
+      tier: string;
+      success: boolean;
+      iteration: number;
+    }>;
+    validationReport?: unknown;
+  } = {};
+
   while (iteration <= maxIterations) {
     await onEvent({
       type: "thinking",
@@ -196,13 +242,23 @@ async function runClassicLoop(
         timestamp: new Date(),
       });
 
-      // Use smart extraction with fuzzy matching
-      // Pass client for AI-assisted extraction on retry attempts
-      const useAiAssisted = consecutiveNoFileIterations >= maxNoFileRetries;
-      const extraction = await smartExtractFiles(
-        output,
-        useAiAssisted ? client : undefined,
+      // Use smart extraction with progressive strategies
+      const useEnhancedExtraction = getFeatureFlag(
+        "ENABLE_ENHANCED_EXTRACTION",
       );
+      const useAiAssisted = consecutiveNoFileIterations >= maxNoFileRetries;
+
+      const extraction = await smartExtractFiles(output, {
+        client: useAiAssisted ? client : undefined,
+        previousAttempts: consecutiveNoFileIterations,
+        strategy: useEnhancedExtraction
+          ? recoveryOrchestrator?.getRecommendedTier(
+              reliabilityData.stuckSignals || [],
+            ) === "simplified_prompt"
+            ? "ai-single-file"
+            : undefined
+          : undefined,
+      });
 
       await onEvent({
         type: "thinking",
@@ -219,13 +275,80 @@ async function runClassicLoop(
         consecutiveNoFileIterations++;
 
         if (consecutiveNoFileIterations > maxNoFileRetries) {
-          // Too many iterations without files - this is a problem
+          // Before giving up, attempt recovery if enabled
+          if (recoveryOrchestrator && useRecovery) {
+            await onEvent({
+              type: "thinking",
+              content: `Attempting recovery (tier escalation)...`,
+              timestamp: new Date(),
+            });
+
+            const recoveryResult = await recoveryOrchestrator.attemptRecovery(
+              {
+                tier: "format_guidance",
+                attemptNumber: 1,
+                maxAttempts: 4,
+                previousErrors: [],
+                signals: reliabilityData.stuckSignals || [],
+                taskDescription: context.project,
+                planContent: context.planContent,
+              },
+              {
+                taskDescription: context.project,
+                planContent: context.planContent || "",
+                workingDir: context.workingDir,
+              },
+              client,
+            );
+
+            // Track recovery attempt
+            if (!reliabilityData.recoveryAttempts) {
+              reliabilityData.recoveryAttempts = [];
+            }
+            reliabilityData.recoveryAttempts.push({
+              tier: recoveryResult.tier,
+              success: recoveryResult.success,
+              iteration,
+            });
+
+            if (recoveryResult.success) {
+              await onEvent({
+                type: "thinking",
+                content: `Recovery succeeded at tier: ${recoveryResult.tier}`,
+                timestamp: new Date(),
+              });
+
+              // Reset counter and continue loop
+              consecutiveNoFileIterations = 0;
+              continue;
+            } else {
+              await onEvent({
+                type: "stuck",
+                content: `Recovery exhausted. ${recoveryResult.message}`,
+                metadata: {
+                  manualSteps: recoveryResult.manualSteps,
+                  reliabilityData,
+                },
+                timestamp: new Date(),
+              });
+
+              return {
+                status: "stuck",
+                iterations: iteration,
+                commits,
+                error: `No extractable code after recovery attempts. ${recoveryResult.message}`,
+              };
+            }
+          }
+
+          // No recovery enabled or recovery failed
           await onEvent({
             type: "stuck",
             content: `No extractable code after ${consecutiveNoFileIterations} attempts. Agent may not be producing code in a parseable format.`,
             metadata: {
               outputLength: output.length,
               warnings: extraction.warnings,
+              reliabilityData,
             },
             timestamp: new Date(),
           });
@@ -312,11 +435,25 @@ async function runClassicLoop(
       const status = checkCompletion(output);
 
       if (status === "complete") {
-        // Verify we actually did work before claiming success
-        if (commits.length === 0) {
+        // Validate completion
+        const validation = await completionValidator.validate({
+          output,
+          commits,
+          plan: context.planContent || "",
+          workingDir: context.workingDir,
+          aiClient: useCompletionValidation ? client : undefined,
+        });
+
+        reliabilityData.validationReport = validation;
+
+        if (!validation.passed) {
           await onEvent({
             type: "stuck",
-            content: "Agent reported completion but no commits were made",
+            content: `Completion validation failed (score: ${validation.score}): ${validation.failures.join("; ")}`,
+            metadata: {
+              validation,
+              reliabilityData,
+            },
             timestamp: new Date(),
           });
 
@@ -324,13 +461,17 @@ async function runClassicLoop(
             status: "stuck",
             iterations: iteration,
             commits,
-            error: "No commits made despite agent reporting completion",
+            error: `Incomplete implementation: ${validation.failures[0]}`,
           };
         }
 
         await onEvent({
           type: "complete",
-          content: `All tasks completed successfully (${commits.length} commit(s))`,
+          content: `All tasks completed successfully (${commits.length} commit(s), validation score: ${validation.score})`,
+          metadata: {
+            validation,
+            reliabilityData,
+          },
           timestamp: new Date(),
         });
 
@@ -368,6 +509,41 @@ async function runClassicLoop(
         timestamp: new Date(),
       });
 
+      // Analyze with stuck detector
+      const signals = stuckDetector.analyze({
+        iteration,
+        error: errorMessage,
+        output: "",
+        commits: 0,
+        extractionSuccess: false,
+        timestamp: new Date(),
+      });
+
+      reliabilityData.stuckSignals = signals;
+
+      const isStuck = stuckDetector.isStuck(signals);
+      if (isStuck) {
+        const report = stuckDetector.generateReport(signals);
+
+        await onEvent({
+          type: "stuck",
+          content: report.summary,
+          metadata: {
+            report,
+            reliabilityData,
+          },
+          timestamp: new Date(),
+        });
+
+        return {
+          status: "stuck",
+          iterations: iteration,
+          commits,
+          error: report.summary,
+        };
+      }
+
+      // Legacy fallback
       stuckCount++;
       if (stuckCount >= stuckThreshold) {
         return {

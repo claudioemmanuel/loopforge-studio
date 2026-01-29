@@ -10,6 +10,7 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import type { ExecutionEventMetadata } from "@/lib/ralph/types";
+import type { ExperimentVariantConfig } from "./types";
 import {
   taskStatusEnum,
   executionStatusEnum,
@@ -37,6 +38,7 @@ import type {
   RepoIndexSymbol,
   PlanLimits,
   ActivityEventMetadata,
+  PhaseTokenMetrics,
 } from "./types";
 
 // =============================================================================
@@ -109,6 +111,11 @@ export const repos = pgTable(
     prLabels: jsonb("pr_labels").$type<string[]>(),
     // Auto-approve: skip review gate when tests pass
     autoApprove: boolean("auto_approve").notNull().default(false),
+    // Test gate configuration (Ralph Loop Reliability Improvements 2026-01-29)
+    testGatePolicy: text("test_gate_policy").default("warn"), // strict | warn | skip | autoApprove
+    criticalTestPatterns: jsonb("critical_test_patterns")
+      .$type<string[]>()
+      .default([]),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -130,6 +137,10 @@ export const tasks = pgTable("tasks", {
   priority: integer("priority").notNull().default(0),
   brainstormResult: text("brainstorm_result"),
   brainstormConversation: text("brainstorm_conversation"), // JSON array of chat messages
+  // Context compaction fields (Prompt Engineering Framework 2026-01-29)
+  brainstormSummary: text("brainstorm_summary"),
+  brainstormMessageCount: integer("brainstorm_message_count").default(0),
+  brainstormCompactedAt: timestamp("brainstorm_compacted_at"),
   planContent: text("plan_content"),
   branch: text("branch"),
   autonomousMode: boolean("autonomous_mode").notNull().default(false),
@@ -177,6 +188,14 @@ export const executions = pgTable("executions", {
   revertCommitSha: text("revert_commit_sha"),
   revertedAt: timestamp("reverted_at"),
   revertReason: text("revert_reason"),
+  // Reliability tracking (Ralph Loop Reliability Improvements 2026-01-29)
+  stuckSignals: jsonb("stuck_signals"),
+  recoveryAttempts: jsonb("recovery_attempts"),
+  validationReport: jsonb("validation_report"),
+  // Token tracking (Prompt Engineering Framework 2026-01-29)
+  tokenMetrics: jsonb("token_metrics")
+    .$type<Record<string, PhaseTokenMetrics>>()
+    .default({}),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -446,3 +465,83 @@ export const taskDependencies = pgTable(
     unique("task_dependencies_unique").on(table.taskId, table.blockedById),
   ],
 );
+
+// =============================================================================
+// A/B Testing Tables (Prompt Engineering Framework 2026-01-29)
+// =============================================================================
+
+// Experiments table - defines A/B tests
+export const experiments = pgTable("experiments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  status: varchar("status", { length: 20 }).notNull().default("draft"), // draft, active, paused, completed
+  trafficAllocation: integer("traffic_allocation").notNull().default(10), // Percentage 0-100
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Experiment variants - different configurations to test
+export const experimentVariants = pgTable(
+  "experiment_variants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiments.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 100 }).notNull(),
+    weight: integer("weight").notNull().default(50), // Percentage 0-100
+    config: jsonb("config").$type<ExperimentVariantConfig>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("experiment_variants_experiment_name_unique").on(
+      table.experimentId,
+      table.name,
+    ),
+  ],
+);
+
+// Variant assignments - which tasks got which variant
+export const variantAssignments = pgTable(
+  "variant_assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    experimentId: uuid("experiment_id")
+      .notNull()
+      .references(() => experiments.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id")
+      .notNull()
+      .references(() => experimentVariants.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    executionId: uuid("execution_id").references(() => executions.id, {
+      onDelete: "set null",
+    }),
+    assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("variant_assignments_experiment_task_unique").on(
+      table.experimentId,
+      table.taskId,
+    ),
+  ],
+);
+
+// Experiment metrics - captured outcomes
+export const experimentMetrics = pgTable("experiment_metrics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  variantAssignmentId: uuid("variant_assignment_id")
+    .notNull()
+    .references(() => variantAssignments.id, { onDelete: "cascade" }),
+  metricName: varchar("metric_name", { length: 100 }).notNull(),
+  metricValue: integer("metric_value").notNull(), // Store as integers (e.g., milliseconds, counts)
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+});

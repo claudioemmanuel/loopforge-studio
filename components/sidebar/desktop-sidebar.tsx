@@ -22,12 +22,14 @@ import {
   Play,
   History,
   CreditCard,
+  FlaskConical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LoopforgeIcon } from "@/components/loopforge-logo";
 import { NotificationBellClient } from "@/components/workers";
 import { RepoStatusDot } from "@/components/repo-status-indicator";
+import { getFeatureFlag } from "@/lib/config/feature-flags";
 import {
   Tooltip,
   TooltipContent,
@@ -92,6 +94,9 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
   const isWorkersActive = pathname.startsWith("/workers");
   const isAnalyticsActive = pathname === "/analytics";
   const isSettingsActive = pathname.startsWith("/settings");
+  const isExperimentsActive = pathname === "/experiments";
+
+  const enableABTesting = getFeatureFlag("ENABLE_AB_TESTING");
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -374,6 +379,43 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
               <BarChart3 className="w-4 h-4" />
               Analytics
             </Link>
+          )}
+
+          {/* Experiments (no cascade) */}
+          {enableABTesting && (
+            <>
+              {collapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href="/experiments"
+                      className={cn(
+                        "flex items-center justify-center p-2 rounded-lg transition-colors",
+                        isExperimentsActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <FlaskConical className="w-5 h-5" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Experiments</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Link
+                  href="/experiments"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                    isExperimentsActive
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <FlaskConical className="w-4 h-4" />
+                  Experiments
+                </Link>
+              )}
+            </>
           )}
         </nav>
 

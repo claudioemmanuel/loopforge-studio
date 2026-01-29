@@ -866,6 +866,470 @@ When modifying prompts, consult these files:
 - **JSON extraction fallback**: `lib/ai/plan.ts:115-243`
 - **Repository context scanning**: `lib/ai/brainstorm-chat.ts:42-112`
 
+### Ralph Loop Reliability Features
+
+#### Overview
+
+Loopforge implements 5 critical reliability improvements to strengthen autonomous execution:
+
+1. **Multi-Signal Stuck Detection** - Intelligent pattern analysis beyond simple error counting
+2. **Progressive Error Recovery** - 4-tier recovery system with automatic escalation
+3. **Completion Validation** - Plan matching and implementation verification
+4. **Enhanced File Extraction** - Progressive strategies with confidence scoring
+5. **Test Gate Enforcement** - Policy-based test failure handling
+
+All features are **disabled by default** and controlled via environment variables.
+
+#### Feature Flags
+
+```bash
+# Enable reliability features (all default to false)
+ENABLE_STUCK_DETECTOR=true          # Multi-signal stuck detection
+ENABLE_RECOVERY_STRATEGIES=true     # 4-tier error recovery
+ENABLE_COMPLETION_VALIDATION=true   # Plan matching validation
+ENABLE_ENHANCED_EXTRACTION=true     # Progressive extraction strategies
+ENABLE_TEST_GATES=true              # Test policy enforcement
+```
+
+#### 1. Multi-Signal Stuck Detection
+
+**Module**: `lib/ralph/stuck-detector.ts`
+
+Replaces simple consecutive error counting with intelligent pattern analysis using 5 signals:
+
+**Signals**:
+- **Consecutive Errors** (threshold: 3) - Traditional error counting with enhanced tracking
+- **Repeated Patterns** (similarity >80%) - Detects when AI produces identical output via Levenshtein distance
+- **Iteration Timeout** (10 minutes) - Critical severity when iteration exceeds time limit
+- **Quality Degradation** (<40% success over 5 iterations) - Tracks extraction success rate
+- **No Progress** (3 iterations without commits) - Detects when no work is being done
+
+**Stuck Logic**:
+```typescript
+// Critical severity → immediate stuck
+if (hasCritical) return true;
+
+// 2+ high severity → stuck
+if (highCount >= 2) return true;
+
+// 3+ medium severity → stuck
+if (mediumCount >= 3) return true;
+
+// Single high severity with confidence >= 0.8 → stuck
+if (highCount === 1 && confidence >= 0.8) return true;
+```
+
+**Usage**:
+```typescript
+const detector = new StuckDetector({
+  maxConsecutiveErrors: 3,
+  iterationTimeoutMinutes: 10,
+  progressCommitThreshold: 3,
+});
+
+const signals = detector.analyze({
+  iteration: 4,
+  error: "Connection failed",
+  output: "...",
+  commits: 0,
+  extractionSuccess: false,
+  timestamp: new Date(),
+});
+
+if (detector.isStuck(signals)) {
+  const report = detector.generateReport(signals);
+  console.log(report.summary);
+  console.log(report.recommendations);
+}
+```
+
+**Database Storage**:
+```sql
+ALTER TABLE executions ADD COLUMN stuck_signals JSONB;
+```
+
+Stored format:
+```json
+[
+  {
+    "type": "consecutive_errors",
+    "severity": "high",
+    "confidence": 0.95,
+    "evidence": "3 consecutive errors detected",
+    "metadata": { "errorCount": 3 }
+  }
+]
+```
+
+#### 2. Progressive Error Recovery
+
+**Module**: `lib/ralph/recovery-strategies.ts`
+
+4-tier recovery system with automatic escalation:
+
+**Tier 1: Format Guidance**
+- Provides concrete examples of expected output format
+- Enhanced with code block examples
+- Tier: `format_guidance`
+
+**Tier 2: Simplified Prompts**
+- Breaks complex tasks into single-file changes
+- AI identifies most critical file to focus on
+- Tier: `simplified_prompt`
+
+**Tier 3: Context Reset**
+- Clears conversation history
+- Starts fresh with minimal context (task + key requirements)
+- Tier: `context_reset`
+
+**Tier 4: Manual Fallback**
+- Generates step-by-step instructions for user
+- Returns `success: false` indicating manual intervention needed
+- Tier: `manual_fallback`
+
+**Usage**:
+```typescript
+const orchestrator = new RecoveryOrchestrator();
+
+const result = await orchestrator.attemptRecovery(
+  {
+    tier: "format_guidance",
+    attemptNumber: 1,
+    maxAttempts: 4,
+    previousErrors: ["Error 1", "Error 2"],
+    signals: stuckSignals,
+  },
+  {
+    taskDescription: "Fix authentication bug",
+    planContent: "Modify auth.ts to add rate limiting",
+    workingDir: "/repo",
+  },
+  aiClient
+);
+
+if (result.success) {
+  // Apply modified context and continue
+  systemPrompt = result.modifiedContext?.systemPrompt;
+} else {
+  // Manual fallback
+  console.log("Manual steps:", result.manualSteps);
+}
+```
+
+**Automatic Escalation**:
+If recovery fails at a tier, automatically escalates to next tier:
+```
+format_guidance → simplified_prompt → context_reset → manual_fallback
+```
+
+**Database Storage**:
+```sql
+ALTER TABLE executions ADD COLUMN recovery_attempts JSONB;
+```
+
+Stored format:
+```json
+[
+  {
+    "tier": "format_guidance",
+    "success": false,
+    "iteration": 3
+  },
+  {
+    "tier": "simplified_prompt",
+    "success": true,
+    "iteration": 4
+  }
+]
+```
+
+#### 3. Completion Validation
+
+**Module**: `lib/ralph/completion-validator.ts`
+
+Validates task completion with 6 checks and weighted scoring:
+
+**Validation Checks** (weights in parentheses):
+1. **hasMarker** (20%) - `RALPH_COMPLETE` found in output
+2. **hasCommits** (20%) - commits.length > 0
+3. **matchesPlan** (30%) - Implementation aligns with plan (≥50% file coverage)
+4. **qualityThreshold** (15%) - Commit quality reasonable (1-10k lines changed)
+5. **testsExecuted** (5%) - Test artifacts present (optional)
+6. **noCriticalErrors** (10%) - No `CRITICAL_ERROR` markers
+
+**Scoring**: 0-100, passing threshold: 80%
+
+**Plan Matching Algorithm**:
+1. Extract file paths from plan text (regex patterns: `` `path/to/file.ts` ``, `src/file.ts`, etc.)
+2. Extract files modified in commits (`git diff --name-only`)
+3. Calculate coverage: (matched files / plan files) × 100
+4. If coverage <50%, use AI-assisted validation
+
+**AI-Assisted Fallback**:
+```typescript
+const validationPrompt = `
+TASK PLAN:
+${plan}
+
+FILES MODIFIED:
+${modifiedFiles.join('\n')}
+
+Does this implementation adequately address the plan?
+Respond with JSON: { "valid": boolean, "reasoning": string }
+`;
+```
+
+**Usage**:
+```typescript
+const validator = new CompletionValidator();
+
+const validation = await validator.validate({
+  output: "All changes complete. RALPH_COMPLETE",
+  commits: ["abc123", "def456"],
+  plan: "Modify `src/app.ts` and `src/utils.ts`",
+  workingDir: "/repo",
+  aiClient: client, // Optional, for AI-assisted validation
+});
+
+if (!validation.passed) {
+  console.log(`Failed: ${validation.failures.join(", ")}`);
+  console.log(`Score: ${validation.score}/100`);
+  console.log(`Recommendations: ${validation.recommendations.join(", ")}`);
+}
+```
+
+**Database Storage**:
+```sql
+ALTER TABLE executions ADD COLUMN validation_report JSONB;
+```
+
+Stored format:
+```json
+{
+  "passed": false,
+  "score": 65,
+  "checks": {
+    "hasMarker": true,
+    "hasCommits": true,
+    "matchesPlan": false,
+    "qualityThreshold": true,
+    "testsExecuted": false,
+    "noCriticalErrors": true
+  },
+  "failures": ["Low plan coverage (30%)"],
+  "recommendations": ["Review plan for clarity"],
+  "metadata": {
+    "planCoverage": 0.3
+  }
+}
+```
+
+#### 4. Enhanced File Extraction
+
+**Module**: `lib/ralph/smart-extractor.ts`
+
+Progressive extraction strategies with confidence scoring:
+
+**Strategies** (in order of preference):
+1. **strict** (confidence: 0.95) - Regex patterns for well-formatted code blocks
+2. **fuzzy** (0.75) - Common variations and looser patterns
+3. **ai-json** (0.7) - AI returns structured JSON with file metadata
+4. **ai-single-file** (0.8) - Focus on one file at a time
+5. **ai-code-mapping** (0.5) - AI suggests file paths + change descriptions
+6. **ai-assisted** (0.6) - Legacy fallback for unstructured output
+
+**Retry Logic**:
+```typescript
+const extraction = await smartExtractFiles(output, {
+  client: aiClient,
+  strategy: 'ai-single-file', // Force specific strategy
+  previousAttempts: 2,
+  focusFiles: ['src/main.ts'], // For single-file strategy
+});
+
+if (extraction.shouldRetry && extraction.recommendedStrategy) {
+  // Use recommended strategy for next attempt
+  const retryStrategy = extraction.recommendedStrategy;
+}
+```
+
+**Confidence Calculation**:
+```typescript
+const baseConfidence = {
+  strict: 0.95,
+  fuzzy: 0.75,
+  'ai-json': 0.7,
+  'ai-single-file': 0.8,
+  'ai-code-mapping': 0.5,
+  'ai-assisted': 0.6,
+}[method];
+
+// Adjust based on file-level confidence
+const avgFileConfidence = files.reduce(
+  (sum, f) => sum + (f.confidence === 'high' ? 1 : 0.7),
+  0
+) / files.length;
+
+return baseConfidence * 0.7 + avgFileConfidence * 0.3;
+```
+
+#### 5. Test Gate Enforcement
+
+**Module**: `lib/ralph/test-gate.ts`
+
+Policy-based test failure handling with 4 policies:
+
+**Policies**:
+- **strict** - All tests must pass, no PR without green tests
+- **warn** - Tests can fail, warning added to PR (default)
+- **skip** - No test execution enforcement
+- **autoApprove** - Tests run, results logged, PR created regardless
+
+**Critical Test Patterns**:
+```typescript
+// Configure per-repo
+criticalTestPatterns: ['auth', 'payment', 'security']
+
+// Any test name containing these patterns is considered critical
+isCriticalTest('Auth login test', patterns) // → true
+```
+
+**Usage**:
+```typescript
+const testGate = new TestGate({
+  policy: 'strict',
+  criticalTestPatterns: ['auth', 'payment', 'security'],
+  requireAllPassing: false,
+  allowedFailureRate: 0,
+});
+
+const testResult = parseTestOutput(stdout); // Parses Jest/Vitest/Pytest
+
+const decision = testGate.analyze(testResult);
+
+if (decision.shouldBlock) {
+  console.log(`Blocked: ${decision.reason}`);
+  // Don't create PR, move task to review
+} else if (decision.warnings) {
+  console.log(`Warnings: ${decision.warnings.join(", ")}`);
+  // Create PR with warnings
+}
+```
+
+**Database Configuration**:
+```sql
+ALTER TABLE repos
+ADD COLUMN test_gate_policy TEXT DEFAULT 'warn',
+ADD COLUMN critical_test_patterns JSONB DEFAULT '[]';
+```
+
+**Integration in Execution Worker**:
+```typescript
+// After test execution
+if (ENABLE_TEST_GATES && !testsPassed) {
+  const gateDecision = testGate.analyze(testResult, {
+    policy: repo.testGatePolicy,
+    criticalTestPatterns: repo.criticalTestPatterns,
+  });
+
+  if (gateDecision.shouldBlock) {
+    // Update task to review status, don't create PR
+    await updateTask({ status: 'review', processingStatusText: gateDecision.reason });
+    return;
+  }
+}
+
+// Continue with PR creation
+```
+
+#### Troubleshooting Reliability Features
+
+**Stuck Detector Not Activating**:
+```bash
+# Verify feature flag
+ENABLE_STUCK_DETECTOR=true npm run worker
+
+# Check logs for "Feature Flags:" on startup
+# Should show: "ENABLE_STUCK_DETECTOR: ✓ enabled"
+```
+
+**Recovery Not Triggering**:
+```bash
+# Ensure both stuck detector and recovery are enabled
+ENABLE_STUCK_DETECTOR=true
+ENABLE_RECOVERY_STRATEGIES=true
+
+# Check execution logs for recovery attempts
+SELECT recovery_attempts FROM executions WHERE id = 'execution-id';
+```
+
+**Completion Validation Failing**:
+```bash
+# Check validation report
+SELECT validation_report FROM executions WHERE id = 'execution-id';
+
+# Common issues:
+# - Plan files don't match committed files (low coverage)
+# - No RALPH_COMPLETE marker in output
+# - Commits empty or too large (>10k lines)
+```
+
+**Test Gate Not Blocking**:
+```bash
+# Check repo configuration
+SELECT test_gate_policy, critical_test_patterns FROM repos WHERE id = 'repo-id';
+
+# Ensure policy is not 'skip' or 'autoApprove'
+# Verify critical test patterns match test names
+```
+
+#### Monitoring & Analytics
+
+**Key Metrics**:
+```sql
+-- Stuck rate by signal type
+SELECT
+  stuck_signals->0->>'type' as signal_type,
+  COUNT(*) as count
+FROM executions
+WHERE stuck_signals IS NOT NULL
+GROUP BY signal_type;
+
+-- Recovery success rate
+SELECT
+  recovery_attempts->-1->>'tier' as final_tier,
+  recovery_attempts->-1->>'success' as success,
+  COUNT(*) as count
+FROM executions
+WHERE recovery_attempts IS NOT NULL
+GROUP BY final_tier, success;
+
+-- Completion validation scores
+SELECT
+  AVG((validation_report->>'score')::int) as avg_score,
+  COUNT(*) FILTER (WHERE (validation_report->>'passed')::boolean) as passed,
+  COUNT(*) as total
+FROM executions
+WHERE validation_report IS NOT NULL;
+
+-- Test gate blocks
+SELECT
+  repo_id,
+  COUNT(*) as blocked_count
+FROM tasks
+WHERE processing_status_text LIKE '%Test gate blocked%'
+GROUP BY repo_id;
+```
+
+**Success Targets** (compared to baseline):
+| Metric | Baseline | Target | Status |
+|--------|----------|--------|--------|
+| Stuck Rate | ~15% | <9% | Monitor weekly |
+| Recovery Success | 0% | >60% | Track tier distribution |
+| False Completions | ~5% | 0% | Manual audit |
+| Extraction Errors | ~20% | <8% | Track confidence scores |
+| Critical Test Failures | ~2% | 0% | Zero tolerance |
+
 ---
 
 **Last Updated**: 2026-01-29

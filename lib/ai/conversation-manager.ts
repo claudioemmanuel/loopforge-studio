@@ -6,6 +6,10 @@ export interface BrainstormConversation {
   messages: ChatMessage[];
   repoContext: RepoContext;
   currentPreview?: BrainstormChatResponse["brainstormPreview"];
+  // Context compaction fields (Prompt Engineering Framework 2026-01-29)
+  summary?: string;
+  messageCount?: number;
+  compactedAt?: Date;
 }
 
 // In-memory store for active conversations (not persisted)

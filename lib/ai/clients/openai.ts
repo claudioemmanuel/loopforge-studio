@@ -30,6 +30,16 @@ export class OpenAIClient implements AIClient {
         messages: openaiMessages,
       });
 
+      // Extract token usage from response
+      if (options?.onTokenUsage && response.usage) {
+        const tokenUsage = {
+          inputTokens: response.usage.prompt_tokens,
+          outputTokens: response.usage.completion_tokens,
+          totalTokens: response.usage.total_tokens,
+        };
+        await Promise.resolve(options.onTokenUsage(tokenUsage));
+      }
+
       // Extract text from response
       const text = response.choices[0]?.message?.content ?? "";
       return text;

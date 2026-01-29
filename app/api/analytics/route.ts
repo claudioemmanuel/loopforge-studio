@@ -6,6 +6,8 @@ import {
   getTasksByStatus,
   getDailyCompletions,
   getRepoActivity,
+  getTokenUsage,
+  getCostBreakdown,
 } from "@/lib/api/analytics";
 
 export const GET = withAuth(async (request, { user }) => {
@@ -34,19 +36,29 @@ export const GET = withAuth(async (request, { user }) => {
 
   const dateRange = { start, end };
 
-  const [taskMetrics, tasksByStatus, dailyCompletions, repoActivity] =
-    await Promise.all([
-      getTaskMetrics(user.id, dateRange),
-      getTasksByStatus(user.id, dateRange),
-      getDailyCompletions(user.id, dateRange),
-      getRepoActivity(user.id, dateRange),
-    ]);
+  const [
+    taskMetrics,
+    tasksByStatus,
+    dailyCompletions,
+    repoActivity,
+    tokenUsage,
+    costBreakdown,
+  ] = await Promise.all([
+    getTaskMetrics(user.id, dateRange),
+    getTasksByStatus(user.id, dateRange),
+    getDailyCompletions(user.id, dateRange),
+    getRepoActivity(user.id, dateRange),
+    getTokenUsage(user.id, dateRange),
+    getCostBreakdown(user.id, dateRange),
+  ]);
 
   return NextResponse.json({
     taskMetrics,
     tasksByStatus,
     dailyCompletions,
     repoActivity,
+    tokenUsage,
+    costBreakdown,
     dateRange: { start: start.toISOString(), end: end.toISOString() },
   });
 });

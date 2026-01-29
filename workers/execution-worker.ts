@@ -20,9 +20,16 @@ import type {
   BillingMode,
   ActivityEventCategory,
 } from "../lib/db/schema";
+import type { ExecutionEventMetadata } from "../lib/ralph/types";
 import { eq, sql } from "drizzle-orm";
 import { canExecuteTask, recordUsage } from "../lib/billing";
 import { runLoop, type LoopContext, type ExecutionMode } from "../lib/ralph";
+import {
+  TestGate,
+  parseTestOutput,
+  type TestGatePolicy,
+} from "../lib/ralph/test-gate";
+import { getFeatureFlag } from "../lib/config/feature-flags";
 import {
   createExecutionWorker,
   createAutonomousFlowWorker,
@@ -1747,8 +1754,91 @@ async function processExecution(
         );
         await publishWorkerEvent(userId, reviewEvent);
 
+        // === Test Gate: Enforce test policies ===
+        let testGateBlocked = false;
+        let testGateReason: string | undefined;
+
+        if (getFeatureFlag("ENABLE_TEST_GATES") && testRunId && !testsPassed) {
+          try {
+            const testGatePolicy =
+              (task.repo.testGatePolicy as TestGatePolicy) || "warn";
+            const criticalTestPatterns =
+              (task.repo.criticalTestPatterns as string[]) || [];
+
+            // Get test run details
+            const { getTestRunById } = await import("../lib/db/test-runs");
+            const testRun = await getTestRunById(testRunId);
+
+            if (testRun) {
+              // Parse test output to extract results
+              const testOutput = testRun.stdout || "";
+              const testResult = parseTestOutput(testOutput);
+
+              if (testResult) {
+                const testGate = new TestGate({
+                  policy: testGatePolicy,
+                  criticalTestPatterns,
+                  requireAllPassing: false,
+                  allowedFailureRate: 0,
+                });
+
+                const gateDecision = testGate.analyze(testResult);
+
+                if (gateDecision.shouldBlock) {
+                  testGateBlocked = true;
+                  testGateReason = gateDecision.reason;
+
+                  workerLogger.warn(
+                    { taskId, reason: testGateReason },
+                    "Test gate blocked PR creation",
+                  );
+
+                  await db.insert(executionEvents).values({
+                    executionId,
+                    eventType: "error",
+                    content: `Test gate blocked: ${testGateReason}`,
+                    metadata:
+                      gateDecision.metadata as unknown as ExecutionEventMetadata,
+                    createdAt: new Date(),
+                  });
+                  await publishExecutionEvent(executionId, {
+                    type: "error",
+                    content: `Test gate blocked: ${testGateReason}`,
+                    metadata: gateDecision.metadata,
+                  });
+
+                  // Update task with test gate failure info
+                  await db
+                    .update(tasks)
+                    .set({
+                      processingStatusText: `Tests failed: ${testGateReason}`,
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(tasks.id, taskId));
+                }
+
+                // Log warnings even if not blocking
+                if (gateDecision.warnings && gateDecision.warnings.length > 0) {
+                  workerLogger.info(
+                    { taskId, warnings: gateDecision.warnings },
+                    "Test gate warnings",
+                  );
+                }
+              } else {
+                workerLogger.warn({ taskId }, "Failed to parse test output");
+              }
+            }
+          } catch (error) {
+            workerLogger.error(
+              { error, taskId },
+              "Error during test gate analysis",
+            );
+          }
+        }
+
         // === Auto-approve: skip review gate if repo has autoApprove enabled ===
         const canAutoApprove =
+          !testGateBlocked &&
           task.repo.autoApprove &&
           (testsPassed === true || testsPassed === null);
 

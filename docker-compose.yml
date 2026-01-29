@@ -31,6 +31,7 @@ services:
       POSTGRES_DB: loopforge
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d loopforge"]
       interval: 10s
@@ -71,7 +72,7 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/loopforge
+      - DATABASE_URL=postgresql://loopforge:loopforge@postgres:5432/loopforge
       - REDIS_URL=redis://redis:6379
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
@@ -81,7 +82,7 @@ services:
       - AUTH_TRUST_HOST=true
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=postgres
+      - DB_USER=loopforge
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,12 +110,12 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/loopforge
+      - DATABASE_URL=postgresql://loopforge:loopforge@postgres:5432/loopforge
       - REDIS_URL=redis://redis:6379
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=postgres
+      - DB_USER=loopforge
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
     volumes:
       - repos-data:/app/repos

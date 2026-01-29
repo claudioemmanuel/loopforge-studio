@@ -6,10 +6,18 @@ export interface ChatMessage {
   content: string;
 }
 
+// Token usage information
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
 // Options for chat completion
 export interface ChatOptions {
   maxTokens?: number;
   temperature?: number;
+  onTokenUsage?: (usage: TokenUsage) => void | Promise<void>;
 }
 
 // Unified AI client interface
@@ -23,7 +31,7 @@ export interface AIClient {
 export async function createAIClient(
   provider: AiProvider,
   apiKey: string,
-  model: string
+  model: string,
 ): Promise<AIClient> {
   switch (provider) {
     case "anthropic": {

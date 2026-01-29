@@ -21,6 +21,7 @@ import {
   Play,
   History,
   CreditCard,
+  FlaskConical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import { LoopforgeIcon } from "@/components/loopforge-logo";
 import { RepoStatusDot } from "@/components/repo-status-indicator";
 import { useSidebar } from "./sidebar-context";
 import type { IndexingStatus } from "@/lib/db/schema";
+import { getFeatureFlag } from "@/lib/config/feature-flags";
 
 interface SidebarRepo {
   id: string;
@@ -67,6 +69,9 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
 
   const isDashboardActive = pathname === "/dashboard";
   const isAnalyticsActive = pathname === "/analytics";
+  const isExperimentsActive = pathname === "/experiments";
+
+  const enableABTesting = getFeatureFlag("ENABLE_AB_TESTING");
 
   // Close sidebar on route change
   useEffect(() => {
@@ -283,6 +288,22 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
             <BarChart3 className="w-4 h-4" />
             Analytics
           </Link>
+
+          {/* Experiments */}
+          {enableABTesting && (
+            <Link
+              href="/experiments"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                isExperimentsActive
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <FlaskConical className="w-4 h-4" />
+              Experiments
+            </Link>
+          )}
         </nav>
 
         {/* User section */}

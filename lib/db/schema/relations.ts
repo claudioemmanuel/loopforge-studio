@@ -17,6 +17,10 @@ import {
   activityEvents,
   activitySummaries,
   taskDependencies,
+  experiments,
+  experimentVariants,
+  variantAssignments,
+  experimentMetrics,
 } from "./tables";
 
 // =============================================================================
@@ -215,6 +219,60 @@ export const taskDependenciesRelations = relations(
       fields: [taskDependencies.blockedById],
       references: [tasks.id],
       relationName: "blockedByDependencies",
+    }),
+  }),
+);
+
+// A/B Testing Relations (Prompt Engineering Framework 2026-01-29)
+export const experimentsRelations = relations(experiments, ({ many }) => ({
+  variants: many(experimentVariants),
+  assignments: many(variantAssignments),
+}));
+
+export const experimentVariantsRelations = relations(
+  experimentVariants,
+  ({ one, many }) => ({
+    experiment: one(experiments, {
+      fields: [experimentVariants.experimentId],
+      references: [experiments.id],
+    }),
+    assignments: many(variantAssignments),
+  }),
+);
+
+export const variantAssignmentsRelations = relations(
+  variantAssignments,
+  ({ one, many }) => ({
+    experiment: one(experiments, {
+      fields: [variantAssignments.experimentId],
+      references: [experiments.id],
+    }),
+    variant: one(experimentVariants, {
+      fields: [variantAssignments.variantId],
+      references: [experimentVariants.id],
+    }),
+    user: one(users, {
+      fields: [variantAssignments.userId],
+      references: [users.id],
+    }),
+    task: one(tasks, {
+      fields: [variantAssignments.taskId],
+      references: [tasks.id],
+    }),
+    execution: one(executions, {
+      fields: [variantAssignments.executionId],
+      references: [executions.id],
+    }),
+    metrics: many(experimentMetrics),
+  }),
+);
+
+export const experimentMetricsRelations = relations(
+  experimentMetrics,
+  ({ one }) => ({
+    variantAssignment: one(variantAssignments, {
+      fields: [experimentMetrics.variantAssignmentId],
+      references: [variantAssignments.id],
     }),
   }),
 );

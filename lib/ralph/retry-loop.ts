@@ -105,7 +105,7 @@ async function executeAttempt(
   // Try to extract files (with AI fallback on last attempt)
   const extraction = await smartExtractFiles(
     output,
-    attempt === options.maxRetries ? client : undefined,
+    attempt === options.maxRetries ? { client } : undefined,
   );
 
   return { output, extraction };
@@ -129,7 +129,9 @@ export async function executeWithRetry(
   let lastExtraction: ExtractionResult = {
     files: [],
     method: "none",
+    confidence: 0,
     warnings: [],
+    shouldRetry: false,
   };
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {

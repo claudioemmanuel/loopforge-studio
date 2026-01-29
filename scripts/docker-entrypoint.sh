@@ -45,6 +45,16 @@ done
 
 log_success "Database is ready!"
 
+# Verify loopforge user exists
+log_info "Verifying database user..."
+if PGPASSWORD=postgres psql -h ${DB_HOST:-postgres} -p ${DB_PORT:-5432} -U postgres -d loopforge -tAc "SELECT 1 FROM pg_roles WHERE rolname='loopforge'" 2>/dev/null | grep -q 1; then
+  log_success "Database user 'loopforge' verified"
+else
+  log_error "Database user 'loopforge' not found. Initialization script may have failed."
+  log_error "Run: docker compose down -v && docker compose up"
+  exit 1
+fi
+
 # Run database migrations with retry logic
 log_info "Running database migrations..."
 attempt=1

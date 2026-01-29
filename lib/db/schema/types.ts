@@ -16,6 +16,10 @@ import type {
   activityEvents,
   activitySummaries,
   taskDependencies,
+  experiments,
+  experimentVariants,
+  variantAssignments,
+  experimentMetrics,
 } from "./tables";
 
 // =============================================================================
@@ -199,6 +203,40 @@ export interface ActivityEventMetadata {
   [key: string]: unknown;
 }
 
+// Token tracking types (Prompt Engineering Framework 2026-01-29)
+export interface PhaseTokenMetrics {
+  input: number;
+  output: number;
+  total: number;
+  cost: number; // in cents
+}
+
+export interface ExecutionTokenMetrics {
+  brainstorm?: PhaseTokenMetrics;
+  plan?: PhaseTokenMetrics;
+  execution?: PhaseTokenMetrics;
+}
+
+// A/B Testing types (Prompt Engineering Framework 2026-01-29)
+export const experimentStatuses = [
+  "draft",
+  "active",
+  "paused",
+  "completed",
+] as const;
+export type ExperimentStatus = (typeof experimentStatuses)[number];
+
+export interface ExperimentVariantConfig {
+  type: "prompt" | "model" | "parameters";
+  promptOverrides?: Record<string, string>; // e.g., { "system_prompt": "..." }
+  modelOverride?: string; // e.g., "gpt-4o-mini" instead of "gpt-4o"
+  parameterOverrides?: {
+    temperature?: number;
+    maxTokens?: number;
+    [key: string]: unknown;
+  };
+}
+
 // =============================================================================
 // Table-Inferred Types
 // =============================================================================
@@ -248,3 +286,13 @@ export type ActivitySummary = typeof activitySummaries.$inferSelect;
 export type NewActivitySummary = typeof activitySummaries.$inferInsert;
 export type TaskDependency = typeof taskDependencies.$inferSelect;
 export type NewTaskDependency = typeof taskDependencies.$inferInsert;
+
+// A/B Testing types
+export type Experiment = typeof experiments.$inferSelect;
+export type NewExperiment = typeof experiments.$inferInsert;
+export type ExperimentVariant = typeof experimentVariants.$inferSelect;
+export type NewExperimentVariant = typeof experimentVariants.$inferInsert;
+export type VariantAssignment = typeof variantAssignments.$inferSelect;
+export type NewVariantAssignment = typeof variantAssignments.$inferInsert;
+export type ExperimentMetric = typeof experimentMetrics.$inferSelect;
+export type NewExperimentMetric = typeof experimentMetrics.$inferInsert;
