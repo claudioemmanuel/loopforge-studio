@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Plus, GitBranch, ArrowLeft, RefreshCw, Zap } from "lucide-react";
+import { Plus, GitBranch, ArrowLeft, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { RepoStatusBadge } from "@/components/repo-status-indicator";
 import { UsageIndicator } from "@/components/billing/usage-indicator";
 import { RepoData, statConfig } from "./use-task-actions";
 
@@ -31,29 +29,13 @@ export function RepoHeader({
   onNewTask,
   onRepoUpdate,
 }: RepoHeaderProps) {
-  const [togglingAutoApprove, setTogglingAutoApprove] = useState(false);
-
-  const handleToggleAutoApprove = async () => {
-    if (!repo) return;
-    setTogglingAutoApprove(true);
-    try {
-      const res = await fetch(`/api/repos/${repo.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autoApprove: !repo.autoApprove }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        onRepoUpdate?.(updated);
-      }
-    } catch (err) {
-      console.error("Failed to toggle auto-approve", err);
-    } finally {
-      setTogglingAutoApprove(false);
-    }
-  };
   return (
-    <header className="flex-shrink-0 border-b bg-card/50 backdrop-blur-sm">
+    <header
+      className={cn(
+        "flex-shrink-0 border-b bg-card/50 backdrop-blur-sm transition-opacity duration-300",
+        !repo?.isCloned && "opacity-60",
+      )}
+    >
       <div className="px-6 lg:px-8 py-6">
         {/* Breadcrumb and actions row */}
         <div className="flex items-center justify-between mb-4">
@@ -65,34 +47,6 @@ export function RepoHeader({
             <span>Dashboard</span>
           </Link>
           <div className="flex items-center gap-2">
-            {repo && (
-              <button
-                onClick={handleToggleAutoApprove}
-                disabled={togglingAutoApprove}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border",
-                  repo.autoApprove
-                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800"
-                    : "bg-muted/50 text-muted-foreground border-border hover:bg-muted",
-                  togglingAutoApprove && "opacity-50 cursor-not-allowed",
-                )}
-                title={
-                  repo.autoApprove
-                    ? "Auto-approve enabled: changes are committed automatically when tests pass"
-                    : "Auto-approve disabled: changes require manual review"
-                }
-              >
-                <Zap
-                  className={cn(
-                    "w-3.5 h-3.5",
-                    repo.autoApprove && "text-amber-500",
-                  )}
-                />
-                <span className="hidden sm:inline">
-                  Auto-approve {repo.autoApprove ? "on" : "off"}
-                </span>
-              </button>
-            )}
             <Button
               variant="ghost"
               size="sm"
@@ -105,7 +59,12 @@ export function RepoHeader({
               />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button onClick={onNewTask} size="sm" className="gap-2">
+            <Button
+              onClick={onNewTask}
+              size="sm"
+              className="gap-2"
+              disabled={!repo?.isCloned}
+            >
               <Plus className="w-4 h-4" />
               <span>New Task</span>
             </Button>
@@ -119,12 +78,6 @@ export function RepoHeader({
               <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
                 {repo?.name || "Repository"}
               </h1>
-              {repo && (
-                <RepoStatusBadge
-                  isCloned={repo.isCloned}
-                  indexingStatus={repo.indexingStatus}
-                />
-              )}
             </div>
             {repo?.fullName && (
               <div className="flex items-center gap-2 mt-1.5 text-muted-foreground">
