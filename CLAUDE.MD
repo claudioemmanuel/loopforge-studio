@@ -473,8 +473,401 @@ psql $DATABASE_URL
 - Consider backward compatibility for database changes
 - Test critical user flows end-to-end
 
+### When Working with Prompts
+
+Loopforge uses sophisticated prompt engineering across its 26+ specialized AI workflows. This section documents the KERNEL framework, token optimization strategies, and practical patterns used throughout the codebase.
+
+#### KERNEL Framework (Primary Methodology)
+
+All Loopforge prompts follow the KERNEL framework for systematic prompt design:
+
+**K - Keep it simple**
+- Single clear goal per prompt section
+- Example: Ralph loop separates Context (input), Function (task), Parameters (constraints), Output (format), Verify (success criteria)
+- See `lib/ralph/prompt-generator.ts:19-69` - section headers at lines 21, 27, 31, 47, 56
+
+```typescript
+// File: lib/ralph/prompt-generator.ts:19-26
+return `# Ralph Loop - Iteration ${context.iteration}
+
+## Context (Input)
+Project: ${context.project}
+Change: ${context.changeId}
+Working directory: ${context.workingDir}
+Tasks file: ${context.tasksPath}
+```
+
+**E - Easy to verify**
+- JSON schemas with explicit fields
+- Completion markers (`RALPH_COMPLETE`, `RALPH_STUCK: <reason>`)
+- Acceptance criteria in planning prompts
+- Success criteria checklists
+
+Examples:
+- `lib/ralph/prompt-generator.ts:56-60` - Verify section with checkboxes
+- `lib/ai/plan.ts:69-98` - JSON schema with explicit field definitions
+
+```typescript
+// File: lib/ai/plan.ts:69-83 (condensed)
+## OUTPUT FORMAT (JSON only)
+{
+  "sprintGoal": "Clear, measurable goal for this work",
+  "overview": "High-level approach and architecture decisions",
+  "steps": [
+    {
+      "id": "1",
+      "title": "Concise task title",
+      "description": "What to implement and how",
+      "acceptanceCriteria": ["Testable condition 1", "Testable condition 2"],
+      "estimatedEffort": "small|medium|large",
+      "priority": "critical|high|medium|low"
+    }
+  ]
+}
+```
+
+**R - Reproducible**
+- Explicit output formats (JSON schemas, markdown templates)
+- Numbered workflow steps
+- Deterministic parsing with fallback extraction
+
+Example: `lib/ai/plan.ts:115-137` - Markdown stripping + JSON parsing with fallback
+
+```typescript
+// File: lib/ai/plan.ts:115-125 (condensed)
+// Strip markdown code blocks if present
+let cleanedText = text.trim();
+const jsonBlockMatch = cleanedText.match(/^```json\s*([\s\S]*?)\s*```$/);
+
+if (jsonBlockMatch) {
+  cleanedText = jsonBlockMatch[1].trim();
+}
+
+try {
+  return JSON.parse(cleanedText);
+} catch {
+  // Fallback extraction...
+}
+```
+
+**N - Narrow scope**
+- Each prompt focuses on one phase (brainstorm, plan, execute)
+- Sub-agents handle specialized tasks (code review, testing, refactoring)
+- Clear boundaries prevent scope creep
+
+Example: Brainstorming stays conversational, planning generates structured JSON, execution implements code - never mixed
+
+**E - Explicit constraints**
+- DO/DON'T lists in Ralph loop (`lib/ralph/prompt-generator.ts:31-45`)
+- Priority ordering (Security > Quality > Style in code review)
+- Clear task-specific rules
+
+```typescript
+// File: lib/ralph/prompt-generator.ts:31-45 (condensed)
+## Constraints (Parameters)
+
+DO:
+- Focus on ONE task only
+- Follow existing patterns in the codebase
+- Keep changes minimal and focused
+
+DON'T:
+- Modify unrelated code
+- Skip verification steps
+- Combine multiple tasks into one
+```
+
+**L - Logical structure**
+- Consistent section organization: Context → Role → Instructions → Output → Success
+- All agent prompts follow the same pattern
+- Enables systematic debugging and refinement
+
+#### Token Optimization Strategies
+
+Based on Anthropic's context engineering principles:
+
+**1. Context as Finite Resource**
+
+Loopforge treats context as precious. Key strategies:
+
+- **Attention degradation awareness**: Critical instructions front-loaded in prompts
+  - Ralph loop puts Context and Task sections FIRST (lines 21-29 in prompt-generator.ts)
+  - Completion markers defined early, not buried at end
+
+- **Context rot prevention**: Sub-agents return condensed summaries (1,000-2,000 tokens)
+  - Brainstorm conversations accumulate incrementally, not reprocessed each turn
+  - Planning generates structured JSON instead of verbose narratives
+
+- **Dynamic context loading**: Ralph loop loads files just-in-time vs. pre-loading entire repos
+  - See `lib/ai/brainstorm-chat.ts:42-112` - scanRepository limits to 20 files, detects tech stack on-demand
+  - Repository scanner in `lib/github/repo-scanner.ts` limits file sizes and counts
+
+**2. System Prompt Calibration (Finding the Goldilocks Zone)**
+
+Loopforge evolved through multiple iterations:
+
+- **Too rigid**: Early prompts with overly specific constraints led to brittle behavior
+- **Too vague**: Generic "improve code quality" prompts produced unfocused outputs
+- **Just right**: Current prompts use structured sections + flexible reasoning space
+
+Example: `lib/ai/brainstorm-chat.ts:114-173` balances Scrum framework guidance with open-ended refinement questions
+
+```typescript
+// File: lib/ai/brainstorm-chat.ts:122-134 (condensed)
+SCRUM REFINEMENT FRAMEWORK:
+1. STORY CLARITY - Ensure the "what" and "why" are crystal clear
+2. ACCEPTANCE CRITERIA - Define specific, testable conditions for "done"
+3. TASK BREAKDOWN - Identify concrete implementation steps
+4. DEPENDENCIES - Surface blockers, prerequisites, or related work
+5. RISKS - Identify potential challenges or unknowns
+6. ESTIMATION INPUT - Gather info needed for accurate estimation
+
+CRITICAL RULES:
+1. STAY ON TOPIC - Questions MUST relate directly to the original task
+2. ACCUMULATE - BUILD UPON existing brainstorm, adding details, NOT replacing
+3. BE SPECIFIC - Use Scrum refinement questions specific to THIS task
+4. KNOW WHEN TO STOP - After gathering acceptance criteria, key tasks, and risks
+```
+
+**3. Just-in-Time Context Loading**
+
+Benefits of lazy loading:
+- **Reduced token usage**: Only load files the AI explicitly requests
+- **Faster iteration**: No upfront cost for unused context
+- **Focused context**: AI gets exactly what it needs, when it needs it
+
+Implementation pattern:
+- Ralph loop starts with minimal context (task description, working directory)
+- AI can request files via tool calls during execution
+- Repository context built dynamically based on task type (see `lib/ai/brainstorm-chat.ts:239-329`)
+
+**4. Tool Design Efficiency**
+
+Loopforge designs tools to return concise, relevant information:
+
+- **Clear, non-overlapping functionality**: Separate tools for brainstorm, plan, execute (never combined)
+- **Structured outputs**: JSON responses reduce parsing ambiguity
+- **Decision reduction**: Limited options in brainstorm (3-4 choices), clear completion markers
+
+Example: Brainstorm chat options limited to 3-4 relevant choices + "ready to proceed" option (line 156-157 in brainstorm-chat.ts)
+
+#### Loopforge Prompt Patterns
+
+**Structured Sections Pattern**
+
+All prompts organize information hierarchically:
+```
+Context → Role/Expertise → Instructions → Output Format → Success Criteria
+```
+
+**Used in**:
+- Ralph loop (`lib/ralph/prompt-generator.ts`)
+- Planning (`lib/ai/plan.ts:49-108`)
+- Brainstorming system prompt (`lib/ai/brainstorm-chat.ts:114-173`)
+
+**Benefits**:
+- Reduces cognitive load on AI
+- Enables systematic prompt debugging (modify one section at a time)
+- Consistent structure across all workflows
+
+**JSON Output Enforcement Pattern**
+
+All prompts expecting structured data include:
+1. Explicit JSON schema in prompt
+2. "Respond ONLY with valid JSON" instruction
+3. Markdown code block stripping (`` ```json `` and `` ``` ``)
+4. Fallback text parsing when JSON fails
+5. Graceful degradation with sensible defaults
+
+See `lib/ai/plan.ts:115-243` for comprehensive fallback implementation
+
+**Context Accumulation Pattern**
+
+Brainstorming builds context iteratively:
+- Each turn includes previous preview: `lib/ai/brainstorm-chat.ts:193-200`
+- AI instructed to "BUILD UPON, not replace" existing content
+- Prevents context loss across conversation turns
+
+**Progressive Refinement Pattern**
+
+Task-specific prompts detect task type and adapt:
+- Testing tasks get coverage/mocking questions (`lib/ai/brainstorm-chat.ts:247-263`)
+- Bug fix tasks get root cause analysis prompts (`lib/ai/brainstorm-chat.ts:283-299`)
+- Performance tasks get profiling/benchmarking prompts (`lib/ai/brainstorm-chat.ts:301-317`)
+
+**Completion Marker Pattern**
+
+Clear signals for task completion:
+- `RALPH_COMPLETE` when all tasks done (`lib/ralph/prompt-generator.ts:53`)
+- `RALPH_STUCK: <reason>` when blocked (`lib/ralph/prompt-generator.ts:54`)
+- `suggestComplete: true` in brainstorming when ready (`lib/ai/brainstorm-chat.ts:144-148`)
+
+#### Practical Guidelines for Claude
+
+**1. Apply KERNEL First**
+
+Before writing a prompt:
+- Identify the single clear goal (K)
+- Define verifiable success criteria (E)
+- Ensure reproducible outputs via explicit format (R)
+- Keep scope narrow to one task/phase (N)
+- Add explicit DO/DON'T constraints (E)
+- Structure logically with numbered sections (L)
+
+**2. Use Existing Patterns**
+
+Before creating new prompt logic:
+- Check `lib/ai/brainstorm-chat.ts` for conversational patterns
+- Reuse JSON schema patterns from `lib/ai/plan.ts`
+- Copy completion marker pattern from `lib/ralph/prompt-generator.ts`
+- Follow section structure from existing prompts
+
+**3. Token Budget by Task Type**
+
+Recommended max tokens by workflow:
+- **Brainstorming**: 2,048 tokens (exploratory, conversational)
+- **Planning**: 4,096 tokens (structured JSON output with multiple steps)
+- **Code Generation**: 8,192 tokens (need space for code blocks)
+- **Execution**: 8,192 tokens (includes context accumulation)
+
+See actual usage:
+- `lib/ai/brainstorm-chat.ts:211` - 2,048 tokens
+- `lib/ai/plan.ts:112` - 4,096 tokens
+
+**4. Test with Real Tasks**
+
+No unit tests can fully simulate prompt effectiveness:
+- Create test task on Kanban board
+- Monitor execution logs in `executionLogs` table
+- Check token usage in analytics dashboard
+- Verify JSON parsing succeeds across different AI providers
+
+**5. Error Handling is Mandatory**
+
+Every prompt with JSON output must include:
+- Markdown code block stripping (`` ```json `` and `` ``` ``)
+- Fallback text parsing when JSON.parse() fails
+- Graceful degradation with sensible defaults
+- Never throw errors - always return usable structure
+
+Reference implementation: `lib/ai/plan.ts:115-243`
+
+**6. Front-Load Critical Information**
+
+Due to attention degradation in long contexts:
+- Put task description and constraints FIRST
+- Define success criteria early in prompt
+- Place optional details at end
+- Don't bury completion markers deep in prompt
+
+#### Prompt Template Checklist
+
+Use this when creating new prompts:
+
+```typescript
+// 1. Role Definition
+"You are an expert [specialty] [profession]..."
+
+// 2. Context Section
+const context = {
+  project: "...",
+  task: "...",
+  iteration: "...",
+  workingDirectory: "..."
+};
+
+// 3. Expertise/Capabilities (bulleted list)
+"Your expertise includes:
+- Capability 1
+- Capability 2
+- Capability 3"
+
+// 4. Workflow (numbered steps)
+"Your workflow:
+1. Step 1
+2. Step 2
+3. Step 3"
+
+// 5. Output Format (explicit JSON schema)
+"Output format:
+{
+  field1: \"description\",
+  field2: [\"array\", \"of\", \"values\"],
+  field3: { nested: \"object\" }
+}"
+
+// 6. Success Criteria
+"Success criteria:
+□ Criterion 1
+□ Criterion 2
+□ Criterion 3"
+
+// 7. Completion Markers
+"When complete, output: TASK_COMPLETE
+If blocked, output: TASK_BLOCKED: <reason>"
+
+// 8. Fallback Handling (MANDATORY for JSON prompts)
+function parseResponse(response: string) {
+  // Strip markdown code blocks
+  let cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (error) {
+    // Fallback: extract from text or return default structure
+    return fallbackExtraction(response);
+  }
+}
+```
+
+#### Anti-Patterns to Avoid
+
+Based on Loopforge's evolution:
+
+❌ **Vague success criteria**: "Make the code better"
+✅ **Specific acceptance criteria**: "Reduce function length to <50 lines, add JSDoc comments, extract magic numbers to constants"
+
+❌ **Implicit expectations**: Expecting AI to know project conventions
+✅ **Explicit constraints**: "Follow existing patterns in `lib/agents/definitions/code-reviewer.ts:15-45`"
+
+❌ **Mixed concerns in one section**: Combining context, instructions, and output format
+✅ **Separated sections**: Context section, Instructions section, Output Format section (see prompt-generator.ts structure)
+
+❌ **JSON without fallback**: Assuming AI always returns valid JSON
+✅ **Robust parsing**: Markdown stripping + fallback extraction (see `lib/ai/plan.ts:115-243`)
+
+❌ **Pre-loading entire context**: Loading all repository files upfront
+✅ **Just-in-time loading**: Load files on-demand based on AI requests (see Ralph loop execution)
+
+❌ **Generic prompts**: "Analyze this task"
+✅ **Task-specific prompts**: Testing tasks get coverage questions, bug fixes get root cause prompts (see `lib/ai/brainstorm-chat.ts:239-329`)
+
+❌ **Buried instructions**: Important constraints at end of long prompt
+✅ **Front-loaded critical info**: Task description and constraints in first 500 tokens
+
+❌ **No completion signals**: AI doesn't know when to stop
+✅ **Clear markers**: `RALPH_COMPLETE`, `suggestComplete: true` (see completion marker pattern)
+
+#### Token Usage Monitoring
+
+Track and optimize token usage:
+- Monitor analytics dashboard for token consumption trends
+- Repository scanner limits file sizes (`lib/github/repo-scanner.ts`)
+- Brainstorm conversation capped at reasonable length
+- Planning outputs structured JSON (compact vs. verbose narratives)
+
+#### Key Prompt Files Reference
+
+When modifying prompts, consult these files:
+- **Ralph loop prompts**: `lib/ralph/prompt-generator.ts:15-89`
+- **Planning prompts**: `lib/ai/plan.ts:49-108`
+- **Brainstorming system prompt**: `lib/ai/brainstorm-chat.ts:114-173`
+- **Task-specific detection**: `lib/ai/brainstorm-chat.ts:239-329`
+- **JSON extraction fallback**: `lib/ai/plan.ts:115-243`
+- **Repository context scanning**: `lib/ai/brainstorm-chat.ts:42-112`
+
 ---
 
-**Last Updated**: 2026-01-23
+**Last Updated**: 2026-01-29
 **Project Version**: 0.1.0
 **Maintained By**: Loopforge Team
