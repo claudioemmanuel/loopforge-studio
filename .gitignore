@@ -49,6 +49,9 @@ dump.rdb
 .claude/
 PROMPT-ENGINEERING.md
 
+# Documentation (private)
+docs/
+
 # OS
 .DS_Store
 Thumbs.db
