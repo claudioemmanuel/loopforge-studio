@@ -69,9 +69,15 @@ export const users = pgTable("users", {
   encryptedGithubToken: text("encrypted_github_token"),
   githubTokenIv: text("github_token_iv"),
   onboardingCompleted: boolean("onboarding_completed").default(false),
+  // Workflow settings
+  defaultCloneDirectory: text("default_clone_directory"),
   // Billing fields
   billingMode: billingModeEnum("billing_mode").default("byok"),
   stripeCustomerId: text("stripe_customer_id"),
+  subscriptionTier: text("subscription_tier").default("free"), // free | pro | enterprise
+  subscriptionStatus: text("subscription_status").default("active"), // active | canceled | past_due
+  subscriptionPeriodEnd: timestamp("subscription_period_end"),
+  locale: text("locale").default("en"), // User's language preference (en | pt-BR)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -94,6 +100,11 @@ export const repos = pgTable(
     localPath: text("local_path"),
     isCloned: boolean("is_cloned").notNull().default(false),
     clonedAt: timestamp("cloned_at"),
+    // Clone status tracking (Phase 2.2)
+    cloneStatus: text("clone_status").default("pending"), // pending | cloning | completed | failed
+    clonePath: text("clone_path"),
+    cloneStartedAt: timestamp("clone_started_at"),
+    cloneCompletedAt: timestamp("clone_completed_at"),
     // Indexing status
     indexingStatus: indexingStatusEnum("indexing_status")
       .notNull()
@@ -197,6 +208,18 @@ export const executions = pgTable("executions", {
   tokenMetrics: jsonb("token_metrics")
     .$type<Record<string, PhaseTokenMetrics>>()
     .default({}),
+  // Skills tracking (Skills Framework Integration 2026-01-29)
+  skillExecutions: jsonb("skill_executions")
+    .$type<
+      Array<{
+        skillId: string;
+        status: "passed" | "warning" | "blocked";
+        message: string;
+        timestamp: string;
+        metadata?: Record<string, unknown>;
+      }>
+    >()
+    .default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -206,7 +229,9 @@ export const executionEvents = pgTable("execution_events", {
   executionId: uuid("execution_id")
     .notNull()
     .references(() => executions.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
   eventType: executionEventTypeEnum("event_type").notNull(),
+  title: text("title"), // Phase 2.3: Activity Tracking - event title for display (nullable for backwards compat)
   content: text("content").notNull(),
   metadata: jsonb("metadata").$type<ExecutionEventMetadata>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
