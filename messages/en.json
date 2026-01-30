@@ -534,9 +534,16 @@
       "unknownMessage": "Unknown repository status"
     },
     "clone": {
+      "completed": "Repository cloned",
+      "completedMessage": "Repository is cloned and ready",
+      "cloning": "Cloning in progress",
+      "cloningMessage": "Repository is being cloned...",
+      "failed": "Clone failed",
+      "failedMessage": "Failed to clone repository",
+      "pending": "Not cloned yet",
+      "pendingMessage": "Repository needs to be cloned",
       "inProgress": "Clone in progress...",
-      "waiting": "Waiting to clone...",
-      "failed": "Clone failed"
+      "waiting": "Waiting to clone..."
     }
   },
   "execution": {
