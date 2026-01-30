@@ -3,8 +3,10 @@
 import Image from "next/image";
 import { User } from "lucide-react";
 import { useSettings } from "../settings-context";
+import { useTranslations } from "next-intl";
 
 export default function AccountPage() {
+  const t = useTranslations("settings.accountPage");
   const { user } = useSettings();
 
   return (
@@ -13,7 +15,9 @@ export default function AccountPage() {
       <div className="p-6 rounded-xl border bg-card">
         <div className="flex items-center gap-2 mb-4">
           <User className="w-4 h-4" />
-          <h3 className="font-serif font-semibold tracking-tight">Profile</h3>
+          <h3 className="font-serif font-semibold tracking-tight">
+            {t("profile")}
+          </h3>
         </div>
         <div className="flex items-center gap-4">
           {user.image ? (
