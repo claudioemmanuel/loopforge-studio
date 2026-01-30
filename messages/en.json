@@ -1,0 +1,41 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "repositories": "Repositories",
+    "execution": "Execution",
+    "settings": "Settings",
+    "signOut": "Sign Out"
+  },
+  "tasks": {
+    "createTask": "Create Task",
+    "taskTitle": "Task Title",
+    "description": "Description",
+    "status": "Status",
+    "autonomousMode": "Autonomous Mode",
+    "statuses": {
+      "todo": "To Do",
+      "brainstorming": "Brainstorming",
+      "planning": "Planning",
+      "ready": "Ready",
+      "executing": "Executing",
+      "done": "Done",
+      "stuck": "Stuck"
+    }
+  },
+  "settings": {
+    "account": "Account",
+    "preferences": "Preferences",
+    "language": "Language",
+    "selectLanguage": "Select Language"
+  }
+}

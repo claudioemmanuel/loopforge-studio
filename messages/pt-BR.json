@@ -1,0 +1,41 @@
+{
+  "common": {
+    "loading": "Carregando...",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "close": "Fechar",
+    "confirm": "Confirmar",
+    "back": "Voltar"
+  },
+  "navigation": {
+    "dashboard": "Painel",
+    "repositories": "Repositórios",
+    "execution": "Execução",
+    "settings": "Configurações",
+    "signOut": "Sair"
+  },
+  "tasks": {
+    "createTask": "Criar Tarefa",
+    "taskTitle": "Título da Tarefa",
+    "description": "Descrição",
+    "status": "Status",
+    "autonomousMode": "Modo Autônomo",
+    "statuses": {
+      "todo": "A Fazer",
+      "brainstorming": "Brainstorming",
+      "planning": "Planejamento",
+      "ready": "Pronto",
+      "executing": "Executando",
+      "done": "Concluído",
+      "stuck": "Travado"
+    }
+  },
+  "settings": {
+    "account": "Conta",
+    "preferences": "Preferências",
+    "language": "Idioma",
+    "selectLanguage": "Selecionar Idioma"
+  }
+}
