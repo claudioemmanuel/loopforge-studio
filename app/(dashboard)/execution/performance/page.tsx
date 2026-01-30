@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import { clientLogger } from "@/lib/logger";
 import { StatCard } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,7 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsPage() {
+  const t = useTranslations("execution.performance");
   const [range, setRange] = useState<DateRange>("week");
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,12 +135,12 @@ export default function AnalyticsPage() {
       <div className="p-4 sm:p-6 lg:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
-              Analytics
+            <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight flex items-center gap-3">
+              <BarChart3 className="w-8 h-8 text-primary" />
+              {t("title")}
             </h1>
             <p className="text-muted-foreground text-sm sm:text-base">
-              Track your <em className="font-serif">AI-powered</em> development
-              metrics
+              {t("subtitle")}
             </p>
           </div>
         </div>
@@ -147,17 +149,17 @@ export default function AnalyticsPage() {
           <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-6">
             <BarChart3 className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h2 className="text-xl font-serif font-semibold mb-2">No data yet</h2>
+          <h2 className="text-xl font-serif font-semibold mb-2">
+            {t("noData")}
+          </h2>
           <p className="text-muted-foreground max-w-md mb-6">
-            Analytics will appear here once you start creating and completing
-            tasks. Connect a repository, create your first task, and let the AI
-            get to work.
+            {t("noDataMessage")}
           </p>
           <Link
             href="/dashboard"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium"
           >
-            Go to Dashboard
+            {t("goToDashboard")}
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -169,12 +171,12 @@ export default function AnalyticsPage() {
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
-            Analytics
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight flex items-center gap-3">
+            <BarChart3 className="w-8 h-8 text-primary" />
+            {t("title")}
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base">
-            Track your <em className="font-serif">AI-powered</em> development
-            metrics
+            {t("subtitle")}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -189,7 +191,7 @@ export default function AnalyticsPage() {
                     : "bg-background hover:bg-muted/50"
                 }`}
               >
-                {r === "today" ? "Today" : `This ${r}`}
+                {t(`dateRanges.${r}`)}
               </button>
             ))}
           </div>
@@ -200,7 +202,7 @@ export default function AnalyticsPage() {
             className="w-full sm:w-auto"
           >
             <Download className="w-4 h-4 mr-2" />
-            Export
+            {t("export")}
           </Button>
         </div>
       </div>
@@ -208,22 +210,22 @@ export default function AnalyticsPage() {
       {/* Task Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
-          title="Total Tasks"
+          title={t("stats.totalTasks")}
           value={data.taskMetrics.total}
           icon={ListTodo}
         />
         <StatCard
-          title="Completed"
+          title={t("stats.completed")}
           value={data.taskMetrics.completed}
           icon={CheckCircle2}
         />
         <StatCard
-          title="Success Rate"
+          title={t("stats.successRate")}
           value={`${data.taskMetrics.successRate}%`}
           icon={TrendingUp}
         />
         <StatCard
-          title="Avg Time"
+          title={t("stats.avgTime")}
           value={
             data.taskMetrics.avgCompletionTimeMinutes
               ? `${data.taskMetrics.avgCompletionTimeMinutes}min`
@@ -241,7 +243,7 @@ export default function AnalyticsPage() {
 
       {/* AI Usage Section */}
       <h2 className="text-xl font-serif font-semibold tracking-tight mb-4">
-        AI Usage
+        {t("sections.aiUsage")}
       </h2>
       <div className="grid gap-4 md:grid-cols-2 mb-8">
         <TokenUsageChart data={data.tokenUsage} />
@@ -250,7 +252,7 @@ export default function AnalyticsPage() {
 
       {/* Repository Activity */}
       <h2 className="text-xl font-serif font-semibold tracking-tight mb-4">
-        Repository Activity
+        {t("sections.repoActivity")}
       </h2>
       <RepoActivityTable data={data.repoActivity} />
     </div>
