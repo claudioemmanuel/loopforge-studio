@@ -2,11 +2,12 @@ import { auth } from "@/lib/auth";
 import { db, repos, tasks } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   GitBranch,
-  ExternalLink,
+  Loader2,
   Clock,
   CheckCircle2,
   AlertCircle,
@@ -16,6 +17,7 @@ import { RepoStatusDot } from "@/components/repo-status-indicator";
 import { formatDistanceToNow } from "date-fns";
 
 export default async function RepositoriesPage() {
+  const t = await getTranslations("repositories");
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -67,11 +69,9 @@ export default async function RepositoriesPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-serif font-bold tracking-tight">
-            Repositories
+            {t("title")}
           </h1>
-          <p className="text-muted-foreground">
-            Manage your connected GitHub repositories
-          </p>
+          <p className="text-muted-foreground">{t("subtitle")}</p>
         </div>
         <AddRepoButton existingRepoGithubIds={existingRepoGithubIds} />
       </div>
@@ -79,14 +79,11 @@ export default async function RepositoriesPage() {
       {userRepos.length === 0 ? (
         <div className="max-w-md mx-auto text-center py-12">
           <h2 className="text-2xl font-serif font-semibold tracking-tight mb-2">
-            No repositories yet
+            {t("noRepos")}
           </h2>
-          <p className="text-muted-foreground mb-4">
-            Add your first repository to start using{" "}
-            <em className="font-serif">Loopforge</em>
-          </p>
+          <p className="text-muted-foreground mb-4">{t("noReposMessage")}</p>
           <Link href="/onboarding">
-            <Button>Get Started</Button>
+            <Button>{t("getStarted")}</Button>
           </Link>
         </div>
       ) : (
@@ -114,7 +111,7 @@ export default async function RepositoriesPage() {
                   </div>
                   {repo.isPrivate && (
                     <span className="px-2 py-0.5 rounded-full bg-muted text-xs">
-                      Private
+                      {t("private")}
                     </span>
                   )}
                 </div>
@@ -122,7 +119,7 @@ export default async function RepositoriesPage() {
                 <div className="flex items-center gap-4 text-sm">
                   <div className="flex items-center gap-1">
                     <span className="font-medium">{repo.taskCount}</span>
-                    <span className="text-muted-foreground">tasks</span>
+                    <span className="text-muted-foreground">{t("tasks")}</span>
                   </div>
                   {repo.completedCount > 0 && (
                     <div className="flex items-center gap-1 text-green-600">
@@ -132,7 +129,7 @@ export default async function RepositoriesPage() {
                   )}
                   {repo.inProgressCount > 0 && (
                     <div className="flex items-center gap-1 text-blue-600">
-                      <ExternalLink className="w-3.5 h-3.5" />
+                      <Loader2 className="w-3.5 h-3.5" />
                       <span>{repo.inProgressCount}</span>
                     </div>
                   )}

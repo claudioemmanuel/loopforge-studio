@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { clientLogger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +53,7 @@ const providers: ProviderConfig[] = [
     name: "Anthropic",
     displayName: "Claude",
     icon: AnthropicIcon,
-    placeholder: "sk-ant-api03-...",
+    placeholder: "Enter Anthropic API key",
     docsUrl: "https://console.anthropic.com/settings/keys",
     color: "text-[#D4A574]",
     bgColor: "bg-[#D4A574]/10",
@@ -80,7 +81,7 @@ const providers: ProviderConfig[] = [
     name: "OpenAI",
     displayName: "GPT-4",
     icon: OpenAIIcon,
-    placeholder: "sk-proj-...",
+    placeholder: "Enter OpenAI API key",
     docsUrl: "https://platform.openai.com/api-keys",
     color: "text-[#10A37F]",
     bgColor: "bg-[#10A37F]/10",
@@ -108,7 +109,7 @@ const providers: ProviderConfig[] = [
     name: "Google",
     displayName: "Gemini",
     icon: GeminiIcon,
-    placeholder: "AIza...",
+    placeholder: "Enter Google API key",
     docsUrl: "https://aistudio.google.com/app/api-keys",
     color: "text-[#4285F4]",
     bgColor: "bg-[#4285F4]/10",
@@ -144,6 +145,7 @@ function ModelDropdown({
   onSelect: (model: string) => void;
   disabled?: boolean;
 }) {
+  const t = useTranslations("settings.integrationsPage");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -219,7 +221,7 @@ function ModelDropdown({
                   <span className="text-sm font-medium">{model.name}</span>
                   {model.recommended && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                      Recommended
+                      {t("recommended")}
                     </span>
                   )}
                 </div>
@@ -248,6 +250,7 @@ function ProviderCard({
   onApiKeyUpdate: (newMaskedKey: string | null) => void;
   onModelUpdate: (model: string) => void;
 }) {
+  const t = useTranslations("settings.integrationsPage");
   const [isEditing, setIsEditing] = useState(false);
   const [newApiKey, setNewApiKey] = useState("");
   const [loading, setLoading] = useState(false);
@@ -328,13 +331,13 @@ function ProviderCard({
         <div className="flex items-center gap-2">
           {provider.comingSoon && (
             <span className="text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground">
-              Coming Soon
+              {t("comingSoon")}
             </span>
           )}
           {maskedKey && (
             <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
               <Check className="w-3.5 h-3.5" />
-              Configured
+              {t("configured")}
             </div>
           )}
         </div>
@@ -369,7 +372,7 @@ function ProviderCard({
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    "Save"
+                    t("save")
                   )}
                 </Button>
                 <Button
@@ -382,7 +385,7 @@ function ProviderCard({
                   }}
                   disabled={loading}
                 >
-                  Cancel
+                  {t("cancel")}
                 </Button>
               </div>
             </div>
@@ -393,7 +396,7 @@ function ProviderCard({
                 variant="outline"
                 onClick={() => setIsEditing(true)}
               >
-                Update
+                {t("update")}
               </Button>
               <Button
                 size="sm"
@@ -405,7 +408,7 @@ function ProviderCard({
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  "Remove"
+                  t("remove")
                 )}
               </Button>
             </div>
@@ -413,7 +416,7 @@ function ProviderCard({
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">Not configured</p>
+          <p className="text-sm text-muted-foreground">{t("notConfigured")}</p>
           {isEditing ? (
             <div className="space-y-2">
               <Input
@@ -432,7 +435,7 @@ function ProviderCard({
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    "Save"
+                    t("save")
                   )}
                 </Button>
                 <Button
@@ -445,14 +448,14 @@ function ProviderCard({
                   }}
                   disabled={loading}
                 >
-                  Cancel
+                  {t("cancel")}
                 </Button>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => setIsEditing(true)}>
-                Configure
+                {t("configure")}
               </Button>
               <a
                 href={provider.docsUrl}
@@ -460,7 +463,7 @@ function ProviderCard({
                 rel="noopener noreferrer"
                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
               >
-                Get API key
+                {t("getApiKey")}
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
@@ -471,7 +474,7 @@ function ProviderCard({
       {/* Model Selection */}
       <div className="mt-4 pt-3 border-t">
         <label className="text-xs text-muted-foreground mb-1.5 block">
-          Model
+          {t("model")}
         </label>
         <ModelDropdown
           provider={provider}
@@ -485,6 +488,7 @@ function ProviderCard({
 }
 
 export default function IntegrationsPage() {
+  const t = useTranslations("settings.integrationsPage");
   const { github, repos, apiKeys, modelPreferences, preferredProvider } =
     useSettings();
   const router = useRouter();
@@ -632,23 +636,21 @@ export default function IntegrationsPage() {
         <div className="flex items-center gap-2 mb-4">
           <Key className="w-4 h-4" />
           <h3 className="font-serif font-semibold tracking-tight">
-            AI Providers
+            {t("aiProviders")}
           </h3>
         </div>
 
         <p className="text-sm text-muted-foreground mb-4">
-          Configure API keys and select models for AI-powered tasks. Your keys
-          are encrypted and stored securely.
+          {t("aiProvidersDescription")}
         </p>
 
         {/* Default Provider Selector */}
         <div className="mb-6 p-4 rounded-lg bg-muted/30 border">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h4 className="font-medium text-sm">Default AI Provider</h4>
+              <h4 className="font-medium text-sm">{t("defaultProvider")}</h4>
               <p className="text-xs text-muted-foreground mt-0.5">
-                This provider will be used for brainstorming, planning, and
-                executing tasks
+                {t("defaultProviderDescription")}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -666,8 +668,8 @@ export default function IntegrationsPage() {
                       disabled={savingProvider || !hasKey}
                       title={
                         !hasKey
-                          ? `Configure ${provider.name} API key first`
-                          : `Use ${provider.name}`
+                          ? t("configureFirst", { provider: provider.name })
+                          : t("useProvider", { provider: provider.name })
                       }
                       className={cn(
                         "px-2 sm:px-3 py-2 flex items-center gap-1.5 sm:gap-2 transition-all duration-200 border-r last:border-r-0 whitespace-nowrap",
@@ -712,8 +714,8 @@ export default function IntegrationsPage() {
         <div className="mt-4 p-3 rounded-lg bg-muted/50 border border-dashed flex items-start gap-3">
           <Info className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <div className="text-sm text-muted-foreground">
-            <span className="font-medium">More providers coming soon:</span>{" "}
-            Mistral, Cohere, and more.
+            <span className="font-medium">{t("moreProvidersComing")}</span>{" "}
+            {t("moreProvidersList")}
           </div>
         </div>
       </div>
@@ -721,25 +723,25 @@ export default function IntegrationsPage() {
       {/* GitHub Connection */}
       <div className="p-6 rounded-xl border bg-card">
         <h3 className="font-serif font-semibold tracking-tight mb-4">
-          GitHub Connection
+          {t("githubConnection")}
         </h3>
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
             <Check className="w-4 h-4" />
-            <span>Connected as @{github.username}</span>
+            <span>{t("connectedAs", { username: github.username })}</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Permissions: read:user, user:email, repo
+            {t("permissions")} {t("permissionsList")}
           </p>
           <p className="text-sm text-muted-foreground">
-            Connected: {github.connectedAt}
+            {t("connectedAt")} {github.connectedAt}
           </p>
           <div className="flex gap-2">
             <Button size="sm" variant="outline">
-              Reconnect
+              {t("reconnect")}
             </Button>
             <Button size="sm" variant="outline" className="text-destructive">
-              Revoke Access
+              {t("revokeAccess")}
             </Button>
           </div>
         </div>
@@ -749,15 +751,15 @@ export default function IntegrationsPage() {
       <div className="p-6 rounded-xl border bg-card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-serif font-semibold tracking-tight">
-            Connected Repositories
+            {t("connectedRepositories")}
           </h3>
           <Button size="sm" variant="outline">
-            + Add Repos
+            {t("addRepos")}
           </Button>
         </div>
         {repos.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
-            No repositories connected yet.
+            {t("noReposConnected")}
           </p>
         ) : (
           <div className="space-y-2">
@@ -784,7 +786,7 @@ export default function IntegrationsPage() {
                   {disconnecting === repo.id ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
                   ) : (
-                    "Disconnect"
+                    t("disconnect")
                   )}
                 </Button>
               </div>
@@ -797,17 +799,18 @@ export default function IntegrationsPage() {
       <div className="p-6 rounded-xl border bg-card opacity-60">
         <div className="flex items-center gap-2 mb-4">
           <Bell className="w-4 h-4" />
-          <h3 className="font-serif font-semibold tracking-tight">Webhooks</h3>
+          <h3 className="font-serif font-semibold tracking-tight">
+            {t("webhooks")}
+          </h3>
           <span className="text-xs bg-muted px-2 py-0.5 rounded">
-            Coming Soon
+            {t("comingSoon")}
           </span>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Configure webhooks to notify external services when tasks complete or
-          encounter errors.
+          {t("webhooksDescription")}
         </p>
         <Button size="sm" variant="outline" disabled>
-          Notify me when available
+          {t("notifyWhenAvailable")}
         </Button>
       </div>
     </div>

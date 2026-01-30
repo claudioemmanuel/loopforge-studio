@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { clientLogger } from "@/lib/logger";
 import { AlertTriangle, RefreshCw, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ interface HistoryResponse {
 }
 
 export default function WorkersFailedPage() {
+  const t = useTranslations("execution.failed");
   const [items, setItems] = useState<HistoryItemData[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -110,20 +112,17 @@ export default function WorkersFailedPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-serif font-bold tracking-tight flex items-center gap-3">
-            <AlertTriangle className="w-8 h-8 text-destructive" />
-            Failed Tasks
+          <h1 className="text-3xl font-serif font-bold tracking-tight">
+            {t("title")}
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Tasks that got stuck or encountered errors
-          </p>
+          <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
         </div>
 
         <Button
           variant="outline"
           size="icon"
           onClick={() => fetchFailed(1)}
-          title="Refresh failed tasks"
+          title={t("refresh")}
         >
           <RefreshCw className="w-4 h-4" />
         </Button>
@@ -135,7 +134,7 @@ export default function WorkersFailedPage() {
         <div>
           <p className="text-2xl font-bold">{total}</p>
           <p className="text-xs text-muted-foreground">
-            Failed tasks requiring attention
+            {total === 1 ? t("subtitle") : t("subtitle")}
           </p>
         </div>
       </div>
@@ -155,10 +154,9 @@ export default function WorkersFailedPage() {
           <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
             <Zap className="w-6 h-6 text-emerald-500" />
           </div>
-          <h3 className="font-medium text-foreground mb-1">No failed tasks</h3>
+          <h3 className="font-medium text-foreground mb-1">{t("noFailed")}</h3>
           <p className="text-sm text-muted-foreground max-w-sm">
-            All your tasks are running smoothly. Failed or stuck tasks will
-            appear here when they need your attention.
+            {t("noFailedMessage")}
           </p>
         </div>
       )}
@@ -186,8 +184,8 @@ export default function WorkersFailedPage() {
             disabled={loadingMore}
           >
             {loadingMore
-              ? "Loading..."
-              : `Load more (${items.length} of ${total})`}
+              ? t("loadMore")
+              : `${t("loadMore")} (${items.length} of ${total})`}
           </Button>
         </div>
       )}
