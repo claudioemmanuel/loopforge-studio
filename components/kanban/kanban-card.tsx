@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ import {
   getProgressPercentage,
 } from "./card-status-badge";
 import { CardProcessingOverlay } from "./card-processing-overlay";
+import { SkillBadgeGroup } from "./skill-badge";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import type { CardProcessingState } from "@/components/hooks/use-card-processing";
 import { formatDistanceToNow } from "date-fns";
@@ -65,6 +67,7 @@ export const KanbanCard = React.memo(function KanbanCard({
   processingState,
   isSliding,
 }: KanbanCardProps) {
+  const t = useTranslations();
   const [starting, setStarting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -257,42 +260,45 @@ export const KanbanCard = React.memo(function KanbanCard({
       </div>
 
       {/* Card content */}
-      <div className="p-4 pl-4 group-hover:pl-6 transition-all duration-200">
-        {/* Header with title and quick actions */}
-        <div className="flex items-start justify-between gap-3 mb-2">
+      <div className="p-4 pl-4 group-hover:pl-6 transition-all duration-200 overflow-x-hidden relative">
+        {/* Action button - positioned absolutely to prevent layout shift */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label="Task actions"
+              className={cn(
+                "absolute top-2 right-2 z-10",
+                "p-1.5 rounded-lg",
+                "sm:opacity-0 sm:group-hover:opacity-100",
+                "hover:bg-muted/50 text-muted-foreground hover:text-foreground",
+                "transition-opacity duration-150",
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {onDelete && (
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDeleteConfirm(true);
+                }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {t("tasks.modal.deleteTask")}
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Header with title */}
+        <div className="mb-2 pr-8">
           <h4 className="font-medium text-sm leading-snug line-clamp-2 text-foreground group-hover:text-primary transition-colors duration-200">
             {task.title}
           </h4>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                aria-label="Task actions"
-                className={cn(
-                  "flex-shrink-0 p-1.5 -m-1 rounded-lg",
-                  "sm:opacity-0 sm:group-hover:opacity-100",
-                  "hover:bg-muted/50 text-muted-foreground hover:text-foreground",
-                  "transition-all duration-150",
-                )}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {onDelete && (
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowDeleteConfirm(true);
-                  }}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Task
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
         {/* Description preview */}
@@ -303,14 +309,23 @@ export const KanbanCard = React.memo(function KanbanCard({
         )}
 
         {/* Metadata row */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           {/* Status badge, autonomous indicator, blocker badge */}
           <CardStatusBadge task={task} allTasks={allTasks} />
 
+          {/* Skill badges - show active skills for this task */}
+          {processingState?.activeSkills &&
+            processingState.activeSkills.length > 0 && (
+              <SkillBadgeGroup
+                skills={processingState.activeSkills}
+                compact={true}
+              />
+            )}
+
           {/* Branch name */}
           {task.branch && (
-            <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/70 rounded-full text-xs text-muted-foreground font-mono">
-              <GitBranch className="w-3 h-3" />
+            <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted/70 rounded-full text-xs text-muted-foreground font-mono flex-shrink-0">
+              <GitBranch className="w-3 h-3 flex-shrink-0" />
               <span className="truncate max-w-[80px]">{task.branch}</span>
             </div>
           )}
@@ -326,7 +341,9 @@ export const KanbanCard = React.memo(function KanbanCard({
                   onClick={handleStart}
                   disabled={starting || task.autonomousMode}
                   title={
-                    task.autonomousMode ? "Autonomous mode active" : undefined
+                    task.autonomousMode
+                      ? t("tasks.modal.autonomousModeActive")
+                      : undefined
                   }
                 >
                   {starting ? (
@@ -334,7 +351,7 @@ export const KanbanCard = React.memo(function KanbanCard({
                   ) : (
                     <Sparkles className="w-3 h-3" />
                   )}
-                  {starting ? "Starting..." : "Start"}
+                  {starting ? t("tasks.modal.starting") : t("kanban.start")}
                 </Button>
               )}
               {task.status === "brainstorming" && (
@@ -345,7 +362,9 @@ export const KanbanCard = React.memo(function KanbanCard({
                   onClick={(e) => handleAdvance(e, "plan")}
                   disabled={advancing || task.autonomousMode}
                   title={
-                    task.autonomousMode ? "Autonomous mode active" : undefined
+                    task.autonomousMode
+                      ? t("tasks.modal.autonomousModeActive")
+                      : undefined
                   }
                 >
                   {advancing ? (
@@ -353,7 +372,7 @@ export const KanbanCard = React.memo(function KanbanCard({
                   ) : (
                     <FileText className="w-3 h-3" />
                   )}
-                  {advancing ? "Planning..." : "Plan"}
+                  {advancing ? t("tasks.modal.planning") : t("kanban.plan")}
                 </Button>
               )}
               {task.status === "planning" && (
@@ -364,7 +383,9 @@ export const KanbanCard = React.memo(function KanbanCard({
                   onClick={(e) => handleAdvance(e, "ready")}
                   disabled={advancing || task.autonomousMode}
                   title={
-                    task.autonomousMode ? "Autonomous mode active" : undefined
+                    task.autonomousMode
+                      ? t("tasks.modal.autonomousModeActive")
+                      : undefined
                   }
                 >
                   {advancing ? (
@@ -372,7 +393,7 @@ export const KanbanCard = React.memo(function KanbanCard({
                   ) : (
                     <Zap className="w-3 h-3" />
                   )}
-                  {advancing ? "Setting..." : "Ready"}
+                  {advancing ? t("kanban.setting") : t("kanban.ready")}
                 </Button>
               )}
               {task.status === "ready" && onAdvance && (
@@ -383,7 +404,9 @@ export const KanbanCard = React.memo(function KanbanCard({
                   onClick={(e) => handleAdvance(e, "execute")}
                   disabled={advancing || task.autonomousMode}
                   title={
-                    task.autonomousMode ? "Autonomous mode active" : undefined
+                    task.autonomousMode
+                      ? t("tasks.modal.autonomousModeActive")
+                      : undefined
                   }
                 >
                   {advancing ? (
@@ -391,7 +414,7 @@ export const KanbanCard = React.memo(function KanbanCard({
                   ) : (
                     <Play className="w-3 h-3" />
                   )}
-                  {advancing ? "Starting..." : "Execute"}
+                  {advancing ? t("tasks.modal.starting") : t("kanban.execute")}
                 </Button>
               )}
             </>
@@ -403,7 +426,7 @@ export const KanbanCard = React.memo(function KanbanCard({
           <div className="mt-3 pt-3 border-t border-border/40">
             <div className="flex items-center justify-between text-xs mb-1.5">
               <span className="text-muted-foreground font-medium">
-                Progress
+                {t("tasks.modal.progress")}
               </span>
               <span
                 className={cn("font-semibold tabular-nums", config.textColor)}
@@ -447,10 +470,10 @@ export const KanbanCard = React.memo(function KanbanCard({
           <ConfirmDialog
             open={showDeleteConfirm}
             onOpenChange={setShowDeleteConfirm}
-            title="Delete Task?"
-            description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
-            confirmLabel="Delete"
-            cancelLabel="Cancel"
+            title={t("tasks.modal.deleteTask")}
+            description={t("tasks.modal.deleteConfirm", { title: task.title })}
+            confirmLabel={t("tasks.modal.delete")}
+            cancelLabel={t("common.cancel")}
             onConfirm={() => onDelete(task.id)}
             variant="destructive"
           />

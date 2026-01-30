@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -32,10 +33,10 @@ const taskExamples = [
 ];
 
 export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
+  const t = useTranslations();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [autonomousMode, setAutonomousMode] = useState(false);
-  const [autoApprove, setAutoApprove] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +44,6 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
     setTitle("");
     setDescription("");
     setAutonomousMode(false);
-    setAutoApprove(false);
     setError(null);
     onClose();
   };
@@ -63,7 +63,7 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
           title,
           description,
           autonomousMode,
-          autoApprove,
+          autoApprove: autonomousMode, // Auto-approve when autonomous mode is enabled
         }),
       });
 
@@ -103,10 +103,10 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
             </div>
             <div>
               <h2 className="text-lg font-serif font-bold tracking-tight">
-                New Task
+                {t("tasks.newTask.title")}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Describe what you want to build
+                {t("tasks.newTask.subtitle")}
               </p>
             </div>
           </div>
@@ -127,7 +127,9 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
               <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400">
                 <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium">Error creating task</p>
+                  <p className="text-sm font-medium">
+                    {t("tasks.newTask.errorCreating")}
+                  </p>
                   <p className="text-sm opacity-80 mt-0.5">{error}</p>
                 </div>
               </div>
@@ -139,8 +141,10 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
                 htmlFor="title"
                 className="text-sm font-medium flex items-center gap-2"
               >
-                Task Title
-                <span className="text-red-500">*</span>
+                {t("tasks.newTask.taskTitle")}
+                <span className="text-red-500">
+                  {t("tasks.newTask.required")}
+                </span>
               </label>
               <Input
                 id="title"
@@ -152,23 +156,23 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
                 disabled={loading}
               />
               <p className="text-xs text-muted-foreground">
-                Be specific about what you want to accomplish
+                {t("tasks.newTask.titlePlaceholder")}
               </p>
             </div>
 
             {/* Description field */}
             <div className="space-y-2">
               <label htmlFor="description" className="text-sm font-medium">
-                Description
+                {t("tasks.newTask.description")}
                 <span className="text-muted-foreground font-normal ml-1">
-                  (optional)
+                  {t("tasks.newTask.optional")}
                 </span>
               </label>
               <textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add any additional context, requirements, or constraints..."
+                placeholder={t("tasks.newTask.descriptionPlaceholder")}
                 rows={4}
                 disabled={loading}
                 className={cn(
@@ -188,7 +192,7 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
                   <div className="flex items-center gap-2">
                     <Zap className="w-5 h-5 text-amber-500" />
                     <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                      Autonomous Mode
+                      {t("tasks.newTask.autonomousMode")}
                     </span>
                   </div>
                   <button
@@ -220,44 +224,14 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
                   </button>
                 </div>
                 <p className="text-xs text-amber-600/80 dark:text-amber-400/80 mt-2">
-                  When enabled, this task will progress automatically through
-                  all stages (brainstorm → plan → execute) without manual
-                  approval.
+                  {t("tasks.newTask.autonomousDescription")}
                 </p>
                 {autonomousMode && (
                   <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 dark:text-amber-300">
                     <AlertTriangle className="w-3 h-3" />
-                    <span>
-                      AI will run end-to-end without human interaction
-                    </span>
+                    <span>{t("tasks.newTask.autonomousWarning")}</span>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Auto-Approve Section */}
-            <div className="flex items-start gap-3 p-4 rounded-lg border bg-muted/30">
-              <input
-                type="checkbox"
-                id="autoApprove"
-                checked={autoApprove}
-                onChange={(e) => setAutoApprove(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <div className="flex-1">
-                <label
-                  htmlFor="autoApprove"
-                  className="flex items-center gap-2 cursor-pointer font-medium text-sm"
-                >
-                  <Zap
-                    className={cn("w-4 h-4", autoApprove && "text-amber-500")}
-                  />
-                  <span>Auto-approve changes</span>
-                </label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Automatically commit and push changes when tests pass. Useful
-                  for low-risk tasks like documentation or refactoring.
-                </p>
               </div>
             </div>
 
@@ -266,11 +240,10 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
               <Lightbulb className="w-5 h-5 text-violet-500 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-medium text-violet-700 dark:text-violet-300">
-                  AI-Powered Workflow
+                  {t("tasks.newTask.workflowTitle")}
                 </p>
                 <p className="text-violet-600/80 dark:text-violet-400/80 mt-0.5">
-                  After creating, you can brainstorm ideas, generate a plan, and
-                  let AI execute the task automatically.
+                  {t("tasks.newTask.workflowDescription")}
                 </p>
               </div>
             </div>
@@ -285,7 +258,7 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
               disabled={loading}
               className="w-full sm:w-auto"
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -295,12 +268,12 @@ export function NewTaskModal({ repoId, onClose, onCreate }: NewTaskModalProps) {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating...
+                  {t("tasks.newTask.creating")}
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Create Task
+                  {t("tasks.newTask.createTask")}
                 </>
               )}
             </Button>

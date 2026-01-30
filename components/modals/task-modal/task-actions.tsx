@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   FileText,
@@ -12,7 +13,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import type { Task } from "@/lib/db/schema";
-import { statusConfig } from "./task-config";
+import { getStatusConfigForModal } from "./task-config";
 
 interface TaskActionsProps {
   task: Task;
@@ -41,6 +42,8 @@ export function TaskActions({
   onReviewChanges,
   onShowRollback,
 }: TaskActionsProps) {
+  const t = useTranslations();
+  const statusConfig = getStatusConfigForModal(t);
   const config = statusConfig[task.status];
 
   return (
@@ -55,7 +58,9 @@ export function TaskActions({
           <Button
             onClick={onBrainstorm}
             disabled={loading || autonomousMode}
-            title={autonomousMode ? "Autonomous mode active" : undefined}
+            title={
+              autonomousMode ? t("tasks.modal.autonomousModeActive") : undefined
+            }
             className="gap-2"
           >
             {loading && actionType === "brainstorm" ? (
@@ -63,7 +68,7 @@ export function TaskActions({
             ) : (
               <Sparkles className="w-4 h-4" />
             )}
-            Start Brainstorming
+            {t("tasks.actions.startBrainstorming")}
           </Button>
         )}
 
@@ -73,16 +78,24 @@ export function TaskActions({
               variant="outline"
               onClick={onRefine}
               disabled={loading || autonomousMode}
-              title={autonomousMode ? "Autonomous mode active" : undefined}
+              title={
+                autonomousMode
+                  ? t("tasks.modal.autonomousModeActive")
+                  : undefined
+              }
               className="gap-2"
             >
               <Sparkles className="w-4 h-4" />
-              Refine
+              {t("tasks.actions.refine")}
             </Button>
             <Button
               onClick={onPlan}
               disabled={loading || autonomousMode}
-              title={autonomousMode ? "Autonomous mode active" : undefined}
+              title={
+                autonomousMode
+                  ? t("tasks.modal.autonomousModeActive")
+                  : undefined
+              }
               className="gap-2"
             >
               {loading && actionType === "plan" ? (
@@ -90,7 +103,7 @@ export function TaskActions({
               ) : (
                 <FileText className="w-4 h-4" />
               )}
-              Generate Plan
+              {t("tasks.actions.generatePlan")}
             </Button>
           </>
         )}
@@ -99,7 +112,9 @@ export function TaskActions({
           <Button
             onClick={onMarkReady}
             disabled={loading || autonomousMode}
-            title={autonomousMode ? "Autonomous mode active" : undefined}
+            title={
+              autonomousMode ? t("tasks.modal.autonomousModeActive") : undefined
+            }
             className="gap-2"
           >
             {loading && actionType === "ready" ? (
@@ -107,7 +122,7 @@ export function TaskActions({
             ) : (
               <Zap className="w-4 h-4" />
             )}
-            Mark Ready
+            {t("tasks.actions.markReady")}
           </Button>
         )}
 
@@ -115,7 +130,9 @@ export function TaskActions({
           <Button
             onClick={onStartExecution}
             disabled={loading || autonomousMode}
-            title={autonomousMode ? "Autonomous mode active" : undefined}
+            title={
+              autonomousMode ? t("tasks.modal.autonomousModeActive") : undefined
+            }
             className="gap-2"
           >
             {loading && actionType === "execute" ? (
@@ -123,14 +140,14 @@ export function TaskActions({
             ) : (
               <Play className="w-4 h-4" />
             )}
-            Start Execution
+            {t("tasks.actions.startExecution")}
           </Button>
         )}
 
         {task.status === "executing" && (
           <Button variant="secondary" disabled className="gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
-            Executing...
+            {t("tasks.actions.executing")}
           </Button>
         )}
 
@@ -138,11 +155,13 @@ export function TaskActions({
           <Button
             onClick={onReviewChanges}
             disabled={loading || autonomousMode}
-            title={autonomousMode ? "Autonomous mode active" : undefined}
+            title={
+              autonomousMode ? t("tasks.modal.autonomousModeActive") : undefined
+            }
             className="gap-2"
           >
             <Eye className="w-4 h-4" />
-            Review Changes
+            {t("tasks.actions.reviewChanges")}
           </Button>
         )}
 
@@ -154,11 +173,13 @@ export function TaskActions({
               className="gap-2"
             >
               <RotateCcw className="w-4 h-4" />
-              Rollback
+              {t("tasks.actions.rollback")}
             </Button>
             <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-5 h-5" />
-              <span className="text-sm font-medium">Task Completed</span>
+              <span className="text-sm font-medium">
+                {t("tasks.actions.taskCompleted")}
+              </span>
             </div>
           </div>
         )}
@@ -169,7 +190,11 @@ export function TaskActions({
               variant="outline"
               onClick={onBrainstorm}
               disabled={loading || autonomousMode}
-              title={autonomousMode ? "Autonomous mode active" : undefined}
+              title={
+                autonomousMode
+                  ? t("tasks.modal.autonomousModeActive")
+                  : undefined
+              }
               className="gap-2"
             >
               {loading && actionType === "brainstorm" ? (
@@ -177,14 +202,18 @@ export function TaskActions({
               ) : (
                 <Sparkles className="w-4 h-4" />
               )}
-              Retry Brainstorming
+              {t("tasks.actions.retryBrainstorming")}
             </Button>
             {task.brainstormResult && (
               <Button
                 variant="outline"
                 onClick={onPlan}
                 disabled={loading || autonomousMode}
-                title={autonomousMode ? "Autonomous mode active" : undefined}
+                title={
+                  autonomousMode
+                    ? t("tasks.modal.autonomousModeActive")
+                    : undefined
+                }
                 className="gap-2"
               >
                 {loading && actionType === "plan" ? (
@@ -192,14 +221,18 @@ export function TaskActions({
                 ) : (
                   <FileText className="w-4 h-4" />
                 )}
-                Retry Planning
+                {t("tasks.actions.retryPlanning")}
               </Button>
             )}
             {task.planContent && (
               <Button
                 onClick={onStartExecution}
                 disabled={loading || autonomousMode}
-                title={autonomousMode ? "Autonomous mode active" : undefined}
+                title={
+                  autonomousMode
+                    ? t("tasks.modal.autonomousModeActive")
+                    : undefined
+                }
                 className="gap-2"
               >
                 {loading && actionType === "execute" ? (
@@ -207,7 +240,7 @@ export function TaskActions({
                 ) : (
                   <Play className="w-4 h-4" />
                 )}
-                Retry Execution
+                {t("tasks.actions.retryExecution")}
               </Button>
             )}
           </>

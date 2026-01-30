@@ -5,12 +5,14 @@ import Link from "next/link";
 import { LoopforgeLogo } from "@/components/loopforge-logo";
 import { ArrowRight, Play } from "lucide-react";
 import { Squircle, useSquircle } from "@/components/ui/squircle";
+import { useTranslations } from "next-intl";
 
 const ModernKanban = dynamic(() =>
   import("./modern-kanban").then((mod) => mod.ModernKanban),
 );
 
 export function Hero() {
+  const t = useTranslations("landing.hero");
   const primaryCta = useSquircle({ cornerRadius: "lg" });
   const secondaryCta = useSquircle({ cornerRadius: "lg" });
 
@@ -33,9 +35,9 @@ export function Hero() {
 
         {/* Headline */}
         <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold tracking-tight !-mt-4 animate-fade-up animation-delay-200">
-          Ship code while you{" "}
+          {t("headline").split(" ").slice(0, -1).join(" ")}{" "}
           <span className="text-primary relative">
-            sleep
+            {t("headline").split(" ").slice(-1)[0]}
             <svg
               className="absolute -bottom-2 left-0 w-full"
               viewBox="0 0 200 12"
@@ -54,9 +56,7 @@ export function Hero() {
 
         {/* Subheadline */}
         <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto animate-fade-up animation-delay-300">
-          <span className="text-primary">Loopforge</span> Studio lets you
-          brainstorm, plan, and execute coding tasks with AI—while you focus on
-          what matters.
+          {t("subheading")}
         </p>
 
         {/* CTAs */}
@@ -72,7 +72,7 @@ export function Hero() {
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-base font-medium text-primary-foreground transition-all hover:bg-primary/90 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               style={primaryCta.style}
             >
-              Start Building Free
+              {t("ctaPrimary")}
               <ArrowRight className="w-5 h-5" />
             </Link>
           </div>
@@ -88,7 +88,7 @@ export function Hero() {
               style={secondaryCta.style}
             >
               <Play className="w-5 h-5" />
-              See How It Works
+              {t("ctaSecondary")}
             </a>
           </Squircle>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   X,
@@ -15,7 +16,7 @@ import type { ParsedAPIError } from "@/components/hooks/use-api-error";
 import { TaskPlan } from "./task-plan";
 import { ExecutionSummary } from "./execution-summary";
 import { DependencyEditor } from "@/components/dependency-editor";
-import { statusConfig, workflowSteps } from "./task-config";
+import { getStatusConfigForModal, workflowSteps } from "./task-config";
 import { parseBrainstormResult, renderFormattedText } from "./utils";
 
 interface DetailsTabProps {
@@ -59,6 +60,9 @@ export function DetailsTab({
   handleSaveField,
   handlePlan,
 }: DetailsTabProps) {
+  const t = useTranslations();
+  const statusConfig = getStatusConfigForModal(t);
+
   return (
     <div className="p-6 space-y-6">
       {/* Error Alert - inline display for simple errors */}
@@ -75,7 +79,7 @@ export function DetailsTab({
                 className="inline-flex items-center gap-1.5 mt-2 text-sm text-primary hover:underline"
               >
                 <Settings className="w-4 h-4" />
-                Go to Settings
+                {t("settings.goToSettings")}
               </Link>
             )}
           </div>
@@ -92,7 +96,7 @@ export function DetailsTab({
       {!isStuck && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">
-            Workflow Progress
+            {t("tasks.modal.workflowProgress")}
           </h3>
           <div className="flex items-center gap-1">
             {workflowSteps.map((step, index) => {
@@ -134,7 +138,7 @@ export function DetailsTab({
       {(task.description || isEditable) && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-muted-foreground">
-            Description
+            {t("tasks.newTask.description")}
           </h3>
           {editingDescription ? (
             <textarea
@@ -170,9 +174,9 @@ export function DetailsTab({
                   setEditingDescription(true);
                 }
               }}
-              title={isEditable ? "Click to edit description" : undefined}
+              title={isEditable ? t("tasks.modal.clickToEdit") : undefined}
             >
-              {task.description || "No description. Click to add one."}
+              {task.description || t("tasks.modal.noDescription")}
             </p>
           )}
         </div>
@@ -182,7 +186,9 @@ export function DetailsTab({
       <details className="group">
         <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
           <ChevronRight className="w-4 h-4 text-slate-500 transition-transform duration-200 group-open:rotate-90" />
-          <h3 className="text-sm font-medium">Dependencies</h3>
+          <h3 className="text-sm font-medium">
+            {t("tasks.modal.dependencies")}
+          </h3>
         </summary>
         <div className="mt-3 p-4 bg-muted/30 rounded-xl border">
           <DependencyEditor taskId={task.id} repoId={task.repoId} />
@@ -206,7 +212,7 @@ export function DetailsTab({
       {/* Updated timestamp */}
       {task.updatedAt && (
         <div className="text-xs text-muted-foreground">
-          Last updated{" "}
+          {t("tasks.modal.lastUpdated")}{" "}
           {formatDistanceToNow(task.updatedAt, { addSuffix: true })}
         </div>
       )}
@@ -223,6 +229,8 @@ function BrainstormResultSection({
 }: {
   brainstormResult: string | null;
 }) {
+  const t = useTranslations();
+
   if (!brainstormResult) return null;
 
   const brainstorm = parseBrainstormResult(brainstormResult);
@@ -234,7 +242,9 @@ function BrainstormResultSection({
         <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
           <ChevronRight className="w-4 h-4 text-violet-500 transition-transform duration-200 group-open:rotate-90" />
           <Lightbulb className="w-4 h-4 text-violet-500" />
-          <h3 className="text-sm font-medium">Brainstorm Result</h3>
+          <h3 className="text-sm font-medium">
+            {t("tasks.modal.brainstormResult")}
+          </h3>
         </summary>
         <div className="mt-3 p-4 bg-violet-50 dark:bg-violet-900/20 rounded-xl border border-violet-200/50 dark:border-violet-800/30">
           <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">
@@ -250,13 +260,15 @@ function BrainstormResultSection({
       <summary className="flex items-center gap-2 cursor-pointer select-none list-none hover:opacity-80 transition-opacity [&::-webkit-details-marker]:hidden">
         <ChevronRight className="w-4 h-4 text-violet-500 transition-transform duration-200 group-open:rotate-90" />
         <Lightbulb className="w-4 h-4 text-violet-500" />
-        <h3 className="text-sm font-medium">Brainstorm Result</h3>
+        <h3 className="text-sm font-medium">
+          {t("tasks.modal.brainstormResult")}
+        </h3>
       </summary>
       <div className="mt-3 p-4 bg-violet-50 dark:bg-violet-900/20 rounded-xl border border-violet-200/50 dark:border-violet-800/30 space-y-4">
         {/* Summary */}
         <div>
           <h4 className="text-xs font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wide mb-1">
-            Summary
+            {t("tasks.modal.summary")}
           </h4>
           <p className="text-sm leading-relaxed">{brainstorm.summary}</p>
         </div>
@@ -265,7 +277,7 @@ function BrainstormResultSection({
         {brainstorm.requirements.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wide mb-1">
-              Requirements
+              {t("tasks.modal.requirements")}
             </h4>
             <ul className="text-sm space-y-1">
               {brainstorm.requirements.map((req, i) => (
@@ -282,7 +294,7 @@ function BrainstormResultSection({
         {brainstorm.considerations.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wide mb-1">
-              Considerations
+              {t("tasks.modal.considerations")}
             </h4>
             <ul className="text-sm space-y-1">
               {brainstorm.considerations.map((con, i) => (
@@ -299,7 +311,7 @@ function BrainstormResultSection({
         {brainstorm.suggestedApproach && (
           <div>
             <h4 className="text-xs font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wide mb-1">
-              Suggested Approach
+              {t("tasks.modal.suggestedApproach")}
             </h4>
             <p className="text-sm leading-relaxed">
               {renderFormattedText(brainstorm.suggestedApproach)}

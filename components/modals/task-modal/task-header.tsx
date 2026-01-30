@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   X,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Task } from "@/lib/db/schema";
-import { statusConfig } from "./task-config";
+import { getStatusConfigForModal } from "./task-config";
 
 interface TaskHeaderProps {
   task: Task;
@@ -31,6 +32,8 @@ export function TaskHeader({
   onClose,
   onTitleSave,
 }: TaskHeaderProps) {
+  const t = useTranslations();
+  const statusConfig = getStatusConfigForModal(t);
   const config = statusConfig[task.status];
   const StatusIcon = config.icon;
   const isEditable = task.status === "todo" || task.status === "stuck";

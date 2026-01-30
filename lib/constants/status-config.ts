@@ -28,68 +28,75 @@ export interface BaseStatusConfig {
   description: string;
 }
 
+type TranslationFunction = (key: string) => string;
+
 /**
- * Canonical status configuration for all 8 task statuses.
+ * Canonical status configuration factory for all 8 task statuses.
  *
  * This is the single source of truth for status icons, labels, colors,
  * and descriptions. Component-specific styling (Tailwind classes, etc.)
  * should be defined locally in each component.
+ *
+ * @param t - Translation function from useTranslations hook
+ * @returns Status configuration with translated labels and descriptions
  */
-export const STATUS_CONFIG: Record<TaskStatus, BaseStatusConfig> = {
-  todo: {
-    icon: Clock,
-    label: "To Do",
-    accentColor: "slate",
-    description: "Waiting to start",
-  },
-  brainstorming: {
-    icon: Lightbulb,
-    label: "Brainstorming",
-    accentColor: "violet",
-    description: "AI generating ideas",
-  },
-  planning: {
-    icon: FileText,
-    label: "Planning",
-    accentColor: "blue",
-    description: "Creating execution plan",
-  },
-  ready: {
-    icon: Zap,
-    label: "Ready",
-    accentColor: "amber",
-    description: "Ready to execute",
-  },
-  executing: {
-    icon: Play,
-    label: "Executing",
-    accentColor: "primary",
-    description: "AI working on code",
-  },
-  review: {
-    icon: Eye,
-    label: "Review",
-    accentColor: "cyan",
-    description: "Changes ready for review",
-  },
-  done: {
-    icon: CheckCircle2,
-    label: "Done",
-    accentColor: "emerald",
-    description: "Task completed",
-  },
-  stuck: {
-    icon: AlertTriangle,
-    label: "Failed",
-    accentColor: "red",
-    description: "Needs attention",
-  },
-};
+export function getStatusConfig(
+  t: TranslationFunction,
+): Record<TaskStatus, BaseStatusConfig> {
+  return {
+    todo: {
+      icon: Clock,
+      label: t("tasks.statuses.todo"),
+      accentColor: "slate",
+      description: t("tasks.statusDescriptions.todo"),
+    },
+    brainstorming: {
+      icon: Lightbulb,
+      label: t("tasks.statuses.brainstorming"),
+      accentColor: "violet",
+      description: t("tasks.statusDescriptions.brainstorming"),
+    },
+    planning: {
+      icon: FileText,
+      label: t("tasks.statuses.planning"),
+      accentColor: "blue",
+      description: t("tasks.statusDescriptions.planning"),
+    },
+    ready: {
+      icon: Zap,
+      label: t("tasks.statuses.ready"),
+      accentColor: "amber",
+      description: t("tasks.statusDescriptions.ready"),
+    },
+    executing: {
+      icon: Play,
+      label: t("tasks.statuses.executing"),
+      accentColor: "primary",
+      description: t("tasks.statusDescriptions.executing"),
+    },
+    review: {
+      icon: Eye,
+      label: t("tasks.statuses.review"),
+      accentColor: "cyan",
+      description: t("tasks.statusDescriptions.review"),
+    },
+    done: {
+      icon: CheckCircle2,
+      label: t("tasks.statuses.done"),
+      accentColor: "emerald",
+      description: t("tasks.statusDescriptions.done"),
+    },
+    stuck: {
+      icon: AlertTriangle,
+      label: t("tasks.statuses.stuck"),
+      accentColor: "red",
+      description: t("tasks.statusDescriptions.stuck"),
+    },
+  };
+}
 
 /**
- * Get status configuration for a given task status.
- * Provides a convenient accessor with type safety.
+ * Legacy constant for backwards compatibility.
+ * @deprecated Use getStatusConfig(t) instead
  */
-export function getStatusConfig(status: TaskStatus): BaseStatusConfig {
-  return STATUS_CONFIG[status];
-}
+export const STATUS_CONFIG = getStatusConfig((key: string) => key);

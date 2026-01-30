@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Squircle, useSquircle } from "@/components/ui/squircle";
+import { useTranslations } from "next-intl";
 
 export function CTASection() {
+  const t = useTranslations("landing.cta");
   const primaryCta = useSquircle({ cornerRadius: "lg" });
   const secondaryCta = useSquircle({ cornerRadius: "lg" });
 
@@ -17,9 +19,9 @@ export function CTASection() {
       <div className="max-w-4xl mx-auto text-center">
         <div className="space-y-8">
           <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight">
-            Ready to ship code on{" "}
+            {t("headline").split(" ").slice(0, -1).join(" ")}{" "}
             <span className="text-primary relative">
-              autopilot
+              {t("headline").split(" ").slice(-1)[0].replace("?", "")}
               <svg
                 className="absolute -bottom-2 left-0 w-full"
                 viewBox="0 0 200 12"
@@ -38,8 +40,7 @@ export function CTASection() {
           </h2>
 
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Join developers who are shipping faster with AI-powered autonomous
-            coding.
+            {t("subheading")}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
@@ -55,7 +56,7 @@ export function CTASection() {
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-base font-medium text-primary-foreground transition-all hover:bg-primary/90 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 style={primaryCta.style}
               >
-                Start Building Free
+                {t("primary")}
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
@@ -72,14 +73,12 @@ export function CTASection() {
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-background/50 px-8 py-4 text-base font-medium transition-all hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 style={secondaryCta.style}
               >
-                View on GitHub
+                {t("secondary")}
               </a>
             </Squircle>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            Free tier available. No credit card required.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("disclaimer")}</p>
         </div>
       </div>
     </section>

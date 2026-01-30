@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   HoverCard,
   HoverCardContent,
@@ -81,63 +82,85 @@ function GitHubIcon({ className }: { className?: string }) {
   );
 }
 
-const providers = [
-  {
-    name: "Claude",
-    Icon: ClaudeIcon,
-    description: "Anthropic's Claude 3.5",
-    color: "text-[#D97757]",
-    capabilities: [
-      "200K context window",
-      "Excellent reasoning",
-      "Strong coding abilities",
-    ],
-    bestFor: "Planning, complex analysis, documentation",
-  },
-  {
-    name: "GPT-4",
-    Icon: OpenAIIcon,
-    description: "OpenAI's GPT-4o",
-    color: "text-foreground",
-    capabilities: [
-      "128K context window",
-      "Fast responses",
-      "Broad knowledge base",
-    ],
-    bestFor: "Execution, quick iterations, general tasks",
-  },
-  {
-    name: "Gemini",
-    Icon: GeminiIcon,
-    description: "Google's Gemini Pro",
-    color: "",
-    capabilities: [
-      "1M context window",
-      "Multimodal support",
-      "Google integration",
-    ],
-    bestFor: "Large codebases, image analysis",
-  },
-  {
-    name: "GitHub",
-    Icon: GitHubIcon,
-    description: "Direct integration",
-    color: "text-foreground",
-    capabilities: [
-      "Direct repo access",
-      "Issue/PR integration",
-      "Webhook support",
-    ],
-    bestFor: "Code fetching, branch management",
-  },
-];
+// Helper function to get providers with translations
+function getProviders(t: (key: string) => string) {
+  return [
+    {
+      name: t("landing.integrations.claude.name"),
+      Icon: ClaudeIcon,
+      description: t("landing.integrations.claude.description"),
+      color: "text-[#D97757]",
+      capabilities: [
+        t("landing.integrations.claude.capabilities.context"),
+        t("landing.integrations.claude.capabilities.reasoning"),
+        t("landing.integrations.claude.capabilities.coding"),
+      ],
+      bestFor: t("landing.integrations.claude.bestFor"),
+    },
+    {
+      name: t("landing.integrations.gpt4.name"),
+      Icon: OpenAIIcon,
+      description: t("landing.integrations.gpt4.description"),
+      color: "text-foreground",
+      capabilities: [
+        t("landing.integrations.gpt4.capabilities.context"),
+        t("landing.integrations.gpt4.capabilities.speed"),
+        t("landing.integrations.gpt4.capabilities.knowledge"),
+      ],
+      bestFor: t("landing.integrations.gpt4.bestFor"),
+    },
+    {
+      name: t("landing.integrations.gemini.name"),
+      Icon: GeminiIcon,
+      description: t("landing.integrations.gemini.description"),
+      color: "",
+      capabilities: [
+        t("landing.integrations.gemini.capabilities.context"),
+        t("landing.integrations.gemini.capabilities.multimodal"),
+        t("landing.integrations.gemini.capabilities.integration"),
+      ],
+      bestFor: t("landing.integrations.gemini.bestFor"),
+    },
+    {
+      name: t("landing.integrations.github.name"),
+      Icon: GitHubIcon,
+      description: t("landing.integrations.github.description"),
+      color: "text-foreground",
+      capabilities: [
+        t("landing.integrations.github.capabilities.repo"),
+        t("landing.integrations.github.capabilities.issues"),
+        t("landing.integrations.github.capabilities.webhooks"),
+      ],
+      bestFor: t("landing.integrations.github.bestFor"),
+    },
+  ];
+}
 
-const stats = [
-  { value: "3", label: "AI Providers", numericValue: null },
-  { value: "BYOK", label: "Bring Your Own Key", numericValue: null },
-  { value: "OSS", label: "Open Source", numericValue: null },
-  { value: "Self-Host", label: "Deploy Anywhere", numericValue: null },
-];
+// Helper function to get stats with translations
+function getStats(t: (key: string) => string) {
+  return [
+    {
+      value: t("landing.integrations.stats.providers.value"),
+      label: t("landing.integrations.stats.providers.label"),
+      numericValue: null,
+    },
+    {
+      value: t("landing.integrations.stats.byok.value"),
+      label: t("landing.integrations.stats.byok.label"),
+      numericValue: null,
+    },
+    {
+      value: t("landing.integrations.stats.uptime.value"),
+      label: t("landing.integrations.stats.uptime.label"),
+      numericValue: null,
+    },
+    {
+      value: t("landing.integrations.stats.hosted.value"),
+      label: t("landing.integrations.stats.hosted.label"),
+      numericValue: null,
+    },
+  ];
+}
 
 function CapabilityDot() {
   const squircle = useSquircle({ cornerRadius: "full" });
@@ -154,9 +177,10 @@ function ProviderCard({
   provider,
   index,
 }: {
-  provider: (typeof providers)[0];
+  provider: ReturnType<typeof getProviders>[0];
   index: number;
 }) {
+  const t = useTranslations();
   const Icon = provider.Icon;
   const animationDelay = `animation-delay-${(index + 1) * 100}`;
   const [isHovered, setIsHovered] = useState(false);
@@ -219,7 +243,7 @@ function ProviderCard({
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
-              Capabilities
+              {t("landing.integrations.hoverCard.capabilities")}
             </p>
             <ul className="space-y-1">
               {provider.capabilities.map((cap) => (
@@ -232,7 +256,7 @@ function ProviderCard({
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-              Best For
+              {t("landing.integrations.hoverCard.bestFor")}
             </p>
             <p className="text-sm text-foreground">{provider.bestFor}</p>
           </div>
@@ -242,7 +266,13 @@ function ProviderCard({
   );
 }
 
-function StatItem({ stat, index }: { stat: (typeof stats)[0]; index: number }) {
+function StatItem({
+  stat,
+  index,
+}: {
+  stat: ReturnType<typeof getStats>[0];
+  index: number;
+}) {
   return (
     <div
       className={`text-center opacity-0 animate-fade-up animation-delay-${(index + 1) * 100}`}
@@ -256,6 +286,10 @@ function StatItem({ stat, index }: { stat: (typeof stats)[0]; index: number }) {
 }
 
 export function Integrations() {
+  const t = useTranslations();
+  const providers = getProviders(t);
+  const stats = getStats(t);
+
   return (
     <section
       id="integrations"
@@ -272,9 +306,15 @@ export function Integrations() {
         {/* AI Providers */}
         <div className="text-center space-y-4 mb-12">
           <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight">
-            Powered by the{" "}
+            {t("landing.integrations.sectionTitle")
+              .split(" ")
+              .slice(0, -3)
+              .join(" ")}{" "}
             <span className="text-primary relative">
-              best AI models
+              {t("landing.integrations.sectionTitle")
+                .split(" ")
+                .slice(-3)
+                .join(" ")}
               <svg
                 className="absolute -bottom-2 left-0 w-full"
                 viewBox="0 0 200 12"
@@ -291,8 +331,7 @@ export function Integrations() {
             </span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Choose your preferred AI provider. Switch models per task for
-            optimal results.
+            {t("landing.integrations.sectionSubtitle")}
           </p>
         </div>
 

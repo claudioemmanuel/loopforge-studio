@@ -1,33 +1,57 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { FileText, Clock, Activity } from "lucide-react";
+import { FileText, Clock, Activity, Sparkles } from "lucide-react";
 
-export type TabId = "details" | "timeline" | "execution";
+export type TabId = "details" | "timeline" | "execution" | "skills";
 
 interface TabsProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
   showExecutionTab?: boolean;
+  showSkillsTab?: boolean;
 }
 
-const baseTabs: { id: TabId; label: string; icon: typeof FileText }[] = [
-  { id: "details", label: "Details", icon: FileText },
-  { id: "timeline", label: "Timeline", icon: Clock },
+type TranslationFunction = (key: string) => string;
+
+const getBaseTabs = (
+  t: TranslationFunction,
+): { id: TabId; label: string; icon: typeof FileText }[] => [
+  { id: "details", label: t("tasks.tabs.details"), icon: FileText },
+  { id: "timeline", label: t("tasks.tabs.timeline"), icon: Clock },
 ];
 
-const executionTab: { id: TabId; label: string; icon: typeof FileText } = {
+const getExecutionTab = (
+  t: TranslationFunction,
+): { id: TabId; label: string; icon: typeof FileText } => ({
   id: "execution",
-  label: "Execution",
+  label: t("tasks.tabs.execution"),
   icon: Activity,
-};
+});
+
+const getSkillsTab = (
+  t: TranslationFunction,
+): { id: TabId; label: string; icon: typeof FileText } => ({
+  id: "skills",
+  label: t("tasks.tabs.skills"),
+  icon: Sparkles,
+});
 
 export function TaskModalTabs({
   activeTab,
   onTabChange,
   showExecutionTab = false,
+  showSkillsTab = false,
 }: TabsProps) {
-  const tabs = showExecutionTab ? [...baseTabs, executionTab] : baseTabs;
+  const t = useTranslations();
+
+  const baseTabs = getBaseTabs(t);
+  const optionalTabs = [];
+  if (showExecutionTab) optionalTabs.push(getExecutionTab(t));
+  if (showSkillsTab) optionalTabs.push(getSkillsTab(t));
+
+  const tabs = [...baseTabs, ...optionalTabs];
 
   return (
     <div className="border-b">

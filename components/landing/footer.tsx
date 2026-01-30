@@ -2,31 +2,32 @@
 
 import Link from "next/link";
 import { LoopforgeLogo } from "@/components/loopforge-logo";
+import { useTranslations } from "next-intl";
 
-const footerLinks = {
-  Product: [
-    { name: "Features", href: "/features" },
-    { name: "Workflow", href: "/workflow" },
-    { name: "Pricing", href: "/pricing" },
-    { name: "Changelog", href: "/changelog" },
+const getFooterLinks = (t: (key: string) => string) => ({
+  product: [
+    { name: t("links.features"), href: "/features" },
+    { name: t("links.workflow"), href: "/workflow" },
+    { name: t("links.pricing"), href: "/pricing" },
+    { name: t("links.changelog"), href: "/changelog" },
   ],
-  Resources: [
-    { name: "Documentation", href: "/docs" },
-    { name: "API Reference", href: "/api" },
-    { name: "Blog", href: "/blog" },
-    { name: "Status", href: "/status" },
+  resources: [
+    { name: t("links.documentation"), href: "/docs" },
+    { name: t("links.apiReference"), href: "/api" },
+    { name: t("links.blog"), href: "/blog" },
+    { name: t("links.status"), href: "/status" },
   ],
-  Company: [
-    { name: "About", href: "/about" },
-    { name: "Careers", href: "/careers" },
-    { name: "Contact", href: "/contact" },
+  company: [
+    { name: t("links.about"), href: "/about" },
+    { name: t("links.careers"), href: "/careers" },
+    { name: t("links.contact"), href: "/contact" },
   ],
-  Legal: [
-    { name: "Privacy", href: "/privacy" },
-    { name: "Terms", href: "/terms" },
-    { name: "Security", href: "/security" },
+  legal: [
+    { name: t("links.privacy"), href: "/privacy" },
+    { name: t("links.terms"), href: "/terms" },
+    { name: t("links.security"), href: "/security" },
   ],
-};
+});
 
 const socialLinks = [
   {
@@ -39,6 +40,9 @@ const socialLinks = [
 ];
 
 export function Footer() {
+  const t = useTranslations("landing.footer");
+  const footerLinks = getFooterLinks(t);
+
   return (
     <footer className="border-t border-border bg-muted/30">
       <div className="max-w-7xl mx-auto px-6 py-16">
@@ -56,10 +60,7 @@ export function Footer() {
                 <span className="text-primary">Loopforge</span> Studio
               </span>
             </Link>
-            <p className="text-sm text-muted-foreground mb-6">
-              Visual Kanban interface for autonomous AI coding. Ship code while
-              you sleep.
-            </p>
+            <p className="text-sm text-muted-foreground mb-6">{t("tagline")}</p>
             {/* Social links */}
             <div className="flex gap-4">
               {socialLinks.map((social) => (
@@ -110,7 +111,7 @@ export function Footer() {
           {/* Link columns */}
           {Object.entries(footerLinks).map(([category, links]) => (
             <div key={category}>
-              <h3 className="font-semibold mb-4">{category}</h3>
+              <h3 className="font-semibold mb-4">{t(category)}</h3>
               <ul className="space-y-3">
                 {links.map((link) => (
                   <li key={link.name}>
@@ -130,8 +131,7 @@ export function Footer() {
         {/* Copyright */}
         <div className="mt-16 pt-8 border-t border-border">
           <p className="text-sm text-muted-foreground text-center">
-            Made with ❤️ by the Loopforge team. © {new Date().getFullYear()}{" "}
-            Loopforge Studio. All rights reserved.
+            {t("copyright", { year: new Date().getFullYear() })}
           </p>
         </div>
       </div>

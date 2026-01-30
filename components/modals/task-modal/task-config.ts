@@ -1,11 +1,13 @@
 import type { LucideIcon } from "lucide-react";
 import type { TaskStatus } from "@/lib/db/schema";
-import { STATUS_CONFIG } from "@/lib/constants/status-config";
+import { getStatusConfig } from "@/lib/constants/status-config";
+
+type TranslationFunction = (key: string) => string;
 
 // Extended status configuration for task modal sub-components
-// Derives icon, label, description from the shared STATUS_CONFIG
+// Derives icon, label, description from the shared getStatusConfig
 // and adds component-specific Tailwind classes.
-export const statusConfig: Record<
+export function getStatusConfigForModal(t: TranslationFunction): Record<
   TaskStatus,
   {
     icon: LucideIcon;
@@ -14,29 +16,38 @@ export const statusConfig: Record<
     bgColor: string;
     description: string;
   }
-> = Object.fromEntries(
-  (Object.keys(STATUS_CONFIG) as TaskStatus[]).map((status) => {
-    const base = STATUS_CONFIG[status];
-    return [
-      status,
-      {
-        icon: base.icon,
-        label: base.label,
-        description: base.description,
-        ...getModalColors(status),
-      },
-    ];
-  }),
-) as Record<
-  TaskStatus,
-  {
-    icon: LucideIcon;
-    label: string;
-    color: string;
-    bgColor: string;
-    description: string;
-  }
->;
+> {
+  const baseConfig = getStatusConfig(t);
+  return Object.fromEntries(
+    (Object.keys(baseConfig) as TaskStatus[]).map((status) => {
+      const base = baseConfig[status];
+      return [
+        status,
+        {
+          icon: base.icon,
+          label: base.label,
+          description: base.description,
+          ...getModalColors(status),
+        },
+      ];
+    }),
+  ) as Record<
+    TaskStatus,
+    {
+      icon: LucideIcon;
+      label: string;
+      color: string;
+      bgColor: string;
+      description: string;
+    }
+  >;
+}
+
+/**
+ * Legacy export for backwards compatibility.
+ * @deprecated Use getStatusConfigForModal(t) instead
+ */
+export const statusConfig = getStatusConfigForModal((key: string) => key);
 
 // Component-specific color mappings for the task modal
 function getModalColors(status: TaskStatus): {

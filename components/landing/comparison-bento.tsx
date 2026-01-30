@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { ComparisonTable } from "./comparison-table";
 import { Squircle } from "@/components/ui/squircle";
 
 export function ComparisonBento() {
+  const t = useTranslations();
   const sectionRef = useRef<HTMLElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -51,9 +53,12 @@ export function ComparisonBento() {
           )}
         >
           <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight">
-            Why teams choose{" "}
+            {t("landing.comparisonBento.title")
+              .split(" ")
+              .slice(0, -1)
+              .join(" ")}{" "}
             <span className="text-primary relative">
-              Loopforge
+              {t("landing.comparisonBento.title").split(" ").slice(-1)[0]}
               <svg
                 className="absolute -bottom-2 left-0 w-full"
                 viewBox="0 0 200 12"
@@ -70,8 +75,7 @@ export function ComparisonBento() {
             </span>
           </h2>
           <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
-            The only platform that combines task management, AI assistance,
-            autonomous code execution, and a visual workflow—all in one place.
+            {t("landing.comparisonBento.subtitle")}
           </p>
         </div>
 
@@ -90,12 +94,22 @@ export function ComparisonBento() {
           style={{ transitionDelay: isVisible ? "400ms" : "0ms" }}
         >
           <p className="text-lg font-medium text-foreground md:text-xl">
-            Other tools help you track tasks or write code.
+            {t("landing.comparisonBento.callout.prefix")}
           </p>
           <p className="mt-2 text-lg text-muted-foreground md:text-xl">
-            Only <span className="font-semibold text-primary">Loopforge</span>{" "}
-            shows you a complete visual workflow of AI agents building your
-            software.
+            {
+              t("landing.comparisonBento.callout.suffix").split(
+                t("landing.comparisonBento.callout.highlight"),
+              )[0]
+            }
+            <span className="font-semibold text-primary">
+              {t("landing.comparisonBento.callout.highlight")}
+            </span>
+            {
+              t("landing.comparisonBento.callout.suffix").split(
+                t("landing.comparisonBento.callout.highlight"),
+              )[1]
+            }
           </p>
         </Squircle>
       </div>

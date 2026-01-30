@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   Lock,
@@ -99,6 +100,7 @@ export function TaskCard({
   onPause,
   executingProgress,
 }: TaskCardProps) {
+  const t = useTranslations();
   const shouldReduceMotion = useReducedMotion();
   const [isHovered, setIsHovered] = useState(false);
   const [timeInStage, setTimeInStage] = useState(0);
@@ -158,7 +160,7 @@ export function TaskCard({
         <div className="flex items-center gap-1.5">
           <Lock className="w-3 h-3 text-amber-500" />
           <span className="text-[9px] font-medium text-amber-600 dark:text-amber-400">
-            Blocked
+            {t("landing.demoKanban.statuses.blocked")}
           </span>
         </div>
       );
@@ -180,7 +182,7 @@ export function TaskCard({
             <Unlock className="w-3 h-3 text-emerald-500" />
           </motion.div>
           <span className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
-            Ready to start
+            {t("landing.demoKanban.statuses.readyToStart")}
           </span>
         </motion.div>
       );
@@ -191,7 +193,7 @@ export function TaskCard({
         <div className="flex items-center gap-1.5">
           <CheckCircle2 className="w-3 h-3 text-green-500" />
           <span className="text-[9px] font-medium text-green-600 dark:text-green-400">
-            Complete!
+            {t("landing.demoKanban.statuses.complete")}
           </span>
         </div>
       );
@@ -202,7 +204,7 @@ export function TaskCard({
         <div className="flex items-center gap-1.5">
           <AlertTriangle className="w-3 h-3 text-red-500" />
           <span className="text-[9px] font-medium text-red-600 dark:text-red-400">
-            Needs attention
+            {t("landing.demoKanban.statuses.needsAttention")}
           </span>
         </div>
       );
@@ -210,11 +212,11 @@ export function TaskCard({
 
     if (isActive && !["done", "stuck", "review"].includes(card.status)) {
       const statusLabels: Record<string, string> = {
-        todo: "Waiting...",
-        brainstorming: "Thinking...",
-        planning: "Planning...",
-        ready: "Queued...",
-        executing: "Executing...",
+        todo: t("landing.demoKanban.statuses.waiting"),
+        brainstorming: t("landing.demoKanban.statuses.thinking"),
+        planning: t("landing.demoKanban.statuses.planning"),
+        ready: t("landing.demoKanban.statuses.queued"),
+        executing: t("landing.demoKanban.statuses.executing"),
       };
       return (
         <div className="flex items-center gap-1.5">
@@ -230,7 +232,8 @@ export function TaskCard({
             className="text-[9px] font-medium"
             style={{ color: column.accent }}
           >
-            {statusLabels[card.status] || "Processing..."}
+            {statusLabels[card.status] ||
+              t("landing.demoKanban.statuses.processing")}
           </span>
         </div>
       );

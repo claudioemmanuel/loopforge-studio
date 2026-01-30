@@ -1,19 +1,34 @@
 "use client";
 
 import { useMemo } from "react";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { useTranslations } from "next-intl";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { cn } from "@/lib/utils";
-import { Lightbulb, FileText, Play, Loader2, Clock } from "lucide-react";
+import {
+  Lightbulb,
+  FileText,
+  Play,
+  Loader2,
+  Clock,
+  Sparkles,
+} from "lucide-react";
 import type { ProcessingPhase } from "@/lib/db/schema";
 import type { CardProcessingState } from "@/components/hooks/use-card-processing";
+import { SkillBadgeGroup } from "./skill-badge";
 
 interface ProcessingPopoverProps {
   children: React.ReactNode;
   processingState: CardProcessingState;
 }
 
-// Phase configuration with colors and icons
-const phaseConfig: Record<
+type TranslationFunction = (key: string) => string;
+
+// Phase configuration factory with colors and icons
+function getPhaseConfig(t: TranslationFunction): Record<
   ProcessingPhase,
   {
     icon: typeof Lightbulb;
@@ -23,32 +38,37 @@ const phaseConfig: Record<
     borderColor: string;
     progressColor: string;
   }
-> = {
-  brainstorming: {
-    icon: Lightbulb,
-    label: "Brainstorming",
-    color: "text-violet-500 dark:text-violet-400",
-    bgColor: "bg-violet-100/80 dark:bg-violet-900/40",
-    borderColor: "border-violet-200 dark:border-violet-700",
-    progressColor: "bg-violet-500",
-  },
-  planning: {
-    icon: FileText,
-    label: "Planning",
-    color: "text-blue-500 dark:text-blue-400",
-    bgColor: "bg-blue-100/80 dark:bg-blue-900/40",
-    borderColor: "border-blue-200 dark:border-blue-700",
-    progressColor: "bg-blue-500",
-  },
-  executing: {
-    icon: Play,
-    label: "Executing",
-    color: "text-emerald-500 dark:text-emerald-400",
-    bgColor: "bg-emerald-100/80 dark:bg-emerald-900/40",
-    borderColor: "border-emerald-200 dark:border-emerald-700",
-    progressColor: "bg-emerald-500",
-  },
-};
+> {
+  return {
+    brainstorming: {
+      icon: Lightbulb,
+      label: t("tasks.statuses.brainstorming"),
+      color: "text-violet-500 dark:text-violet-400",
+      bgColor: "bg-violet-100/80 dark:bg-violet-900/40",
+      borderColor: "border-violet-200 dark:border-violet-700",
+      progressColor: "bg-violet-500",
+    },
+    planning: {
+      icon: FileText,
+      label: t("tasks.statuses.planning"),
+      color: "text-blue-500 dark:text-blue-400",
+      bgColor: "bg-blue-100/80 dark:bg-blue-900/40",
+      borderColor: "border-blue-200 dark:border-blue-700",
+      progressColor: "bg-blue-500",
+    },
+    executing: {
+      icon: Play,
+      label: t("tasks.statuses.executing"),
+      color: "text-emerald-500 dark:text-emerald-400",
+      bgColor: "bg-emerald-100/80 dark:bg-emerald-900/40",
+      borderColor: "border-emerald-200 dark:border-emerald-700",
+      progressColor: "bg-emerald-500",
+    },
+  };
+}
+
+// Legacy export for backwards compatibility
+const phaseConfig = getPhaseConfig((key: string) => key);
 
 // Format elapsed time
 function formatElapsedTime(startedAt: string): string {
@@ -73,8 +93,13 @@ function formatElapsedTime(startedAt: string): string {
   return `${diffHours}h ${remainingMinutes}m`;
 }
 
-export function ProcessingPopover({ children, processingState }: ProcessingPopoverProps) {
-  const config = phaseConfig[processingState.processingPhase];
+export function ProcessingPopover({
+  children,
+  processingState,
+}: ProcessingPopoverProps) {
+  const t = useTranslations();
+  const phaseConfigTranslated = getPhaseConfig(t);
+  const config = phaseConfigTranslated[processingState.processingPhase];
   const PhaseIcon = config.icon;
 
   // Update elapsed time every second
@@ -84,27 +109,30 @@ export function ProcessingPopover({ children, processingState }: ProcessingPopov
 
   return (
     <HoverCard openDelay={300} closeDelay={200}>
-      <HoverCardTrigger asChild>
-        {children}
-      </HoverCardTrigger>
+      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
       <HoverCardContent
-        className={cn(
-          "w-80 p-0 overflow-hidden",
-          config.borderColor
-        )}
+        className={cn("w-80 p-0 overflow-hidden", config.borderColor)}
         side="right"
         align="start"
         sideOffset={8}
       >
         {/* Header */}
-        <div className={cn("px-4 py-3 border-b", config.bgColor, config.borderColor)}>
+        <div
+          className={cn(
+            "px-4 py-3 border-b",
+            config.bgColor,
+            config.borderColor,
+          )}
+        >
           <div className="flex items-center gap-2">
             <div className={cn("p-1.5 rounded-md", config.bgColor)}>
               <PhaseIcon className={cn("w-4 h-4", config.color)} />
             </div>
             <div>
               <h4 className="font-medium text-sm">{config.label}</h4>
-              <p className="text-xs text-muted-foreground">{processingState.taskTitle}</p>
+              <p className="text-xs text-muted-foreground">
+                {processingState.taskTitle}
+              </p>
             </div>
           </div>
         </div>
@@ -120,7 +148,9 @@ export function ProcessingPopover({ children, processingState }: ProcessingPopov
           {/* Progress bar */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Progress</span>
+              <span className="text-muted-foreground">
+                {t("tasks.modal.progress")}
+              </span>
               <span className={cn("font-medium tabular-nums", config.color)}>
                 {processingState.progress}%
               </span>
@@ -129,7 +159,7 @@ export function ProcessingPopover({ children, processingState }: ProcessingPopov
               <div
                 className={cn(
                   "h-full rounded-full transition-all duration-500 ease-out",
-                  config.progressColor
+                  config.progressColor,
                 )}
                 style={{ width: `${processingState.progress}%` }}
               />
@@ -139,8 +169,25 @@ export function ProcessingPopover({ children, processingState }: ProcessingPopov
           {/* Elapsed time */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="w-3.5 h-3.5" />
-            <span>Elapsed: {elapsedTime}</span>
+            <span>
+              {t("tasks.modal.elapsed")} {elapsedTime}
+            </span>
           </div>
+
+          {/* Active skills */}
+          {processingState.activeSkills &&
+            processingState.activeSkills.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{t("tasks.modal.activeSkills")}</span>
+                </div>
+                <SkillBadgeGroup
+                  skills={processingState.activeSkills}
+                  compact={false}
+                />
+              </div>
+            )}
 
           {/* Error message if any */}
           {processingState.error && (
@@ -153,8 +200,13 @@ export function ProcessingPopover({ children, processingState }: ProcessingPopov
         </div>
 
         {/* Footer */}
-        <div className={cn("px-4 py-2 border-t text-xs text-muted-foreground", config.borderColor)}>
-          Processing in background...
+        <div
+          className={cn(
+            "px-4 py-2 border-t text-xs text-muted-foreground",
+            config.borderColor,
+          )}
+        >
+          {t("kanban.processingInBackground")}
         </div>
       </HoverCardContent>
     </HoverCard>

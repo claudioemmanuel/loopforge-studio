@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { columns, initialCards, demoPhases } from "./demo-data";
+import { useTranslations } from "next-intl";
+import { getColumns, getInitialCards, demoPhases } from "./demo-data";
 import type { DemoCard } from "./demo-data";
 import { KanbanColumn } from "./demo-column";
 import { DependencyLines } from "./dependency-lines";
@@ -20,6 +21,10 @@ interface ModernKanbanProps {
 }
 
 export function ModernKanban({ className = "" }: ModernKanbanProps) {
+  const t = useTranslations();
+  const columns = getColumns(t);
+  const initialCards = getInitialCards(t);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const [currentPhase, setCurrentPhase] = useState(0);

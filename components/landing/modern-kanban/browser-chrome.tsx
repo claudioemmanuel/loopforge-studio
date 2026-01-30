@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { useSquircle, Squircle } from "@/components/ui/squircle";
 
@@ -66,6 +67,7 @@ function TrafficDot({ color }: { color: string }) {
 }
 
 export function BrowserChrome({ children }: { children: React.ReactNode }) {
+  const t = useTranslations();
   const urlBarSquircle = useSquircle({ cornerRadius: "md" });
 
   return (
@@ -97,7 +99,7 @@ export function BrowserChrome({ children }: { children: React.ReactNode }) {
               className="px-3 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-500 dark:text-slate-400 font-mono"
               style={urlBarSquircle.style}
             >
-              loopforge.studio/dashboard
+              {t("landing.demoKanban.url")}
             </div>
           </div>
         </div>

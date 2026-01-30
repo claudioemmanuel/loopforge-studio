@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   MessageSquareMore,
@@ -12,48 +13,48 @@ import {
 } from "lucide-react";
 import { FeatureCard } from "./feature-card";
 
-const features = [
-  {
-    icon: MessageSquareMore,
-    title: "AI Brainstorming Chat",
-    description:
-      "Multi-turn conversation to refine requirements. Explore approaches and clarify scope before any code is written.",
-  },
-  {
-    icon: GitCompare,
-    title: "Diff Preview & Approval",
-    description:
-      "Review every AI-generated change before it's committed. See exactly what's being modified with visual diffs.",
-  },
-  {
-    icon: KanbanSquare,
-    title: "Visual Kanban Workflow",
-    description:
-      "Drag-and-drop tasks through a 7-stage AI pipeline. From brainstorm to done, every step is visible.",
-  },
-  {
-    icon: Link2,
-    title: "Task Dependencies",
-    description:
-      "Tasks block each other with auto-execute when unblocked. Build complex workflows with dependency chains.",
-  },
-  {
-    icon: RotateCcw,
-    title: "Rollback Safety",
-    description:
-      "Revert any AI execution with safety checks. One-click undo to restore your codebase to a previous state.",
-  },
-  {
-    icon: Activity,
-    title: "Activity Feed",
-    description:
-      "Real-time event tracking for all AI actions. Full audit trail of commits, executions, and changes.",
-  },
-];
+// Helper function to get features with translations
+function getFeatures(t: (key: string) => string) {
+  return [
+    {
+      icon: MessageSquareMore,
+      title: t("landing.featuresExpanded.aiBrainstorming.title"),
+      description: t("landing.featuresExpanded.aiBrainstorming.description"),
+    },
+    {
+      icon: GitCompare,
+      title: t("landing.featuresExpanded.diffPreview.title"),
+      description: t("landing.featuresExpanded.diffPreview.description"),
+    },
+    {
+      icon: KanbanSquare,
+      title: t("landing.featuresExpanded.visualKanban.title"),
+      description: t("landing.featuresExpanded.visualKanban.description"),
+    },
+    {
+      icon: Link2,
+      title: t("landing.featuresExpanded.taskDependencies.title"),
+      description: t("landing.featuresExpanded.taskDependencies.description"),
+    },
+    {
+      icon: RotateCcw,
+      title: t("landing.featuresExpanded.rollbackSafety.title"),
+      description: t("landing.featuresExpanded.rollbackSafety.description"),
+    },
+    {
+      icon: Activity,
+      title: t("landing.featuresExpanded.activityFeed.title"),
+      description: t("landing.featuresExpanded.activityFeed.description"),
+    },
+  ];
+}
 
 export function FeaturesExpanded() {
+  const t = useTranslations();
   const sectionRef = useRef<HTMLElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+
+  const features = getFeatures(t);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia(
@@ -82,6 +83,10 @@ export function FeaturesExpanded() {
     return () => observer.disconnect();
   }, []);
 
+  const titleWords = t("landing.featuresExpanded.sectionTitle").split(" ");
+  const highlighted = titleWords.slice(-1)[0]; // "faster"
+  const rest = titleWords.slice(0, -1).join(" "); // "Everything you need to ship"
+
   return (
     <section
       ref={sectionRef}
@@ -97,9 +102,9 @@ export function FeaturesExpanded() {
           )}
         >
           <h2 className="text-4xl md:text-5xl font-serif font-bold tracking-tight">
-            Everything you need to ship{" "}
+            {rest}{" "}
             <span className="text-primary relative">
-              faster
+              {highlighted}
               <svg
                 className="absolute -bottom-2 left-0 w-full"
                 viewBox="0 0 200 12"
@@ -116,8 +121,7 @@ export function FeaturesExpanded() {
             </span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            A complete visual interface for autonomous AI coding. No more
-            command lines, no more context switching.
+            {t("landing.featuresExpanded.sectionSubtitle")}
           </p>
         </div>
 

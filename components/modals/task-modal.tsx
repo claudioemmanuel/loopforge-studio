@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { clientLogger } from "@/lib/logger";
 import { Loader2 } from "lucide-react";
@@ -14,6 +15,7 @@ import dynamic from "next/dynamic";
 import { useAPIError } from "@/components/hooks/use-api-error";
 import { ErrorDialog } from "@/components/ui/error-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { TaskModalTabs, TimelineTab, type TabId } from "./task-modal/";
 import { TaskHeader } from "./task-modal/task-header";
 import { TaskActions } from "./task-modal/task-actions";
@@ -57,6 +59,7 @@ export function TaskModal({
   onStart,
   onAdvance,
 }: TaskModalProps) {
+  const t = useTranslations();
   const [loading, setLoading] = useState(false);
   const [actionType, setActionType] = useState<string | null>(null);
   const [showBrainstormPanel, setShowBrainstormPanel] = useState(false);
@@ -126,14 +129,14 @@ export function TaskModal({
   // -------------------------------------------------------------------------
   const getStatusLabel = (status: TaskStatus): string => {
     const labels: Record<TaskStatus, string> = {
-      todo: "To Do",
-      brainstorming: "Brainstorming",
-      planning: "Planning",
-      ready: "Ready",
-      executing: "Executing",
-      review: "Review",
-      done: "Done",
-      stuck: "Failed",
+      todo: t("tasks.statuses.todo"),
+      brainstorming: t("tasks.statuses.brainstorming"),
+      planning: t("tasks.statuses.planning"),
+      ready: t("tasks.statuses.ready"),
+      executing: t("tasks.statuses.executing"),
+      review: t("tasks.statuses.review"),
+      done: t("tasks.statuses.done"),
+      stuck: t("tasks.statuses.stuck"),
     };
     return labels[status] || status;
   };
@@ -409,6 +412,13 @@ export function TaskModal({
             e.preventDefault();
           }}
         >
+          {/* Accessible title for screen readers */}
+          <VisuallyHidden>
+            <DialogPrimitive.Title>
+              {t("tasks.modal.title")}
+            </DialogPrimitive.Title>
+          </VisuallyHidden>
+
           {/* Backdrop (click to close) */}
           <div className="absolute inset-0" onClick={onClose} />
 
@@ -445,7 +455,7 @@ export function TaskModal({
                     <div className="flex items-center justify-center py-12">
                       <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                       <span className="ml-2 text-sm text-muted-foreground">
-                        Loading execution details...
+                        {t("tasks.modal.loadingExecution")}
                       </span>
                     </div>
                   ) : executionData ? (
@@ -456,7 +466,7 @@ export function TaskModal({
                     />
                   ) : (
                     <div className="text-center py-12 text-muted-foreground">
-                      <p>No execution data available</p>
+                      <p>{t("tasks.modal.noExecutionData")}</p>
                     </div>
                   )}
                 </div>
@@ -517,7 +527,11 @@ export function TaskModal({
             <ErrorDialog
               open={!!apiError}
               onClose={clearError}
-              title={apiError.code === "RATE_LIMIT" ? "Rate Limited" : "Error"}
+              title={
+                apiError.code === "RATE_LIMIT"
+                  ? t("errors.rateLimit")
+                  : t("errors.error")
+              }
               description={apiError.message}
               isApiKeyError={isApiKeyError}
               retryCountdown={retryCountdown}

@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { LoopforgeLogo } from "@/components/loopforge-logo";
 import { useSquircle } from "@/components/ui/squircle";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { useTranslations } from "next-intl";
 
 export function Navigation() {
+  const t = useTranslations("landing.navigation");
   const buttonSquircle = useSquircle({ cornerRadius: "md" });
 
   return (
@@ -29,8 +32,9 @@ export function Navigation() {
             rel="noopener noreferrer"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            GitHub
+            {t("github")}
           </a>
+          <LanguageSwitcher />
           <Link
             href="/login"
             ref={buttonSquircle.ref as React.RefObject<HTMLAnchorElement>}
@@ -40,7 +44,7 @@ export function Navigation() {
               filter: "drop-shadow(0 1px 2px rgb(0 0 0 / 0.05))",
             }}
           >
-            Sign In
+            {t("signIn")}
           </Link>
         </div>
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Check, X, Minus } from "lucide-react";
 import { Squircle, useSquircle } from "@/components/ui/squircle";
@@ -16,78 +17,81 @@ interface Feature {
   isUnique?: boolean;
 }
 
-const features: Feature[] = [
-  {
-    name: "Kanban boards",
-    loopforge: "yes",
-    linear: "yes",
-    jira: "yes",
-    notion: "yes",
-    asana: "yes",
-  },
-  {
-    name: "AI task assistance",
-    loopforge: "yes",
-    linear: "yes",
-    jira: "partial",
-    notion: "yes",
-    asana: "yes",
-  },
-  {
-    name: "Autonomous code execution",
-    loopforge: "yes",
-    linear: "no",
-    jira: "no",
-    notion: "no",
-    asana: "no",
-    isUnique: true,
-  },
-  {
-    name: "Real-time execution streaming",
-    loopforge: "yes",
-    linear: "no",
-    jira: "no",
-    notion: "no",
-    asana: "no",
-    isUnique: true,
-  },
-  {
-    name: "Brainstorm → Deploy pipeline",
-    loopforge: "yes",
-    linear: "no",
-    jira: "no",
-    notion: "no",
-    asana: "no",
-    isUnique: true,
-  },
-  {
-    name: "Direct GitHub commits",
-    loopforge: "yes",
-    linear: "no",
-    jira: "no",
-    notion: "no",
-    asana: "no",
-    isUnique: true,
-  },
-  {
-    name: "Multi-provider AI (Claude/GPT/Gemini)",
-    loopforge: "yes",
-    linear: "no",
-    jira: "no",
-    notion: "no",
-    asana: "no",
-    isUnique: true,
-  },
-  {
-    name: "Bring Your Own API Key",
-    loopforge: "yes",
-    linear: "no",
-    jira: "no",
-    notion: "no",
-    asana: "no",
-    isUnique: true,
-  },
-];
+// Helper function to get features with translations
+function getFeatures(t: (key: string) => string): Feature[] {
+  return [
+    {
+      name: t("landing.comparisonTable.features.kanban"),
+      loopforge: "yes",
+      linear: "yes",
+      jira: "yes",
+      notion: "yes",
+      asana: "yes",
+    },
+    {
+      name: t("landing.comparisonTable.features.aiAssistance"),
+      loopforge: "yes",
+      linear: "yes",
+      jira: "partial",
+      notion: "yes",
+      asana: "yes",
+    },
+    {
+      name: t("landing.comparisonTable.features.autonomousCode"),
+      loopforge: "yes",
+      linear: "no",
+      jira: "no",
+      notion: "no",
+      asana: "no",
+      isUnique: true,
+    },
+    {
+      name: t("landing.comparisonTable.features.realtimeStreaming"),
+      loopforge: "yes",
+      linear: "no",
+      jira: "no",
+      notion: "no",
+      asana: "no",
+      isUnique: true,
+    },
+    {
+      name: t("landing.comparisonTable.features.brainstormPipeline"),
+      loopforge: "yes",
+      linear: "no",
+      jira: "no",
+      notion: "no",
+      asana: "no",
+      isUnique: true,
+    },
+    {
+      name: t("landing.comparisonTable.features.githubCommits"),
+      loopforge: "yes",
+      linear: "no",
+      jira: "no",
+      notion: "no",
+      asana: "no",
+      isUnique: true,
+    },
+    {
+      name: t("landing.comparisonTable.features.multiProvider"),
+      loopforge: "yes",
+      linear: "no",
+      jira: "no",
+      notion: "no",
+      asana: "no",
+      isUnique: true,
+    },
+    {
+      name: t("landing.comparisonTable.features.byok"),
+      loopforge: "yes",
+      linear: "no",
+      jira: "no",
+      notion: "no",
+      asana: "no",
+      isUnique: true,
+    },
+  ];
+}
 
 const products = [
   { key: "linear", name: "Linear" },
@@ -138,6 +142,9 @@ interface ComparisonTableProps {
 }
 
 export function ComparisonTable({ isVisible }: ComparisonTableProps) {
+  const t = useTranslations();
+  const features = getFeatures(t);
+
   return (
     <Squircle
       cornerRadius="xl"
@@ -154,7 +161,7 @@ export function ComparisonTable({ isVisible }: ComparisonTableProps) {
           <thead>
             <tr className="border-b">
               <th className="py-4 px-4 text-left text-sm font-medium text-muted-foreground">
-                Feature
+                {t("landing.comparisonTable.table.feature")}
               </th>
               {products.map((product) => (
                 <th

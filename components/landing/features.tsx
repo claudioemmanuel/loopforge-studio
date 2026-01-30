@@ -10,13 +10,13 @@ import {
   BarChart3,
   Github,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
-const primaryFeatures = [
+const getPrimaryFeatures = () => [
   {
     icon: Kanban,
-    title: "Visual Kanban Board",
-    description:
-      "Drag and drop tasks through a 7-stage workflow. From brainstorm to done, every step is visible and trackable.",
+    titleKey: "visualKanban.title",
+    descriptionKey: "visualKanban.description",
     phase: {
       bg: "bg-primary/10",
       bgHover: "group-hover:bg-primary/20",
@@ -27,9 +27,8 @@ const primaryFeatures = [
   },
   {
     icon: MessageSquare,
-    title: "AI Brainstorming",
-    description:
-      "Chat with AI before execution. Refine requirements, explore approaches, and get the plan right before any code is written.",
+    titleKey: "aiBrainstorming.title",
+    descriptionKey: "aiBrainstorming.description",
     phase: {
       bg: "bg-kanban-brainstorming/10",
       bgHover: "group-hover:bg-kanban-brainstorming/20",
@@ -40,9 +39,8 @@ const primaryFeatures = [
   },
   {
     icon: Terminal,
-    title: "Live Execution Logs",
-    description:
-      "Watch AI think, code, and commit in real-time. Full streaming terminal output with syntax highlighting.",
+    titleKey: "liveExecutionLogs.title",
+    descriptionKey: "liveExecutionLogs.description",
     phase: {
       bg: "bg-kanban-executing/10",
       bgHover: "group-hover:bg-kanban-executing/20",
@@ -53,9 +51,8 @@ const primaryFeatures = [
   },
   {
     icon: GitBranch,
-    title: "Direct Git Integration",
-    description:
-      "AI commits directly to your working branches. PRs can be created automatically (optional) or manually. You review and approve all changes before merging—maintaining full control.",
+    titleKey: "directGitIntegration.title",
+    descriptionKey: "directGitIntegration.description",
     phase: {
       bg: "bg-kanban-done/10",
       bgHover: "group-hover:bg-kanban-done/20",
@@ -66,12 +63,11 @@ const primaryFeatures = [
   },
 ];
 
-const secondaryFeatures = [
+const getSecondaryFeatures = () => [
   {
     icon: Bot,
-    title: "Multi-AI Providers",
-    description:
-      "Claude, GPT-4, Gemini—choose your preferred AI model for each task.",
+    titleKey: "multiAiProviders.title",
+    descriptionKey: "multiAiProviders.description",
     phase: {
       bg: "bg-kanban-planning/10",
       bgHover: "group-hover:bg-kanban-planning/20",
@@ -82,9 +78,8 @@ const secondaryFeatures = [
   },
   {
     icon: Server,
-    title: "Self-Hosted Ready",
-    description:
-      "Run on your own infrastructure. Bring your own API keys for complete control.",
+    titleKey: "cloudHosted.title",
+    descriptionKey: "cloudHosted.description",
     phase: {
       bg: "bg-kanban-ready/10",
       bgHover: "group-hover:bg-kanban-ready/20",
@@ -95,9 +90,8 @@ const secondaryFeatures = [
   },
   {
     icon: BarChart3,
-    title: "Analytics Dashboard",
-    description:
-      "Track task completion, AI usage, and team productivity metrics.",
+    titleKey: "analyticsDashboard.title",
+    descriptionKey: "analyticsDashboard.description",
     phase: {
       bg: "bg-kanban-done/10",
       bgHover: "group-hover:bg-kanban-done/20",
@@ -108,9 +102,8 @@ const secondaryFeatures = [
   },
   {
     icon: Github,
-    title: "GitHub OAuth",
-    description:
-      "One-click authentication. Connect your repositories instantly.",
+    titleKey: "githubOauth.title",
+    descriptionKey: "githubOauth.description",
     phase: {
       bg: "bg-kanban-todo/10",
       bgHover: "group-hover:bg-kanban-todo/20",
@@ -122,18 +115,23 @@ const secondaryFeatures = [
 ];
 
 export function Features() {
+  const t = useTranslations("landing.features");
+  const primaryFeatures = getPrimaryFeatures();
+  const secondaryFeatures = getSecondaryFeatures();
+
   return (
     <section id="features" className="py-24 px-6">
       <div className="max-w-7xl mx-auto">
         {/* Section header */}
         <div className="text-center space-y-4 mb-16">
           <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight">
-            Everything you need to ship{" "}
-            <span className="text-primary">faster</span>
+            {t("sectionTitle").split(" ").slice(0, -1).join(" ")}{" "}
+            <span className="text-primary">
+              {t("sectionTitle").split(" ").slice(-1)[0]}
+            </span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            A complete visual interface for autonomous AI coding. No more
-            command lines, no more context switching.
+            {t("sectionSubtitle")}
           </p>
         </div>
 
@@ -141,7 +139,7 @@ export function Features() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
           {primaryFeatures.map((feature, i) => (
             <div
-              key={feature.title}
+              key={feature.titleKey}
               className={`group relative p-8 rounded-xl border border-border bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card/80 hover:shadow-lg hover:-translate-y-1 ${feature.phase.border} ${feature.phase.shadow}`}
               style={{ animationDelay: `${i * 100}ms` }}
             >
@@ -152,9 +150,11 @@ export function Features() {
                   <feature.icon className={`w-6 h-6 ${feature.phase.text}`} />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-semibold">{feature.title}</h3>
+                  <h3 className="text-xl font-semibold">
+                    {t(feature.titleKey)}
+                  </h3>
                   <p className="text-muted-foreground leading-relaxed">
-                    {feature.description}
+                    {t(feature.descriptionKey)}
                   </p>
                 </div>
               </div>
@@ -166,7 +166,7 @@ export function Features() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {secondaryFeatures.map((feature, i) => (
             <div
-              key={feature.title}
+              key={feature.titleKey}
               className={`group p-6 rounded-xl border border-border bg-card/30 transition-all duration-300 hover:bg-card/50 hover:-translate-y-1 hover:shadow-lg ${feature.phase.border} ${feature.phase.shadow}`}
               style={{ animationDelay: `${(i + 4) * 100}ms` }}
             >
@@ -175,9 +175,9 @@ export function Features() {
               >
                 <feature.icon className={`w-5 h-5 ${feature.phase.text}`} />
               </div>
-              <h3 className="font-semibold mb-2">{feature.title}</h3>
+              <h3 className="font-semibold mb-2">{t(feature.titleKey)}</h3>
               <p className="text-sm text-muted-foreground">
-                {feature.description}
+                {t(feature.descriptionKey)}
               </p>
             </div>
           ))}

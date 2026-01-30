@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -23,89 +24,95 @@ interface Competitor {
   visualWorkflow: SupportLevel;
 }
 
-const competitors: Competitor[] = [
-  {
-    name: "Loopforge Studio",
-    isLoopforge: true,
-    taskMgmt: "full",
-    aiAssists: "full",
-    aiExecutes: "full",
-    visualWorkflow: "full",
-  },
-  {
-    name: "Linear",
-    taskMgmt: "full",
-    aiAssists: "partial",
-    aiExecutes: "none",
-    visualWorkflow: "none",
-  },
-  {
-    name: "GitHub + Copilot",
-    taskMgmt: "full",
-    aiAssists: "full",
-    aiExecutes: "full",
-    visualWorkflow: "none",
-  },
-  {
-    name: "Notion",
-    taskMgmt: "full",
-    aiAssists: "full",
-    aiExecutes: "none",
-    visualWorkflow: "none",
-  },
-  {
-    name: "Jira + Rovo",
-    taskMgmt: "full",
-    aiAssists: "full",
-    aiExecutes: "partial",
-    visualWorkflow: "none",
-  },
-  {
-    name: "Trello",
-    taskMgmt: "full",
-    aiAssists: "partial",
-    aiExecutes: "none",
-    visualWorkflow: "none",
-  },
-  {
-    name: "Asana",
-    taskMgmt: "full",
-    aiAssists: "full",
-    aiExecutes: "none",
-    visualWorkflow: "none",
-  },
-  {
-    name: "Monday.com",
-    taskMgmt: "full",
-    aiAssists: "full",
-    aiExecutes: "none",
-    visualWorkflow: "none",
-  },
-];
+// Helper function to get competitors with translations
+function getCompetitors(t: (key: string) => string): Competitor[] {
+  return [
+    {
+      name: t("landing.comparison.competitors.loopforge"),
+      isLoopforge: true,
+      taskMgmt: "full",
+      aiAssists: "full",
+      aiExecutes: "full",
+      visualWorkflow: "full",
+    },
+    {
+      name: t("landing.comparison.competitors.linear"),
+      taskMgmt: "full",
+      aiAssists: "partial",
+      aiExecutes: "none",
+      visualWorkflow: "none",
+    },
+    {
+      name: t("landing.comparison.competitors.github"),
+      taskMgmt: "full",
+      aiAssists: "full",
+      aiExecutes: "full",
+      visualWorkflow: "none",
+    },
+    {
+      name: t("landing.comparison.competitors.notion"),
+      taskMgmt: "full",
+      aiAssists: "full",
+      aiExecutes: "none",
+      visualWorkflow: "none",
+    },
+    {
+      name: t("landing.comparison.competitors.jira"),
+      taskMgmt: "full",
+      aiAssists: "full",
+      aiExecutes: "partial",
+      visualWorkflow: "none",
+    },
+    {
+      name: t("landing.comparison.competitors.trello"),
+      taskMgmt: "full",
+      aiAssists: "partial",
+      aiExecutes: "none",
+      visualWorkflow: "none",
+    },
+    {
+      name: t("landing.comparison.competitors.asana"),
+      taskMgmt: "full",
+      aiAssists: "full",
+      aiExecutes: "none",
+      visualWorkflow: "none",
+    },
+    {
+      name: t("landing.comparison.competitors.monday"),
+      taskMgmt: "full",
+      aiAssists: "full",
+      aiExecutes: "none",
+      visualWorkflow: "none",
+    },
+  ];
+}
 
-const pillars = [
-  {
-    icon: KanbanSquare,
-    title: "Task Management",
-    description: "Organize and track your development workflow",
-  },
-  {
-    icon: Sparkles,
-    title: "AI Assists",
-    description: "Get intelligent suggestions and help",
-  },
-  {
-    icon: Code2,
-    title: "AI Executes Code",
-    description: "AI writes and commits code autonomously",
-  },
-  {
-    icon: Workflow,
-    title: "Visual AI Workflow",
-    description: "Watch AI agents build your software in real-time",
-    isUnique: true,
-  },
-];
+// Helper function to get pillars with translations
+function getPillars(t: (key: string) => string) {
+  return [
+    {
+      icon: KanbanSquare,
+      title: t("landing.comparison.pillars.taskManagement.title"),
+      description: t("landing.comparison.pillars.taskManagement.description"),
+    },
+    {
+      icon: Sparkles,
+      title: t("landing.comparison.pillars.aiAssists.title"),
+      description: t("landing.comparison.pillars.aiAssists.description"),
+    },
+    {
+      icon: Code2,
+      title: t("landing.comparison.pillars.aiExecutesCode.title"),
+      description: t("landing.comparison.pillars.aiExecutesCode.description"),
+    },
+    {
+      icon: Workflow,
+      title: t("landing.comparison.pillars.visualWorkflow.title"),
+      description: t("landing.comparison.pillars.visualWorkflow.description"),
+      isUnique: true,
+    },
+  ];
+}
 
 function StatusIndicator({ level }: { level: SupportLevel }) {
   if (level === "full") {
@@ -138,10 +145,11 @@ function PillarCard({
   index,
   isVisible,
 }: {
-  pillar: (typeof pillars)[0];
+  pillar: ReturnType<typeof getPillars>[0];
   index: number;
   isVisible: boolean;
 }) {
+  const t = useTranslations();
   const Icon = pillar.icon;
 
   return (
@@ -160,7 +168,7 @@ function PillarCard({
         <div className="absolute -top-3 right-4">
           <span className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
             <Sparkles className="h-3 w-3" />
-            Only Us
+            {t("landing.comparison.badges.onlyUs")}
           </span>
         </div>
       )}
@@ -192,6 +200,8 @@ function MobileComparisonCard({
   isVisible: boolean;
   index: number;
 }) {
+  const t = useTranslations();
+
   return (
     <div
       className={cn(
@@ -207,25 +217,33 @@ function MobileComparisonCard({
         <span className="font-medium">{competitor.name}</span>
         {competitor.isLoopforge && (
           <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
-            You are here
+            {t("landing.comparison.badges.youAreHere")}
           </span>
         )}
       </div>
       <div className="grid grid-cols-4 gap-2 text-center">
         <div>
-          <div className="mb-1 text-[10px] text-muted-foreground">Tasks</div>
+          <div className="mb-1 text-[10px] text-muted-foreground">
+            {t("landing.comparison.mobile.tasks")}
+          </div>
           <StatusIndicator level={competitor.taskMgmt} />
         </div>
         <div>
-          <div className="mb-1 text-[10px] text-muted-foreground">AI Help</div>
+          <div className="mb-1 text-[10px] text-muted-foreground">
+            {t("landing.comparison.mobile.aiHelp")}
+          </div>
           <StatusIndicator level={competitor.aiAssists} />
         </div>
         <div>
-          <div className="mb-1 text-[10px] text-muted-foreground">AI Code</div>
+          <div className="mb-1 text-[10px] text-muted-foreground">
+            {t("landing.comparison.mobile.aiCode")}
+          </div>
           <StatusIndicator level={competitor.aiExecutes} />
         </div>
         <div>
-          <div className="mb-1 text-[10px] text-muted-foreground">Visual</div>
+          <div className="mb-1 text-[10px] text-muted-foreground">
+            {t("landing.comparison.mobile.visual")}
+          </div>
           <StatusIndicator level={competitor.visualWorkflow} />
         </div>
       </div>
@@ -234,8 +252,12 @@ function MobileComparisonCard({
 }
 
 export function Comparison() {
+  const t = useTranslations();
   const sectionRef = useRef<HTMLElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+
+  const competitors = getCompetitors(t);
+  const pillars = getPillars(t);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia(
@@ -279,12 +301,13 @@ export function Comparison() {
           )}
         >
           <h2 className="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
-            Why teams choose{" "}
-            <span className="font-serif text-primary">Loopforge</span>
+            {t("landing.comparison.title").split(" ").slice(0, -1).join(" ")}{" "}
+            <span className="font-serif text-primary">
+              {t("landing.comparison.title").split(" ").slice(-1)[0]}
+            </span>
           </h2>
           <p className="mx-auto max-w-2xl text-muted-foreground">
-            The only platform that combines task management, AI assistance,
-            autonomous code execution, and a visual workflow—all in one place.
+            {t("landing.comparison.subtitle")}
           </p>
         </div>
 
@@ -312,20 +335,22 @@ export function Comparison() {
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="px-6 py-4 text-left font-medium">Platform</th>
-                  <th className="px-4 py-4 text-center font-medium">
-                    Task Management
+                  <th className="px-6 py-4 text-left font-medium">
+                    {t("landing.comparison.table.platform")}
                   </th>
                   <th className="px-4 py-4 text-center font-medium">
-                    AI Assists
+                    {t("landing.comparison.pillars.taskManagement.title")}
                   </th>
                   <th className="px-4 py-4 text-center font-medium">
-                    AI Executes Code
+                    {t("landing.comparison.pillars.aiAssists.title")}
+                  </th>
+                  <th className="px-4 py-4 text-center font-medium">
+                    {t("landing.comparison.pillars.aiExecutesCode.title")}
                   </th>
                   <th className="px-4 py-4 text-center font-medium">
                     <div className="flex items-center justify-center gap-1">
                       <Sparkles className="h-4 w-4 text-primary" />
-                      Visual AI Workflow
+                      {t("landing.comparison.pillars.visualWorkflow.title")}
                     </div>
                   </th>
                 </tr>
@@ -352,7 +377,7 @@ export function Comparison() {
                         </span>
                         {competitor.isLoopforge && (
                           <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
-                            You are here
+                            {t("landing.comparison.badges.youAreHere")}
                           </span>
                         )}
                       </div>
@@ -397,12 +422,22 @@ export function Comparison() {
           style={{ transitionDelay: isVisible ? "500ms" : "0ms" }}
         >
           <p className="text-lg font-medium text-foreground md:text-xl">
-            Other tools help you track tasks or write code.
+            {t("landing.comparison.callout.prefix")}
           </p>
           <p className="mt-2 text-lg text-muted-foreground md:text-xl">
-            Only <span className="font-semibold text-primary">Loopforge</span>{" "}
-            shows you a complete visual workflow of AI agents building your
-            software.
+            {
+              t("landing.comparison.callout.suffix").split(
+                t("landing.comparison.callout.highlight"),
+              )[0]
+            }
+            <span className="font-semibold text-primary">
+              {t("landing.comparison.callout.highlight")}
+            </span>
+            {
+              t("landing.comparison.callout.suffix").split(
+                t("landing.comparison.callout.highlight"),
+              )[1]
+            }
           </p>
         </div>
       </div>
