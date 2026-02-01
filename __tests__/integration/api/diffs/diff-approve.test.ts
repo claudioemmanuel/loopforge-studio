@@ -620,7 +620,7 @@ describe("Diff Approve API", () => {
   describe("Authenticated URL Building", () => {
     it("should build authenticated URL for push", () => {
       const cloneUrl = "https://github.com/owner/repo.git";
-      const token = "ghp_xxxxxxxxxxxx";
+      const token = "FAKE_GITHUB_TOKEN_FOR_TESTING_ONLY";
 
       const buildAuthenticatedUrl = (url: string, t: string) => {
         const parsed = new URL(url);

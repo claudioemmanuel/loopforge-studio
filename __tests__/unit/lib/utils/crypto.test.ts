@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { encryptApiKey, decryptApiKey, generateEncryptionKey } from "@/lib/crypto";
+import {
+  encryptApiKey,
+  decryptApiKey,
+  generateEncryptionKey,
+} from "@/lib/crypto";
 
 describe("Crypto Module", () => {
   const testKey = "0".repeat(64); // 32 bytes in hex for testing
@@ -33,7 +37,7 @@ describe("Crypto Module", () => {
 
   describe("encryptApiKey / decryptApiKey", () => {
     it("should encrypt and decrypt an API key correctly", () => {
-      const originalKey = "sk-ant-api03-test-key-12345";
+      const originalKey = "FAKE_TEST_API_KEY_12345_NOT_REAL";
       const encrypted = encryptApiKey(originalKey);
 
       expect(encrypted.encrypted).toBeDefined();
@@ -45,7 +49,7 @@ describe("Crypto Module", () => {
     });
 
     it("should produce different ciphertext for the same input", () => {
-      const apiKey = "sk-ant-api03-test-key";
+      const apiKey = "MOCK_API_KEY_FOR_TESTING";
       const encrypted1 = encryptApiKey(apiKey);
       const encrypted2 = encryptApiKey(apiKey);
 
@@ -66,14 +70,14 @@ describe("Crypto Module", () => {
     });
 
     it("should handle long API keys", () => {
-      const longKey = "sk-ant-" + "x".repeat(1000);
+      const longKey = "FAKE_KEY_" + "x".repeat(1000);
       const encrypted = encryptApiKey(longKey);
       const decrypted = decryptApiKey(encrypted);
       expect(decrypted).toBe(longKey);
     });
 
     it("should handle special characters", () => {
-      const specialKey = "sk-ant-!@#$%^&*()_+-=[]{}|;':\",./<>?";
+      const specialKey = "TEST_KEY_!@#$%^&*()_+-=[]{}|;':\",./<>?";
       const encrypted = encryptApiKey(specialKey);
       const decrypted = decryptApiKey(encrypted);
       expect(decrypted).toBe(specialKey);
