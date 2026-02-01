@@ -58,45 +58,71 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const githubId = String(githubProfile.id);
       const username = githubProfile.login || user.name || "User";
 
-      // Encrypt GitHub access token
-      const encryptedToken = account.access_token
-        ? encryptGithubToken(account.access_token)
-        : null;
+      try {
+        // Encrypt GitHub access token
+        const encryptedToken = account.access_token
+          ? encryptGithubToken(account.access_token)
+          : null;
 
-      // Check if user exists
-      const existingUser = await db.query.users.findFirst({
-        where: eq(users.githubId, githubId),
-      });
-
-      if (!existingUser) {
-        // Create new user
-        await db.insert(users).values({
-          id: crypto.randomUUID(),
-          githubId,
-          username,
-          email: user.email || null,
-          avatarUrl: user.image || null,
-          encryptedGithubToken: encryptedToken?.encrypted || null,
-          githubTokenIv: encryptedToken?.iv || null,
-          onboardingCompleted: false,
+        // Check if user exists
+        const existingUser = await db.query.users.findFirst({
+          where: eq(users.githubId, githubId),
         });
-      } else {
-        // Update existing user with new token
-        await db
-          .update(users)
-          .set({
+
+        if (!existingUser) {
+          // Create new user
+          await db.insert(users).values({
+            id: crypto.randomUUID(),
+            githubId,
             username,
             email: user.email || null,
             avatarUrl: user.image || null,
-            encryptedGithubToken:
-              encryptedToken?.encrypted || existingUser.encryptedGithubToken,
-            githubTokenIv: encryptedToken?.iv || existingUser.githubTokenIv,
-            updatedAt: new Date(),
-          })
-          .where(eq(users.githubId, githubId));
-      }
+            encryptedGithubToken: encryptedToken?.encrypted || null,
+            githubTokenIv: encryptedToken?.iv || null,
+            onboardingCompleted: false,
+          });
+        } else {
+          // Update existing user with new token
+          await db
+            .update(users)
+            .set({
+              username,
+              email: user.email || null,
+              avatarUrl: user.image || null,
+              encryptedGithubToken:
+                encryptedToken?.encrypted || existingUser.encryptedGithubToken,
+              githubTokenIv: encryptedToken?.iv || existingUser.githubTokenIv,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.githubId, githubId));
+        }
 
-      return true;
+        return true;
+      } catch (error) {
+        console.error("[Auth Error] Database query failed:", error);
+
+        // Check if it's a missing column error
+        if (
+          error instanceof Error &&
+          error.message.includes("does not exist")
+        ) {
+          console.error("");
+          console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+          console.error("⚠️  DATABASE SCHEMA OUTDATED");
+          console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+          console.error("");
+          console.error("Your database is missing required columns.");
+          console.error("Please run pending migrations:");
+          console.error("");
+          console.error("  npm run db:migrate");
+          console.error("");
+          console.error("Then restart the development server.");
+          console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+          console.error("");
+        }
+
+        return false; // Deny sign-in
+      }
     },
     async session({ session, token }) {
       if (token.sub) {
@@ -108,6 +134,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           session.user.githubId = dbUser.githubId;
           session.user.onboardingCompleted =
             dbUser.onboardingCompleted ?? false;
+          session.user.locale = dbUser.locale || "en";
         }
       }
       return session;
@@ -116,6 +143,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (account && profile) {
         const githubProfile = profile as GitHubProfile;
         token.sub = String(githubProfile.id);
+      }
+      // Fetch user's locale preference for middleware
+      if (token.sub) {
+        const dbUser = await db.query.users.findFirst({
+          where: eq(users.githubId, token.sub),
+        });
+        if (dbUser) {
+          token.locale = dbUser.locale || "en";
+        }
       }
       return token;
     },
@@ -132,10 +168,17 @@ declare module "next-auth" {
       id: string;
       githubId: string;
       onboardingCompleted: boolean;
+      locale: string;
       name?: string | null;
       email?: string | null;
       image?: string | null;
     };
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    locale?: string;
   }
 }
 

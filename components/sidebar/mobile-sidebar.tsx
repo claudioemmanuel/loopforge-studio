@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import {
   Home,
   BarChart3,
@@ -20,7 +21,6 @@ import {
   Zap,
   Play,
   History,
-  CreditCard,
   FlaskConical,
   FolderGit2,
 } from "lucide-react";
@@ -29,8 +29,8 @@ import { Button } from "@/components/ui/button";
 import { LoopforgeIcon } from "@/components/loopforge-logo";
 import { RepoStatusDot } from "@/components/repo-status-indicator";
 import { useSidebar } from "./sidebar-context";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import type { IndexingStatus } from "@/lib/db/schema";
-import { getFeatureFlag } from "@/lib/config/feature-flags";
 
 interface SidebarRepo {
   id: string;
@@ -39,6 +39,7 @@ interface SidebarRepo {
   taskCount: number;
   isCloned: boolean;
   indexingStatus: IndexingStatus;
+  cloneStatus?: "pending" | "cloning" | "completed" | "failed";
 }
 
 interface MobileSidebarProps {
@@ -48,36 +49,40 @@ interface MobileSidebarProps {
     image?: string | null;
   };
   repos?: SidebarRepo[];
+  enableABTesting: boolean;
 }
 
+// Note: Labels will be translated in the component using useTranslations
 const settingsSubItems = [
-  { href: "/settings/account", label: "Account", icon: User },
-  { href: "/settings/preferences", label: "Preferences", icon: Sliders },
-  { href: "/settings/integrations", label: "Integrations", icon: Plug },
+  { href: "/settings/account", labelKey: "account", icon: User },
+  { href: "/settings/preferences", labelKey: "preferences", icon: Sliders },
+  { href: "/settings/integrations", labelKey: "integrations", icon: Plug },
+  { href: "/settings/workflow", labelKey: "workflow", icon: GitBranch },
 ];
 
 const executionSubItems = [
-  { href: "/execution/active", label: "Active Tasks", icon: Play },
-  { href: "/execution/history", label: "History", icon: History },
-  { href: "/execution/failed", label: "Failed", icon: AlertTriangle },
-  { href: "/execution/performance", label: "Performance", icon: BarChart3 },
+  { href: "/execution/active", labelKey: "activeTasks", icon: Play },
+  { href: "/execution/history", labelKey: "history", icon: History },
+  { href: "/execution/failed", labelKey: "failed", icon: AlertTriangle },
+  { href: "/execution/performance", labelKey: "performance", icon: BarChart3 },
 ];
 
-export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
+export function MobileSidebar({
+  user,
+  repos = [],
+  enableABTesting,
+}: MobileSidebarProps) {
   const pathname = usePathname();
   const { isOpen, closeSidebar } = useSidebar();
+  const t = useTranslations("navigation");
+  const tSettings = useTranslations("settings");
 
   const isDashboardActive = pathname === "/dashboard";
   const isRepositoriesActive =
     pathname === "/repositories" || pathname.startsWith("/repos/");
   const isExecutionActive = pathname.startsWith("/execution");
-  const isSettingsActive =
-    pathname.startsWith("/settings") && pathname !== "/settings/danger-zone";
-  const isBillingActive = pathname.startsWith("/billing");
-  const isDangerZoneActive = pathname === "/settings/danger-zone";
+  const isSettingsActive = pathname.startsWith("/settings");
   const isExperimentsActive = pathname === "/experiments";
-
-  const enableABTesting = getFeatureFlag("ENABLE_AB_TESTING");
 
   // Close sidebar on route change
   useEffect(() => {
@@ -156,14 +161,16 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
             )}
           >
             <Home className="w-4 h-4" />
-            Dashboard
+            {t("dashboard")}
           </Link>
 
           {/* Repositories with cascade */}
           <div>
             <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground">
               <FolderGit2 className="w-4 h-4" />
-              <span className="flex-1 text-left font-medium">Repositories</span>
+              <span className="flex-1 text-left font-medium">
+                {t("repositories")}
+              </span>
             </div>
 
             <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
@@ -177,7 +184,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                 )}
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />
-                All Repositories
+                {t("allRepositories")}
               </Link>
 
               {repos.length > 0 && (
@@ -200,12 +207,8 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                         <RepoStatusDot
                           isCloned={repo.isCloned}
                           indexingStatus={repo.indexingStatus}
+                          cloneStatus={repo.cloneStatus}
                         />
-                        {repo.taskCount > 0 && (
-                          <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                            {repo.taskCount}
-                          </span>
-                        )}
                       </Link>
                     );
                   })}
@@ -218,7 +221,9 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
           <div>
             <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground">
               <Zap className="w-4 h-4" />
-              <span className="flex-1 text-left font-medium">Execution</span>
+              <span className="flex-1 text-left font-medium">
+                {t("execution")}
+              </span>
             </div>
 
             <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
@@ -245,7 +250,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                         item.href === "/execution/failed" && "text-amber-500",
                       )}
                     />
-                    {item.label}
+                    {t(item.labelKey as string)}
                   </Link>
                 );
               })}
@@ -256,7 +261,9 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
           <div>
             <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground">
               <Settings className="w-4 h-4" />
-              <span className="flex-1 text-left font-medium">Settings</span>
+              <span className="flex-1 text-left font-medium">
+                {t("settings")}
+              </span>
             </div>
 
             <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
@@ -275,41 +282,13 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                     )}
                   >
                     <Icon className="w-3.5 h-3.5" />
-                    {item.label}
+                    {item.href.startsWith("/settings")
+                      ? tSettings(item.labelKey as string)
+                      : t(item.labelKey as string)}
                   </Link>
                 );
               })}
             </div>
-          </div>
-
-          {/* Billing (standalone) */}
-          <Link
-            href="/billing"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-              isBillingActive
-                ? "bg-primary/10 text-primary font-medium"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <CreditCard className="w-4 h-4" />
-            Billing
-          </Link>
-
-          {/* Danger Zone (standalone with gap) */}
-          <div className="pt-2">
-            <Link
-              href="/settings/danger-zone"
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                isDangerZoneActive
-                  ? "bg-red-500/10 text-red-500 font-medium"
-                  : "text-red-500/70 hover:text-red-500",
-              )}
-            >
-              <AlertTriangle className="w-4 h-4" />
-              Danger Zone
-            </Link>
           </div>
 
           {/* Experiments */}
@@ -324,7 +303,7 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
               )}
             >
               <FlaskConical className="w-4 h-4" />
-              Experiments
+              {t("experiments")}
             </Link>
           )}
         </nav>
@@ -354,15 +333,18 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign out
-          </Button>
+          <div className="flex flex-col gap-2">
+            <LanguageSwitcher />
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              {t("signOut")}
+            </Button>
+          </div>
         </div>
       </aside>
     </>

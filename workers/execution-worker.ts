@@ -1034,6 +1034,23 @@ async function processExecution(
     throw new Error(`Billing limit exceeded: ${billingCheck.reason}`);
   }
 
+  // Skills Framework Integration - Initialize skills system
+  const skillsEnabled = process.env.ENABLE_SKILLS_SYSTEM !== "false";
+  if (skillsEnabled) {
+    try {
+      const { initializeSkills, isSkillsSystemEnabled } =
+        await import("../lib/skills");
+
+      if (isSkillsSystemEnabled()) {
+        initializeSkills();
+        workerLogger.info("Skills system initialized for execution");
+      }
+    } catch (error) {
+      // Skills framework optional - don't fail execution if not available
+      workerLogger.warn("Skills framework not available:", error);
+    }
+  }
+
   // Track token usage for this execution
   let totalInputTokens = 0;
   let totalOutputTokens = 0;

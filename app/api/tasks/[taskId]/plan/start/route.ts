@@ -9,6 +9,10 @@ import {
 import { withTask, getProviderApiKey, findConfiguredProvider } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
+import {
+  createPlanningStartEvent,
+  createStatusChangeEvent,
+} from "@/lib/activity";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   // Check if brainstorm result exists
@@ -63,6 +67,24 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
         { status: 409 },
       );
     }
+
+    // Create activity events for status change and planning start
+    await Promise.all([
+      createStatusChangeEvent({
+        taskId,
+        repoId: task.repoId,
+        userId: user.id,
+        taskTitle: task.title,
+        fromStatus: task.status,
+        toStatus: "planning",
+      }),
+      createPlanningStartEvent({
+        taskId,
+        repoId: task.repoId,
+        userId: user.id,
+        taskTitle: task.title,
+      }),
+    ]);
 
     // Now queue the job (we have exclusive processing rights)
     // Worker will decrypt API key on demand using userId

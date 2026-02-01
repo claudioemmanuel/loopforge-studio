@@ -26,12 +26,29 @@ export function LanguageSwitcher() {
   const handleLanguageChange = async (newLocale: string) => {
     startTransition(async () => {
       try {
-        // Update user preference in database
-        await fetch("/api/user/locale", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ locale: newLocale }),
-        });
+        // Set cookie for unauthenticated users (middleware will read this)
+        document.cookie = `preferred-locale=${newLocale}; path=/; max-age=31536000; SameSite=Lax`;
+
+        // Also store in localStorage as backup
+        if (typeof window !== "undefined") {
+          localStorage.setItem("preferred-locale", newLocale);
+        }
+
+        // Try to update user preference in database (will fail if not authenticated, which is fine)
+        try {
+          const response = await fetch("/api/user/locale", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ locale: newLocale }),
+          });
+
+          if (!response.ok) {
+            console.debug("Locale saved to cookie (user not authenticated)");
+          }
+        } catch (apiError) {
+          // Ignore API errors for unauthenticated users
+          console.debug("Locale saved to cookie (user not authenticated)");
+        }
 
         // Refresh to apply new locale
         router.refresh();

@@ -4,6 +4,11 @@ import { auth } from "@/lib/auth";
 import { db, repos, tasks } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
+import {
+  checkTaskLimit,
+  formatLimitError,
+} from "@/lib/api/subscription-limits";
+import { createTaskCreatedEvent } from "@/lib/activity";
 
 export async function GET(
   request: Request,
@@ -79,6 +84,14 @@ export async function POST(
 
   const { title, description, autonomousMode, autoApprove } = validatedBody;
 
+  // Check subscription limits (Phase 3.2)
+  const limitCheck = await checkTaskLimit(session.user.id, repoId);
+  if (!limitCheck.allowed) {
+    return NextResponse.json(formatLimitError(limitCheck, "task"), {
+      status: 402,
+    });
+  }
+
   const taskId = crypto.randomUUID();
   const newTask = {
     id: taskId,
@@ -98,6 +111,14 @@ export async function POST(
   };
 
   await db.insert(tasks).values(newTask);
+
+  // Create activity event for task creation
+  await createTaskCreatedEvent({
+    taskId,
+    repoId,
+    userId: session.user.id,
+    taskTitle: title,
+  });
 
   return NextResponse.json(newTask);
 }

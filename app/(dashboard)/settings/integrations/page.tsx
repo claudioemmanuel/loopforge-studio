@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { clientLogger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Check,
   Lock,
@@ -494,6 +495,11 @@ export default function IntegrationsPage() {
   const router = useRouter();
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [savingProvider, setSavingProvider] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [disconnectingRepoId, setDisconnectingRepoId] = useState<string | null>(
+    null,
+  );
+  const [activeTasksCount, setActiveTasksCount] = useState(0);
 
   // Local state for API keys to update after save/remove
   const [localApiKeys, setLocalApiKeys] = useState({
@@ -554,9 +560,33 @@ export default function IntegrationsPage() {
   };
 
   const handleDisconnect = async (repoId: string) => {
-    setDisconnecting(repoId);
+    // Fetch active tasks count for this repo
     try {
-      const res = await fetch(`/api/repos/${repoId}`, { method: "DELETE" });
+      const response = await fetch(
+        `/api/repos/${repoId}/tasks?status=executing,brainstorming,planning`,
+      );
+      const tasks = response.ok ? await response.json() : [];
+
+      setDisconnectingRepoId(repoId);
+      setActiveTasksCount(Array.isArray(tasks) ? tasks.length : 0);
+      setShowDisconnectConfirm(true);
+    } catch (error) {
+      clientLogger.error("Failed to fetch active tasks", { error });
+      // Still show dialog even if we can't fetch tasks
+      setDisconnectingRepoId(repoId);
+      setActiveTasksCount(0);
+      setShowDisconnectConfirm(true);
+    }
+  };
+
+  const confirmDisconnect = async () => {
+    if (!disconnectingRepoId) return;
+
+    setDisconnecting(disconnectingRepoId);
+    try {
+      const res = await fetch(`/api/repos/${disconnectingRepoId}`, {
+        method: "DELETE",
+      });
       if (res.ok) {
         router.refresh();
       } else {
@@ -566,6 +596,8 @@ export default function IntegrationsPage() {
       clientLogger.error("Failed to disconnect repository", { error });
     } finally {
       setDisconnecting(null);
+      setShowDisconnectConfirm(false);
+      setDisconnectingRepoId(null);
     }
   };
 
@@ -813,6 +845,34 @@ export default function IntegrationsPage() {
           {t("notifyWhenAvailable")}
         </Button>
       </div>
+
+      {/* Disconnect Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDisconnectConfirm}
+        onOpenChange={setShowDisconnectConfirm}
+        title={t("disconnectConfirmTitle")}
+        description={t("disconnectConfirmDescription")}
+        confirmText={t("disconnect")}
+        variant="destructive"
+        onConfirm={confirmDisconnect}
+      >
+        {activeTasksCount > 0 && (
+          <div className="rounded-lg bg-yellow-50 p-3 mt-2">
+            <p className="text-sm text-yellow-800">
+              {t("activeTasksWarning", { count: activeTasksCount })}
+            </p>
+          </div>
+        )}
+
+        <div className="mt-3 text-sm text-muted-foreground">
+          <p>{t("disconnectConsequences")}</p>
+          <ul className="list-disc pl-5 mt-2 space-y-1">
+            <li>{t("tasksWillFail")}</li>
+            <li>{t("branchesPreserved")}</li>
+            <li>{t("canReconnect")}</li>
+          </ul>
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

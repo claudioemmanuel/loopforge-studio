@@ -71,11 +71,20 @@ beforeAll(async () => {
     -- Add billing columns if they don't exist
     ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_mode billing_mode;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier TEXT DEFAULT 'free';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'active';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_period_end TIMESTAMP;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS locale TEXT DEFAULT 'en';
     -- Add workflow settings columns if they don't exist
     ALTER TABLE users ADD COLUMN IF NOT EXISTS default_clone_directory TEXT;
 
     DO $$ BEGIN
       CREATE TYPE indexing_status AS ENUM ('pending', 'indexing', 'indexed', 'failed');
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      CREATE TYPE clone_status AS ENUM ('not_cloned', 'cloning', 'cloned', 'failed', 'updating');
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     CREATE TABLE IF NOT EXISTS repos (
@@ -126,6 +135,59 @@ beforeAll(async () => {
     ALTER TABLE repos ADD COLUMN IF NOT EXISTS auto_approve BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE repos ADD COLUMN IF NOT EXISTS test_gate_policy TEXT DEFAULT 'warn';
     ALTER TABLE repos ADD COLUMN IF NOT EXISTS critical_test_patterns JSONB DEFAULT '[]'::jsonb;
+    -- Clone status tracking
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS clone_status clone_status DEFAULT 'not_cloned';
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS clone_error TEXT;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS clone_started_at TIMESTAMP;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS clone_completed_at TIMESTAMP;
+    ALTER TABLE repos ADD COLUMN IF NOT EXISTS clone_path TEXT;
+
+    -- Create trigger function to enforce repository limits
+    CREATE OR REPLACE FUNCTION check_repo_limit()
+    RETURNS TRIGGER AS $$
+    DECLARE
+      user_tier TEXT;
+      max_repos INT;
+      current_count INT;
+    BEGIN
+      -- Get user's subscription tier
+      SELECT subscription_tier INTO user_tier
+      FROM users WHERE id = NEW.user_id;
+
+      -- Get max repos for tier
+      max_repos := CASE user_tier
+        WHEN 'free' THEN 1
+        WHEN 'pro' THEN 20
+        WHEN 'enterprise' THEN -1  -- unlimited
+        ELSE 1  -- default to free
+      END;
+
+      -- Skip check for enterprise (unlimited)
+      IF max_repos = -1 THEN
+        RETURN NEW;
+      END IF;
+
+      -- Count current repos for user (excluding the one being inserted)
+      SELECT COUNT(*) INTO current_count
+      FROM repos WHERE user_id = NEW.user_id;
+
+      -- Reject if at or over limit
+      IF current_count >= max_repos THEN
+        RAISE EXCEPTION 'Repository limit exceeded for % tier (% / %)',
+          user_tier, current_count, max_repos
+          USING ERRCODE = '23514';  -- check_violation
+      END IF;
+
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    -- Create trigger on repos table
+    DROP TRIGGER IF EXISTS enforce_repo_limit ON repos;
+    CREATE TRIGGER enforce_repo_limit
+      BEFORE INSERT ON repos
+      FOR EACH ROW
+      EXECUTE FUNCTION check_repo_limit();
 
     CREATE TABLE IF NOT EXISTS tasks (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -218,34 +218,36 @@ npm install
 # Start PostgreSQL and Redis (required)
 docker compose up -d postgres redis
 
-# Run database migrations
-npm run db:migrate
-
-# Start development server
+# Start development server (automatically runs migrations)
 npm run dev
 
 # In a separate terminal, start the background worker
 npm run worker
 ```
 
+**Note:** Database migrations are now automatically checked and applied before starting the dev server. If you need to skip this check (e.g., for faster iteration), use `npm run dev:skip-migrate`.
+
 ### Available Scripts
 
-| Script             | Description                 |
-| ------------------ | --------------------------- |
-| `npm run dev`      | Start development server    |
-| `npm run build`    | Build for production        |
-| `npm run worker`   | Start background job worker |
-| `npm run test`     | Run tests in watch mode     |
-| `npm run test:run` | Run tests once              |
-| `npm run lint`     | Run ESLint                  |
+| Script                     | Description                              |
+| -------------------------- | ---------------------------------------- |
+| `npm run dev`              | Start dev server (auto-runs migrations)  |
+| `npm run dev:skip-migrate` | Start dev server without migration check |
+| `npm run build`            | Build for production                     |
+| `npm run worker`           | Start background job worker              |
+| `npm run test`             | Run tests in watch mode                  |
+| `npm run test:run`         | Run tests once                           |
+| `npm run lint`             | Run ESLint                               |
 
 ### Database Commands
 
 | Script                | Description                             |
 | --------------------- | --------------------------------------- |
 | `npm run db:generate` | Generate migrations from schema changes |
-| `npm run db:migrate`  | Apply pending migrations                |
+| `npm run db:migrate`  | Apply pending migrations (manual)       |
 | `npm run db:studio`   | Open Drizzle Studio (database GUI)      |
+
+**Automatic Migrations:** The dev server automatically checks for and applies pending migrations on startup. This prevents "column does not exist" errors during development. If the database is not available, the check is skipped gracefully.
 
 ### Project Structure
 
@@ -375,6 +377,45 @@ We welcome contributions! See our workflow:
 - Update documentation as needed
 
 For detailed guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## Troubleshooting
+
+### Database Schema Issues
+
+If you encounter errors like "column does not exist" during login or other operations:
+
+1. **Check health endpoint:**
+
+   ```bash
+   curl http://localhost:3000/api/health | jq .
+   ```
+
+   If `schemaValid` is `false`, run:
+
+   ```bash
+   npm run db:migrate
+   ```
+
+2. **Database not available:**
+
+   ```bash
+   docker compose -f docker-compose.dev.yml up -d postgres redis
+   ```
+
+3. **Migrations failing:**
+   - Check `drizzle/meta/_journal.json` for registered migrations
+   - Verify database connection with `DATABASE_URL` environment variable
+   - Review migration files in `drizzle/` directory
+
+### Migration Check Issues
+
+If the automatic migration check is causing problems:
+
+- **Skip migration check:** Use `npm run dev:skip-migrate`
+- **Run migrations manually:** Use `npm run db:migrate`
+- **Check database connectivity:** Ensure PostgreSQL is running on the configured port
 
 ---
 

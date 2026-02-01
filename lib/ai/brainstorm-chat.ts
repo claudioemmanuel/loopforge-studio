@@ -184,6 +184,46 @@ export async function chatWithAI(
     messageCount: number,
   ) => void | Promise<void>,
 ): Promise<BrainstormChatResponse> {
+  // Skills Framework Integration - Apply brainstorming skills
+  const skillsEnabled = process.env.ENABLE_SKILLS_SYSTEM !== "false";
+  let skillsPromptAugmentation = "";
+
+  if (skillsEnabled) {
+    try {
+      const { invokePhaseSkills, isSkillsSystemEnabled } =
+        await import("@/lib/skills");
+      const { combineAugmentedPrompts } =
+        await import("@/lib/skills/enforcement");
+
+      if (isSkillsSystemEnabled()) {
+        const skillContext = {
+          taskId: "brainstorm-session",
+          phase: "brainstorming" as const,
+          taskDescription: taskTitle || "Brainstorming session",
+          workingDir: "",
+          brainstormHistory: conversation.messages,
+          metadata: {
+            provider: client.getProvider(),
+            model: client.getModel(),
+          },
+        };
+
+        const skillResults = await invokePhaseSkills(
+          "brainstorming",
+          skillContext,
+          client,
+        );
+
+        if (skillResults.length > 0) {
+          skillsPromptAugmentation = combineAugmentedPrompts("", skillResults);
+        }
+      }
+    } catch (error) {
+      // Skills framework optional
+      console.warn("[Brainstorm] Skills framework not available:", error);
+    }
+  }
+
   // Build comprehensive context message with current state
   let contextMsg = `Repository Context:
 - Tech Stack: ${conversation.repoContext.techStack.join(", ") || "Unknown"}
@@ -207,8 +247,12 @@ Your brainstormPreview response MUST include ALL existing items plus any new ref
   }
 
   // Build initial messages array
+  const systemPrompt = skillsPromptAugmentation
+    ? `${SYSTEM_PROMPT}\n\n${skillsPromptAugmentation}`
+    : SYSTEM_PROMPT;
+
   let messages: ChatMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     { role: "user", content: contextMsg },
     ...conversation.messages,
     { role: "user", content: userMessage },

@@ -15,6 +15,11 @@ export interface CardProcessingState {
   startedAt: string;
   updatedAt: string;
   error?: string;
+  activeSkills?: Array<{
+    skillId: string;
+    status: "passed" | "warning" | "blocked";
+    message?: string;
+  }>;
 }
 
 export interface ProcessingEvent {

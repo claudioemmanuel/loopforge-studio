@@ -17,6 +17,7 @@ export type ErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "CONFLICT"
+  | "LIMIT_EXCEEDED"
   | "UNKNOWN";
 
 /**

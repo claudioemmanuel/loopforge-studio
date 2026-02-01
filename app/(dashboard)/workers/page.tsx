@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { clientLogger } from "@/lib/logger";
 import {
   Zap,
@@ -62,6 +63,7 @@ function toWorkerCardData(worker: WorkerEventData): WorkerCardData {
 }
 
 export default function WorkersPage() {
+  const t = useTranslations("workers");
   const { workers, activeCount, stuckCount, isConnected, error, refresh } =
     useWorkerEvents();
 
@@ -131,7 +133,7 @@ export default function WorkersPage() {
             variant="outline"
             size="icon"
             onClick={refresh}
-            title="Refresh workers"
+            title={t("refreshTitle")}
           >
             <RefreshCw className="w-4 h-4" />
           </Button>
@@ -148,14 +150,14 @@ export default function WorkersPage() {
           )}
           <div>
             <p className="text-2xl font-bold">{activeCount}</p>
-            <p className="text-xs text-muted-foreground">Active</p>
+            <p className="text-xs text-muted-foreground">{t("stats.active")}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
           <AlertTriangle className="w-5 h-5 text-amber-500" />
           <div>
             <p className="text-2xl font-bold">{stuckCount}</p>
-            <p className="text-xs text-muted-foreground">Failed</p>
+            <p className="text-xs text-muted-foreground">{t("stats.failed")}</p>
           </div>
         </div>
       </div>

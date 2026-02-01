@@ -313,4 +313,38 @@ export const Errors = {
       originalError,
     });
   },
+
+  /**
+   * Repository limit exceeded
+   */
+  repoLimitExceeded(tier: string, limit: number): APIError {
+    return new APIError({
+      code: "LIMIT_EXCEEDED",
+      message: `Repository limit exceeded for ${tier} tier (max: ${limit}). Upgrade to add more repositories.`,
+      statusCode: 403,
+      severity: "error",
+      action: {
+        label: "Upgrade Plan",
+        type: "link",
+        href: "/billing",
+      },
+    });
+  },
+
+  /**
+   * Task limit exceeded
+   */
+  taskLimitExceeded(tier: string, limit: number): APIError {
+    return new APIError({
+      code: "LIMIT_EXCEEDED",
+      message: `Task limit exceeded for ${tier} tier (max: ${limit} tasks per repository). Upgrade to add more tasks.`,
+      statusCode: 403,
+      severity: "error",
+      action: {
+        label: "Upgrade Plan",
+        type: "link",
+        href: "/billing",
+      },
+    });
+  },
 };

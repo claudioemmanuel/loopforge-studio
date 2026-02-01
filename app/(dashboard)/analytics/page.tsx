@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import { clientLogger } from "@/lib/logger";
 import { StatCard } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,7 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsPage() {
+  const t = useTranslations("analytics");
   const [range, setRange] = useState<DateRange>("week");
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -208,22 +210,22 @@ export default function AnalyticsPage() {
       {/* Task Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
-          title="Total Tasks"
+          title={t("stats.totalTasks")}
           value={data.taskMetrics.total}
           icon={ListTodo}
         />
         <StatCard
-          title="Completed"
+          title={t("stats.completed")}
           value={data.taskMetrics.completed}
           icon={CheckCircle2}
         />
         <StatCard
-          title="Success Rate"
+          title={t("stats.successRate")}
           value={`${data.taskMetrics.successRate}%`}
           icon={TrendingUp}
         />
         <StatCard
-          title="Avg Time"
+          title={t("stats.avgTime")}
           value={
             data.taskMetrics.avgCompletionTimeMinutes
               ? `${data.taskMetrics.avgCompletionTimeMinutes}min`

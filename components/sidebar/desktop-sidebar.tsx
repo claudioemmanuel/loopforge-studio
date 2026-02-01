@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import {
   Home,
   BarChart3,
@@ -21,7 +22,6 @@ import {
   Zap,
   Play,
   History,
-  CreditCard,
   FlaskConical,
   FolderGit2,
 } from "lucide-react";
@@ -30,13 +30,18 @@ import { Button } from "@/components/ui/button";
 import { LoopforgeIcon } from "@/components/loopforge-logo";
 import { NotificationBellClient } from "@/components/workers";
 import { RepoStatusDot } from "@/components/repo-status-indicator";
-import { getFeatureFlag } from "@/lib/config/feature-flags";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { IndexingStatus } from "@/lib/db/schema";
 
 interface SidebarRepo {
@@ -46,6 +51,7 @@ interface SidebarRepo {
   taskCount: number;
   isCloned: boolean;
   indexingStatus: IndexingStatus;
+  cloneStatus?: "pending" | "cloning" | "completed" | "failed";
 }
 
 interface SidebarProps {
@@ -55,29 +61,36 @@ interface SidebarProps {
     image?: string | null;
   };
   repos?: SidebarRepo[];
+  enableABTesting: boolean;
 }
 
+// Note: Labels will be translated in the component using useTranslations
 const settingsSubItems = [
-  { href: "/settings/account", label: "Account", icon: User },
-  { href: "/settings/preferences", label: "Preferences", icon: Sliders },
-  { href: "/settings/integrations", label: "Integrations", icon: Plug },
+  { href: "/settings/account", labelKey: "account", icon: User },
+  { href: "/settings/preferences", labelKey: "preferences", icon: Sliders },
+  { href: "/settings/integrations", labelKey: "integrations", icon: Plug },
+  { href: "/settings/workflow", labelKey: "workflow", icon: GitBranch },
 ];
 
 const executionSubItems = [
-  { href: "/execution/active", label: "Active Tasks", icon: Play },
-  { href: "/execution/history", label: "History", icon: History },
-  { href: "/execution/failed", label: "Failed", icon: AlertTriangle },
-  { href: "/execution/performance", label: "Performance", icon: BarChart3 },
+  { href: "/execution/active", labelKey: "activeTasks", icon: Play },
+  { href: "/execution/history", labelKey: "history", icon: History },
+  { href: "/execution/failed", labelKey: "failed", icon: AlertTriangle },
+  { href: "/execution/performance", labelKey: "performance", icon: BarChart3 },
 ];
 
-export function Sidebar({ user, repos = [] }: SidebarProps) {
+export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
   const pathname = usePathname();
+  const t = useTranslations("navigation");
+  const tSettings = useTranslations("settings");
 
   // Sidebar collapsed state with localStorage persistence
   const [collapsed, setCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
+    setMounted(true);
     const stored = localStorage.getItem("sidebar-collapsed");
     if (stored !== null) {
       setCollapsed(stored === "true");
@@ -94,13 +107,8 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
   const isRepositoriesActive =
     pathname === "/repositories" || pathname.startsWith("/repos/");
   const isExecutionActive = pathname.startsWith("/execution");
-  const isSettingsActive =
-    pathname.startsWith("/settings") && pathname !== "/settings/danger-zone";
-  const isBillingActive = pathname.startsWith("/billing");
-  const isDangerZoneActive = pathname === "/settings/danger-zone";
+  const isSettingsActive = pathname.startsWith("/settings");
   const isExperimentsActive = pathname === "/experiments";
-
-  const enableABTesting = getFeatureFlag("ENABLE_AB_TESTING");
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -133,346 +141,399 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
             collapsed && "px-2",
           )}
         >
-          {/* Dashboard (single view) */}
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href="/dashboard"
-                  className={cn(
-                    "flex items-center justify-center p-2 rounded-lg transition-colors",
-                    isDashboardActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Home className="w-5 h-5" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">Dashboard</TooltipContent>
-            </Tooltip>
+          {!mounted ? (
+            // Render neutral placeholder during SSR/hydration
+            <div className="space-y-1">
+              <div className="h-10 bg-muted/20 rounded-lg animate-pulse" />
+              <div className="h-10 bg-muted/20 rounded-lg animate-pulse" />
+              <div className="h-10 bg-muted/20 rounded-lg animate-pulse" />
+            </div>
           ) : (
-            <Link
-              href="/dashboard"
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                isDashboardActive
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Home className="w-4 h-4" />
-              Dashboard
-            </Link>
-          )}
-
-          {/* Repositories with cascade */}
-          <div>
-            {collapsed ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/repositories"
-                    className={cn(
-                      "flex items-center justify-center p-2 rounded-lg transition-colors",
-                      isRepositoriesActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <FolderGit2 className="w-5 h-5" />
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Repositories</TooltipContent>
-              </Tooltip>
-            ) : (
-              <>
-                <div
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm",
-                    "text-muted-foreground",
-                  )}
-                >
-                  <FolderGit2 className="w-4 h-4" />
-                  <span className="flex-1 text-left font-medium">
-                    Repositories
-                  </span>
-                </div>
-
-                <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
-                  <Link
-                    href="/repositories"
-                    className={cn(
-                      "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                      pathname === "/repositories"
-                        ? "bg-primary/10 text-primary font-medium"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <LayoutDashboard className="w-3.5 h-3.5" />
-                    All Repositories
-                  </Link>
-
-                  {repos.length > 0 && (
-                    <div className="mt-1 space-y-0.5">
-                      {repos.map((repo) => {
-                        const isRepoActive = pathname === `/repos/${repo.id}`;
-                        return (
-                          <Link
-                            key={repo.id}
-                            href={`/repos/${repo.id}`}
-                            className={cn(
-                              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                              isRepoActive
-                                ? "bg-primary/10 text-primary font-medium"
-                                : "text-muted-foreground hover:text-foreground",
-                            )}
-                          >
-                            <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="flex-1 truncate">{repo.name}</span>
-                            <RepoStatusDot
-                              isCloned={repo.isCloned}
-                              indexingStatus={repo.indexingStatus}
-                            />
-                            {repo.taskCount > 0 && (
-                              <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                                {repo.taskCount}
-                              </span>
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Execution with cascade */}
-          <div>
-            {collapsed ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/execution/active"
-                    className={cn(
-                      "flex items-center justify-center p-2 rounded-lg transition-colors",
-                      isExecutionActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <Zap className="w-5 h-5" />
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Execution</TooltipContent>
-              </Tooltip>
-            ) : (
-              <>
-                <div
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm",
-                    "text-muted-foreground",
-                  )}
-                >
-                  <Zap className="w-4 h-4" />
-                  <span className="flex-1 text-left font-medium">
-                    Execution
-                  </span>
-                </div>
-
-                <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
-                  {executionSubItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                          isActive
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-muted-foreground hover:text-foreground",
-                          item.href === "/execution/failed" &&
-                            !isActive &&
-                            "text-amber-500/70 hover:text-amber-500",
-                        )}
-                      >
-                        <Icon
-                          className={cn(
-                            "w-3.5 h-3.5",
-                            item.href === "/execution/failed" &&
-                              "text-amber-500",
-                          )}
-                        />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Settings with cascade */}
-          <div>
-            {collapsed ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/settings/account"
-                    className={cn(
-                      "flex items-center justify-center p-2 rounded-lg transition-colors",
-                      isSettingsActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <Settings className="w-5 h-5" />
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Settings</TooltipContent>
-              </Tooltip>
-            ) : (
-              <>
-                <div
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm",
-                    "text-muted-foreground",
-                  )}
-                >
-                  <Settings className="w-4 h-4" />
-                  <span className="flex-1 text-left font-medium">Settings</span>
-                </div>
-
-                <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
-                  {settingsSubItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                          isActive
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Billing (standalone) */}
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href="/billing"
-                  className={cn(
-                    "flex items-center justify-center p-2 rounded-lg transition-colors",
-                    isBillingActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <CreditCard className="w-5 h-5" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">Billing</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Link
-              href="/billing"
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                isBillingActive
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <CreditCard className="w-4 h-4" />
-              Billing
-            </Link>
-          )}
-
-          {/* Danger Zone (standalone with gap) */}
-          <div className={cn(!collapsed && "pt-2")}>
-            {collapsed ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/settings/danger-zone"
-                    className={cn(
-                      "flex items-center justify-center p-2 rounded-lg transition-colors",
-                      isDangerZoneActive
-                        ? "bg-red-500/10 text-red-500"
-                        : "text-red-500/70 hover:text-red-500",
-                    )}
-                  >
-                    <AlertTriangle className="w-5 h-5" />
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right">Danger Zone</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Link
-                href="/settings/danger-zone"
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                  isDangerZoneActive
-                    ? "bg-red-500/10 text-red-500 font-medium"
-                    : "text-red-500/70 hover:text-red-500",
-                )}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                Danger Zone
-              </Link>
-            )}
-          </div>
-
-          {/* Experiments (no cascade) */}
-          {enableABTesting && (
             <>
+              {/* Dashboard (single view) */}
               {collapsed ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Link
-                      href="/experiments"
+                      href="/dashboard"
                       className={cn(
                         "flex items-center justify-center p-2 rounded-lg transition-colors",
-                        isExperimentsActive
+                        isDashboardActive
                           ? "bg-primary/10 text-primary"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                     >
-                      <FlaskConical className="w-5 h-5" />
+                      <Home className="w-5 h-5" />
                     </Link>
                   </TooltipTrigger>
-                  <TooltipContent side="right">Experiments</TooltipContent>
+                  <TooltipContent side="right">{t("dashboard")}</TooltipContent>
                 </Tooltip>
               ) : (
                 <Link
-                  href="/experiments"
+                  href="/dashboard"
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                    isExperimentsActive
+                    isDashboardActive
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <FlaskConical className="w-4 h-4" />
-                  Experiments
+                  <Home className="w-4 h-4" />
+                  {t("dashboard")}
                 </Link>
+              )}
+
+              {/* Repositories with cascade */}
+              <div>
+                {collapsed ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        className={cn(
+                          "flex items-center justify-center p-2 rounded-lg transition-colors w-full",
+                          isRepositoriesActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <FolderGit2 className="w-5 h-5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="right" className="w-56 p-2">
+                      <div className="space-y-1">
+                        <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                          {t("repositories")}
+                        </div>
+                        <Link
+                          href="/repositories"
+                          className={cn(
+                            "flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
+                            pathname === "/repositories"
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                          )}
+                        >
+                          <LayoutDashboard className="w-3.5 h-3.5" />
+                          All Repositories
+                        </Link>
+                        {repos.length > 0 && (
+                          <>
+                            <div className="h-px bg-border my-1" />
+                            {repos.map((repo) => {
+                              const isRepoActive =
+                                pathname === `/repos/${repo.id}`;
+                              return (
+                                <Link
+                                  key={repo.id}
+                                  href={`/repos/${repo.id}`}
+                                  className={cn(
+                                    "flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
+                                    isRepoActive
+                                      ? "bg-primary/10 text-primary font-medium"
+                                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                                  )}
+                                >
+                                  <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
+                                  <span className="flex-1 truncate">
+                                    {repo.name}
+                                  </span>
+                                  <RepoStatusDot
+                                    isCloned={repo.isCloned}
+                                    indexingStatus={repo.indexingStatus}
+                                    cloneStatus={repo.cloneStatus}
+                                  />
+                                </Link>
+                              );
+                            })}
+                          </>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <>
+                    <div
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm",
+                        "text-muted-foreground",
+                      )}
+                    >
+                      <FolderGit2 className="w-4 h-4" />
+                      <span className="flex-1 text-left font-medium">
+                        {t("repositories")}
+                      </span>
+                    </div>
+
+                    <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
+                      <Link
+                        href="/repositories"
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
+                          pathname === "/repositories"
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <LayoutDashboard className="w-3.5 h-3.5" />
+                        {t("allRepositories")}
+                      </Link>
+
+                      {repos.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {repos.map((repo) => {
+                            const isRepoActive =
+                              pathname === `/repos/${repo.id}`;
+                            return (
+                              <Link
+                                key={repo.id}
+                                href={`/repos/${repo.id}`}
+                                className={cn(
+                                  "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
+                                  isRepoActive
+                                    ? "bg-primary/10 text-primary font-medium"
+                                    : "text-muted-foreground hover:text-foreground",
+                                )}
+                              >
+                                <GitBranch className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span className="flex-1 truncate">
+                                  {repo.name}
+                                </span>
+                                <RepoStatusDot
+                                  isCloned={repo.isCloned}
+                                  indexingStatus={repo.indexingStatus}
+                                  cloneStatus={repo.cloneStatus}
+                                />
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Execution with cascade */}
+              <div>
+                {collapsed ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        className={cn(
+                          "flex items-center justify-center p-2 rounded-lg transition-colors w-full",
+                          isExecutionActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <Zap className="w-5 h-5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="right" className="w-52 p-2">
+                      <div className="space-y-1">
+                        <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                          {t("execution")}
+                        </div>
+                        {executionSubItems.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = pathname === item.href;
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className={cn(
+                                "flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
+                                isActive
+                                  ? "bg-primary/10 text-primary font-medium"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                                item.href === "/execution/failed" &&
+                                  !isActive &&
+                                  "text-amber-500/70 hover:text-amber-500",
+                              )}
+                            >
+                              <Icon
+                                className={cn(
+                                  "w-3.5 h-3.5",
+                                  item.href === "/execution/failed" &&
+                                    "text-amber-500",
+                                )}
+                              />
+                              {t(item.labelKey as string)}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <>
+                    <div
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm",
+                        "text-muted-foreground",
+                      )}
+                    >
+                      <Zap className="w-4 h-4" />
+                      <span className="flex-1 text-left font-medium">
+                        {t("execution")}
+                      </span>
+                    </div>
+
+                    <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
+                      {executionSubItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
+                              isActive
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "text-muted-foreground hover:text-foreground",
+                              item.href === "/execution/failed" &&
+                                !isActive &&
+                                "text-amber-500/70 hover:text-amber-500",
+                            )}
+                          >
+                            <Icon
+                              className={cn(
+                                "w-3.5 h-3.5",
+                                item.href === "/execution/failed" &&
+                                  "text-amber-500",
+                              )}
+                            />
+                            {t(item.labelKey as string)}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Settings with cascade */}
+              <div>
+                {collapsed ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        className={cn(
+                          "flex items-center justify-center p-2 rounded-lg transition-colors w-full",
+                          isSettingsActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <Settings className="w-5 h-5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="right" className="w-48 p-2">
+                      <div className="space-y-1">
+                        <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                          {t("settings")}
+                        </div>
+                        {settingsSubItems.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = pathname === item.href;
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className={cn(
+                                "flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
+                                isActive
+                                  ? "bg-primary/10 text-primary font-medium"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                              )}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {item.href.startsWith("/settings")
+                                ? tSettings(item.labelKey as string)
+                                : t(item.labelKey as string)}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <>
+                    <div
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm",
+                        "text-muted-foreground",
+                      )}
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span className="flex-1 text-left font-medium">
+                        {t("settings")}
+                      </span>
+                    </div>
+
+                    <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
+                      {settingsSubItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
+                              isActive
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                            {tSettings(item.labelKey as string)}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Experiments (no cascade) */}
+              {mounted && enableABTesting && (
+                <>
+                  {collapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link
+                          href="/experiments"
+                          className={cn(
+                            "flex items-center justify-center p-2 rounded-lg transition-colors",
+                            isExperimentsActive
+                              ? "bg-primary/10 text-primary"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          <FlaskConical className="w-5 h-5" />
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        {t("experiments")}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Link
+                      href="/experiments"
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                        isExperimentsActive
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <FlaskConical className="w-4 h-4" />
+                      {t("experiments")}
+                    </Link>
+                  )}
+                </>
               )}
             </>
           )}
@@ -534,7 +595,7 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                     <LogOut className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="right">Sign out</TooltipContent>
+                <TooltipContent side="right">{t("signOut")}</TooltipContent>
               </Tooltip>
             </div>
           ) : (
@@ -562,15 +623,18 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => signOut({ callbackUrl: "/login" })}
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign out
-              </Button>
+              <div className="flex flex-col gap-2">
+                <LanguageSwitcher />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  {t("signOut")}
+                </Button>
+              </div>
             </>
           )}
         </div>

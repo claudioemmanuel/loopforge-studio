@@ -1,92 +1,63 @@
 import { NextResponse } from "next/server";
-import { withAuth } from "@/lib/api";
-import { db, executions, repos, tasks, executionCommits } from "@/lib/db";
-import { eq, and, desc, inArray, count } from "drizzle-orm";
+import { auth } from "@/lib/auth";
+import { db, activityEvents, tasks, repos } from "@/lib/db";
+import { eq, and, desc } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
 
-export const GET = withAuth(async (request, { user }) => {
+/**
+ * GET /api/activity/history
+ * Fetches execution history for a repository
+ * Phase 2.3: Activity Tracking System
+ */
+export async function GET(request: Request) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return handleError(Errors.unauthorized());
+  }
+
   const { searchParams } = new URL(request.url);
   const repoId = searchParams.get("repoId");
-  const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 50);
+  const limit = parseInt(searchParams.get("limit") || "20");
 
   if (!repoId) {
     return handleError(Errors.invalidRequest("repoId is required"));
   }
 
-  // Verify repo ownership
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, user.id)),
-  });
+  try {
+    // Verify user owns this repo
+    const repo = await db.query.repos.findFirst({
+      where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
+    });
 
-  if (!repo) {
-    return handleError(Errors.notFound("Repository"));
+    if (!repo) {
+      return handleError(Errors.notFound("Repository"));
+    }
+
+    // Fetch activity history for this repo's tasks
+    const history = await db
+      .select({
+        id: activityEvents.id,
+        taskId: tasks.id,
+        taskTitle: tasks.title,
+        eventType: activityEvents.eventType,
+        eventCategory: activityEvents.eventCategory,
+        title: activityEvents.title,
+        content: activityEvents.content,
+        createdAt: activityEvents.createdAt,
+        metadata: activityEvents.metadata,
+      })
+      .from(activityEvents)
+      .innerJoin(tasks, eq(activityEvents.taskId, tasks.id))
+      .where(eq(tasks.repoId, repoId))
+      .orderBy(desc(activityEvents.createdAt))
+      .limit(limit);
+
+    return NextResponse.json({
+      history,
+      total: history.length,
+    });
+  } catch (error) {
+    return handleError(error);
   }
-
-  // Get all tasks for this repo
-  const repoTasks = await db.query.tasks.findMany({
-    where: eq(tasks.repoId, repoId),
-    columns: { id: true, title: true },
-  });
-
-  if (repoTasks.length === 0) {
-    return NextResponse.json({ executions: [] });
-  }
-
-  const taskIds = repoTasks.map((t) => t.id);
-  const taskMap = new Map(repoTasks.map((t) => [t.id, t]));
-
-  // Get executions for these tasks (completed or failed)
-  const repoExecutions = await db
-    .select({
-      id: executions.id,
-      taskId: executions.taskId,
-      status: executions.status,
-      branch: executions.branch,
-      prUrl: executions.prUrl,
-      prNumber: executions.prNumber,
-      createdAt: executions.createdAt,
-      completedAt: executions.completedAt,
-      reverted: executions.reverted,
-    })
-    .from(executions)
-    .where(
-      and(
-        inArray(executions.taskId, taskIds),
-        inArray(executions.status, ["completed", "failed"]),
-      ),
-    )
-    .orderBy(desc(executions.createdAt))
-    .limit(limit);
-
-  // Get commit counts for each execution
-  const executionIds = repoExecutions.map((e) => e.id);
-  const commitCounts =
-    executionIds.length > 0
-      ? await db
-          .select({
-            executionId: executionCommits.executionId,
-            count: count(),
-          })
-          .from(executionCommits)
-          .where(inArray(executionCommits.executionId, executionIds))
-          .groupBy(executionCommits.executionId)
-      : [];
-
-  const commitCountMap = new Map(
-    commitCounts.map((c) => [c.executionId, Number(c.count)]),
-  );
-
-  // Enrich with task info and commit counts
-  const enrichedExecutions = repoExecutions.map((execution) => ({
-    ...execution,
-    task: taskMap.get(execution.taskId) || {
-      id: execution.taskId,
-      title: "Unknown",
-    },
-    _count: {
-      commits: commitCountMap.get(execution.id) || 0,
-    },
-  }));
-
-  return NextResponse.json({ executions: enrichedExecutions });
-});
+}

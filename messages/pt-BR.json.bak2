@@ -1,0 +1,839 @@
+{
+  "common": {
+    "loading": "Carregando...",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "close": "Fechar",
+    "confirm": "Confirmar",
+    "back": "Voltar"
+  },
+  "navigation": {
+    "dashboard": "Painel",
+    "repositories": "Repositórios",
+    "allRepositories": "Todos os Repositórios",
+    "execution": "Execução",
+      "graph": "Grafo",
+    "activeTasks": "Tarefas Ativas",
+    "history": "Histórico",
+    "failed": "Falhas",
+    "performance": "Desempenho",
+    "settings": "Configurações",
+    "billing": "Faturamento",
+    "dangerZone": "Zona de Perigo",
+    "experiments": "Experimentos",
+    "signOut": "Sair"
+  },
+  "tasks": {
+    "createTask": "Criar Tarefa",
+    "taskTitle": "Título da Tarefa",
+    "description": "Descrição",
+    "status": "Status",
+    "autonomousMode": "Modo Autônomo",
+    "statuses": {
+      "todo": "A Fazer",
+      "brainstorming": "Brainstorming",
+      "planning": "Planejamento",
+      "ready": "Pronto",
+      "executing": "Executando",
+      "done": "Concluído",
+      "stuck": "Travado",
+      "review": "Revisão"
+    },
+    "actions": {
+      "startBrainstorming": "Iniciar Brainstorming",
+      "refine": "Refinar",
+      "generatePlan": "Gerar Plano",
+      "markReady": "Marcar como Pronto",
+      "startExecution": "Iniciar Execução",
+      "executing": "Executando...",
+      "reviewChanges": "Revisar Mudanças",
+      "rollback": "Reverter",
+      "taskCompleted": "Tarefa Concluída",
+      "retryBrainstorming": "Tentar Brainstorming Novamente",
+      "retryPlanning": "Tentar Planejamento Novamente",
+      "retryExecution": "Tentar Execução Novamente"
+    },
+    "statusDescriptions": {
+      "todo": "Aguardando início",
+      "brainstorming": "IA gerando ideias",
+      "planning": "Criando plano de execução",
+      "ready": "Pronto para executar",
+      "executing": "IA trabalhando no código",
+      "review": "Mudanças prontas para revisão",
+      "done": "Tarefa concluída",
+      "stuck": "Precisa de atenção"
+    },
+    "modal": {
+      "title": "Detalhes da Tarefa",
+      "loadingExecution": "Carregando detalhes de execução...",
+      "noExecutionData": "Nenhum dado de execução disponível",
+      "autonomousModeActive": "Modo autônomo ativo",
+      "starting": "Iniciando...",
+      "planning": "Planejando...",
+      "deleteTask": "Excluir Tarefa",
+      "deleteConfirm": "Excluir tarefa \"{title}\"?",
+      "deleteWarning": "Esta ação não pode ser desfeita.",
+      "delete": "Excluir",
+      "progress": "Progresso",
+      "elapsed": "Decorrido:",
+      "activeSkills": "Habilidades Ativas:"
+    },
+    "newTask": {
+      "title": "Nova Tarefa",
+      "subtitle": "Descreva o que você quer construir",
+      "errorCreating": "Erro ao criar tarefa",
+      "taskTitle": "Título da Tarefa",
+      "required": "*",
+      "titlePlaceholder": "Seja específico sobre o que você quer realizar",
+      "description": "Descrição",
+      "optional": "(opcional)",
+      "descriptionPlaceholder": "Adicione mais contexto, requisitos ou restrições (opcional)",
+      "autonomousMode": "Modo Autônomo",
+      "autonomousDescription": "Quando habilitado, a IA moverá automaticamente a tarefa pelo fluxo de trabalho sem aguardar aprovação manual em cada etapa.",
+      "autonomousWarning": "A IA executará mudanças de código automaticamente. Revise as mudanças cuidadosamente antes de fazer merge.",
+      "workflowTitle": "Fluxo de Trabalho com IA",
+      "workflowDescription": "Sua tarefa fluirá por brainstorming → planejamento → execução → revisão. Habilite o modo autônomo para execução sem intervenção.",
+      "creating": "Criando...",
+      "createTask": "Criar Tarefa"
+    },
+    "tabs": {
+      "details": "Detalhes",
+      "timeline": "Linha do Tempo",
+      "execution": "Execução",
+      "graph": "Grafo",
+      "skills": "Habilidades"
+    }
+  },
+  "settings": {
+    "account": "Conta",
+    "preferences": "Preferências",
+    "integrations": "Integrações",
+    "workflow": "Fluxo de Trabalho",
+    "language": "Idioma",
+    "selectLanguage": "Selecionar Idioma",
+    "dangerZone": {
+      "title": "Zona de Perigo",
+      "subtitle": "Estas ações são irreversíveis. Por favor, prossiga com cautela.",
+      "exportData": "Exportar Todos os Dados",
+      "exportDescription": "Baixe todas as suas tarefas, execuções e configurações",
+      "exportButton": "Exportar JSON",
+      "disconnectRepos": "Desconectar Todos os Repositórios",
+      "disconnectDescription": "Remover todos os repositórios conectados. As tarefas serão preservadas.",
+      "disconnectButton": "Desconectar Todos",
+      "disconnectConfirmTitle": "Desconectar Todos os Repositórios?",
+      "disconnectConfirmMessage": "Esta ação desconectará todos os repositórios do Loopforge. Os dados de suas tarefas serão preservados, mas as conexões de repositório serão removidas.",
+      "activeTasksWarning": "⚠️ Aviso de Tarefas Ativas",
+      "activeTasksMessage": "Você tem {count} tarefas ativas ou em execução. Desconectar repositórios pode fazer com que essas tarefas falhem.",
+      "willBeRemoved": "O que será removido:",
+      "willBePreserved": "O que será preservado:",
+      "deleteAccount": "Excluir Conta",
+      "deleteDescription": "Excluir permanentemente sua conta e todos os dados associados",
+      "deleteButton": "Excluir Minha Conta",
+      "deleteConfirmTitle": "Excluir Conta Permanentemente?",
+      "deleteConfirmMessage": "Esta ação é irreversível. Todos os seus dados serão permanentemente excluídos.",
+      "deletionWarning": "⚠️ Isso excluirá imediata e permanentemente:",
+      "allTasks": "Todas as tarefas e histórico de execução",
+      "allRepos": "Todas as conexões de repositório",
+      "allSettings": "Todas as configurações e preferências",
+      "apiKeys": "Todas as chaves de API armazenadas",
+      "userData": "Sua conta de usuário"
+    },
+    "accountPage": {
+      "title": "Conta",
+      "profile": "Perfil",
+      "billing": {
+        "title": "Cobrança e Assinatura"
+      },
+      "dangerZone": {
+        "title": "Zona de Perigo",
+        "subtitle": "Ações irreversíveis. Prossiga com cautela.",
+        "exportData": {
+          "title": "Exportar Todos os Dados",
+          "description": "Baixar todas as suas tarefas, execuções e configurações",
+          "button": "Exportar JSON"
+        },
+        "disconnectRepos": {
+          "title": "Desconectar Todos os Repositórios",
+          "description": "Remover todos os repositórios conectados. As tarefas serão preservadas.",
+          "button": "Desconectar Todos",
+          "disconnecting": "Desconectando...",
+          "confirmTitle": "Desconectar Todos os Repositórios?",
+          "confirmDescription": "Esta ação desconectará todos os repositórios do Loopforge. Por favor, revise o que acontecerá:",
+          "activeWarning": "⚠️ Aviso de Tarefas Ativas",
+          "activeWarningMessage": "Quaisquer tarefas atualmente em brainstorming, planejamento ou execução serão interrompidas. Trabalho incompleto pode ser perdido.",
+          "willRemove": "O que será removido:",
+          "removeConnections": "Conexões de repositório (acesso ao GitHub revogado)",
+          "removeClones": "Clones de repositórios locais (se configurados)",
+          "removeHistory": "Histórico e logs de execução de tarefas",
+          "willPreserve": "O que será preservado:",
+          "preserveTasks": "Definições e descrições de tarefas",
+          "preserveAccount": "Sua conta e configurações",
+          "preserveBilling": "Informações de assinatura e cobrança",
+          "canReconnect": "Você pode reconectar repositórios a qualquer momento, mas o histórico de execução não será restaurado."
+        },
+        "deleteAccount": "Excluir Conta",
+        "deleteDescription": "Excluir permanentemente sua conta e todos os dados associados",
+        "deleteButton": "Excluir Conta",
+        "confirmTitle": "Excluir Conta Permanentemente?",
+        "confirmDescription": "Esta ação não pode ser desfeita. Sua conta e todos os dados serão permanentemente excluídos.",
+        "confirmPlaceholder": "Digite DELETE MY ACCOUNT para confirmar",
+        "confirmText": "DELETE MY ACCOUNT",
+        "whatHappens": "O que será permanentemente excluído:",
+        "allRepos": "Todos os repositórios conectados",
+        "allTasks": "Todas as tarefas e histórico de execução",
+        "allExecutions": "Todos os logs e resultados de execução",
+        "allSettings": "Todas as configurações e preferências",
+        "apiKeys": "Todas as chaves de API armazenadas (criptografadas)",
+        "subscription": "Sua assinatura será cancelada",
+        "noUndo": "Esta ação não pode ser desfeita",
+        "dataLoss": "Todos os dados serão permanentemente perdidos"
+      }
+    },
+    "integrationsPage": {
+      "aiProviders": "Provedores de IA",
+      "aiProvidersDescription": "Configure chaves de API e selecione modelos para tarefas com IA. Suas chaves são criptografadas e armazenadas com segurança.",
+      "defaultProvider": "Provedor de IA Padrão",
+      "defaultProviderDescription": "Este provedor será usado para brainstorming, planejamento e execução de tarefas",
+      "configureFirst": "Configure a chave de API {provider} primeiro",
+      "useProvider": "Usar {provider}",
+      "model": "Modelo",
+      "comingSoon": "Em Breve",
+      "configured": "Configurado",
+      "notConfigured": "Não configurado",
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "update": "Atualizar",
+      "remove": "Remover",
+      "configure": "Configurar",
+      "getApiKey": "Obter chave de API",
+      "recommended": "Recomendado",
+      "moreProvidersComing": "Mais provedores em breve:",
+      "moreProvidersList": "Mistral, Cohere e mais.",
+      "githubConnection": "Conexão GitHub",
+      "connectedAs": "Conectado como @{username}",
+      "permissions": "Permissões:",
+      "permissionsList": "read:user, user:email, repo",
+      "connectedAt": "Conectado em:",
+      "reconnect": "Reconectar",
+      "revokeAccess": "Revogar Acesso",
+      "connectedRepositories": "Repositórios Conectados",
+      "addRepos": "+ Adicionar Repos",
+      "noReposConnected": "Nenhum repositório conectado ainda.",
+      "disconnect": "Desconectar",
+      "disconnectConfirmTitle": "Desconectar Repositório?",
+      "disconnectConfirmDescription": "Isso removerá o repositório do Loopforge Studio.",
+      "activeTasksWarning": "{count, plural, one {1 tarefa ativa} other {# tarefas ativas}} falharão se você desconectar agora.",
+      "disconnectConsequences": "O que acontece ao desconectar:",
+      "tasksWillFail": "Tarefas ativas usando este repo falharão",
+      "branchesPreserved": "Branches e commits no GitHub permanecem inalterados",
+      "canReconnect": "Você pode reconectar este repositório depois",
+      "webhooks": "Webhooks",
+      "webhooksDescription": "Configure webhooks para notificar serviços externos quando tarefas forem concluídas ou encontrarem erros.",
+      "notifyWhenAvailable": "Me notifique quando disponível"
+    },
+    "workflowPage": {
+      "title": "Configurações de Fluxo de Trabalho",
+      "subtitle": "Configure como o Loopforge interage com seus repositórios",
+      "cloneDirectory": "Diretório de Clone",
+      "cloneDirectoryDescription": "Onde os repositórios são clonados em sua máquina local. Use ~ para o diretório home.",
+      "placeholder": "~/Documents/GitHub/loopforge-repos",
+      "expandsTo": "Expande para:",
+      "directoryWillBeCreated": "O diretório será criado no primeiro clone",
+      "commonPaths": "Caminhos Comuns",
+      "invalidDirectory": "Diretório inválido",
+      "pleaseEnterValid": "Por favor, insira um caminho de diretório válido",
+      "configurationSaved": "Configuração salva",
+      "cloneDirectoryUpdated": "Diretório de clone atualizado com sucesso",
+      "failedToSave": "Falha ao salvar",
+      "unknownError": "Erro desconhecido ocorreu",
+      "saving": "Salvando...",
+      "saveConfiguration": "Salvar Configuração",
+      "path": "Caminho",
+      "pathLabel": "Caminho do Diretório",
+      "browse": "Procurar",
+      "selectDirectory": "Selecionar Diretório"
+    },
+    "billingPage": {
+      "title": "Assinatura",
+      "subtitle": "Gerencie seu plano e faturamento",
+      "billingMode": {
+        "byok": "Traga Sua Própria Chave",
+        "managed": "IA Gerenciada"
+      },
+      "billingCycle": {
+        "monthly": "Mensal",
+        "yearly": "Anual",
+        "save": "(Economize 20%)"
+      },
+      "plans": {
+        "popular": "Popular",
+        "perMonth": "/mês",
+        "billedYearly": "Cobrado {price}/ano",
+        "managePlan": "Gerenciar Plano",
+        "currentPlan": "Plano Atual",
+        "freeForever": "Grátis Para Sempre",
+        "upgrade": "Fazer Upgrade",
+        "switch": "Mudar",
+        "to": "para"
+      },
+      "features": {
+        "free": {
+          "repos": "1 repositório",
+          "tasks": "5 tarefas por mês",
+          "tokens": "50K tokens por mês",
+          "support": "Suporte da comunidade"
+        },
+        "pro": {
+          "repos": "5 repositórios",
+          "tasks": "100 tarefas por mês",
+          "tokens": "2M tokens por mês",
+          "support": "Suporte prioritário",
+          "analytics": "Análises avançadas"
+        },
+        "team": {
+          "repos": "Repositórios ilimitados",
+          "tasks": "Tarefas ilimitadas",
+          "tokens": "10M tokens por mês",
+          "support": "Suporte dedicado",
+          "collaboration": "Colaboração em equipe",
+          "integrations": "Integrações personalizadas"
+        }
+      },
+      "billingDetails": {
+        "title": "Detalhes de Faturamento",
+        "status": "Status",
+        "cycle": "Ciclo de Faturamento",
+        "nextDate": "Próxima Data de Faturamento",
+        "cancelNotice": "Sua assinatura será cancelada no final do período de faturamento",
+        "manageBilling": "Gerenciar Faturamento"
+      },
+      "errors": {
+        "checkoutTitle": "Erro no checkout",
+        "checkoutMessage": "Falha ao iniciar checkout",
+        "billingTitle": "Erro de faturamento",
+        "billingMessage": "Falha ao abrir portal de faturamento"
+      },
+      "notices": {
+        "stripeNotConfigured": "O Stripe não está configurado. Upgrades de plano não estão disponíveis."
+      }
+    }
+  },
+  "landing": {
+    "hero": {
+      "headline": "Envie código enquanto você dorme",
+      "subheading": "Loopforge Studio permite que você faça brainstorming, planeje e execute tarefas de codificação com IA—enquanto você foca no que importa.",
+      "ctaPrimary": "Comece a Construir Grátis",
+      "ctaSecondary": "Veja Como Funciona"
+    },
+    "features": {
+      "sectionTitle": "Tudo que você precisa para entregar mais rápido",
+      "sectionSubtitle": "A única plataforma que combina gerenciamento de tarefas, assistência de IA, execução autônoma de código e um fluxo de trabalho visual—tudo em um só lugar.",
+      "visualKanban": {
+        "title": "Quadro Kanban Visual",
+        "description": "Arraste e solte tarefas por um fluxo de trabalho de 7 etapas. Do brainstorming ao concluído, cada passo é visível e rastreável."
+      },
+      "aiBrainstorming": {
+        "title": "Brainstorming com IA",
+        "description": "Converse com a IA antes da execução. Refine requisitos, explore abordagens e acerte o plano antes de qualquer código ser escrito."
+      },
+      "liveExecutionLogs": {
+        "title": "Logs de Execução ao Vivo",
+        "description": "Assista a IA pensar, codificar e fazer commits em tempo real. Saída completa do terminal com destaque de sintaxe."
+      },
+      "directGitIntegration": {
+        "title": "Integração Direta com Git",
+        "description": "A IA faz commits diretamente em suas branches de trabalho. PRs podem ser criados automaticamente (opcional) ou manualmente. Você revisa e aprova todas as mudanças antes de fazer merge—mantendo total controle."
+      },
+      "multiAiProviders": {
+        "title": "Múltiplos Provedores de IA",
+        "description": "Claude, GPT-4, Gemini—escolha seu modelo de IA preferido para cada tarefa."
+      },
+      "cloudHosted": {
+        "title": "Plataforma Hospedada na Nuvem",
+        "description": "Infraestrutura SaaS totalmente gerenciada. Traga suas próprias chaves de API para controle total sobre os custos de IA."
+      },
+      "analyticsDashboard": {
+        "title": "Painel de Análise",
+        "description": "Acompanhe conclusão de tarefas, uso de IA e métricas de produtividade da equipe."
+      },
+      "githubOauth": {
+        "title": "OAuth do GitHub",
+        "description": "Autenticação com um clique. Conecte seus repositórios instantaneamente."
+      }
+    },
+    "cta": {
+      "headline": "Pronto para enviar código no piloto automático?",
+      "subheading": "Junte-se aos desenvolvedores que estão entregando mais rápido com codificação autônoma alimentada por IA.",
+      "primary": "Comece a Construir Grátis",
+      "secondary": "Ver Preços",
+      "disclaimer": "Nível gratuito disponível. Não é necessário cartão de crédito."
+    },
+    "footer": {
+      "tagline": "Interface Kanban visual para codificação autônoma com IA. Envie código enquanto você dorme.",
+      "copyright": "Feito com ❤️ pela equipe Loopforge. © {year} Loopforge Studio. Todos os direitos reservados.",
+      "product": "Produto",
+      "resources": "Recursos",
+      "company": "Empresa",
+      "legal": "Legal",
+      "links": {
+        "features": "Recursos",
+        "workflow": "Fluxo de Trabalho",
+        "pricing": "Preços",
+        "changelog": "Changelog",
+        "documentation": "Documentação",
+        "apiReference": "Referência da API",
+        "blog": "Blog",
+        "status": "Status",
+        "about": "Sobre",
+        "careers": "Carreiras",
+        "contact": "Contato",
+        "privacy": "Privacidade",
+        "terms": "Termos",
+        "security": "Segurança"
+      }
+    },
+    "navigation": {
+      "github": "GitHub",
+      "signIn": "Entrar"
+    },
+    "integrations": {
+      "sectionTitle": "Alimentado pelos melhores modelos de IA",
+      "sectionSubtitle": "Escolha seu provedor de IA preferido. Alterne modelos por tarefa para resultados ideais.",
+      "claude": {
+        "name": "Claude",
+        "description": "Claude 3.5 da Anthropic",
+        "capabilities": {
+          "context": "Janela de contexto de 200K",
+          "reasoning": "Excelente raciocínio",
+          "coding": "Fortes habilidades de codificação"
+        },
+        "bestFor": "Planejamento, análise complexa, documentação"
+      },
+      "gpt4": {
+        "name": "GPT-4",
+        "description": "GPT-4o da OpenAI",
+        "capabilities": {
+          "context": "Janela de contexto de 128K",
+          "speed": "Respostas rápidas",
+          "knowledge": "Base de conhecimento ampla"
+        },
+        "bestFor": "Execução, iterações rápidas, tarefas gerais"
+      },
+      "gemini": {
+        "name": "Gemini",
+        "description": "Gemini Pro do Google",
+        "capabilities": {
+          "context": "Janela de contexto de 1M",
+          "multimodal": "Suporte multimodal",
+          "integration": "Integração com Google"
+        },
+        "bestFor": "Grandes bases de código, análise de imagens"
+      },
+      "github": {
+        "name": "GitHub",
+        "description": "Integração direta",
+        "capabilities": {
+          "repo": "Acesso direto ao repositório",
+          "issues": "Integração de Issues/PR",
+          "webhooks": "Suporte a webhooks"
+        },
+        "bestFor": "Busca de código, gerenciamento de branches"
+      },
+      "stats": {
+        "executions": {
+          "value": "10M+",
+          "label": "Execuções de IA"
+        },
+        "providers": {
+          "value": "3",
+          "label": "Provedores de IA"
+        },
+        "uptime": {
+          "value": "99.9%",
+          "label": "SLA de Disponibilidade"
+        },
+        "teams": {
+          "value": "500+",
+          "label": "Equipes Ativas"
+        }
+      },
+      "hoverCard": {
+        "capabilities": "Capacidades",
+        "bestFor": "Melhor Para"
+      }
+    },
+    "comparison": {
+      "title": "Por que equipes escolhem Loopforge",
+      "subtitle": "A única plataforma que combina gerenciamento de tarefas, assistência de IA, execução autônoma de código e um fluxo de trabalho visual—tudo em um só lugar.",
+      "competitors": {
+        "loopforge": "Loopforge Studio",
+        "linear": "Linear",
+        "github": "GitHub + Copilot",
+        "notion": "Notion",
+        "jira": "Jira + Rovo",
+        "trello": "Trello",
+        "asana": "Asana",
+        "monday": "Monday.com"
+      },
+      "pillars": {
+        "taskManagement": {
+          "title": "Gerenciamento de Tarefas",
+          "description": "Organize e acompanhe seu fluxo de trabalho de desenvolvimento"
+        },
+        "aiAssists": {
+          "title": "IA Assiste",
+          "description": "Obtenha sugestões inteligentes e ajuda"
+        },
+        "aiExecutesCode": {
+          "title": "IA Executa Código",
+          "description": "IA escreve e faz commits de código autonomamente"
+        },
+        "visualWorkflow": {
+          "title": "Fluxo de Trabalho Visual com IA",
+          "description": "Assista agentes de IA construírem seu software em tempo real"
+        }
+      },
+      "badges": {
+        "onlyUs": "Só Nós",
+        "youAreHere": "Você está aqui"
+      },
+      "mobile": {
+        "tasks": "Tarefas",
+        "aiHelp": "Ajuda IA",
+        "aiCode": "Código IA",
+        "visual": "Visual"
+      },
+      "table": {
+        "platform": "Plataforma"
+      },
+      "callout": {
+        "prefix": "Outras ferramentas ajudam você a rastrear tarefas ou escrever código.",
+        "highlight": "Loopforge",
+        "suffix": "mostra um fluxo de trabalho visual completo de agentes de IA construindo seu software."
+      }
+    },
+    "comparisonTable": {
+      "features": {
+        "kanban": "Quadros Kanban",
+        "aiAssistance": "Assistência de IA para tarefas",
+        "autonomousCode": "Execução autônoma de código",
+        "realtimeStreaming": "Streaming de execução em tempo real",
+        "brainstormPipeline": "Pipeline Brainstorm → Deploy",
+        "githubCommits": "Commits diretos no GitHub",
+        "multiProvider": "IA multi-provedor (Claude/GPT/Gemini)",
+        "byok": "Traga Sua Própria Chave de API"
+      },
+      "table": {
+        "feature": "Recurso"
+      }
+    },
+    "comparisonBento": {
+      "title": "Por que equipes escolhem Loopforge",
+      "subtitle": "A única plataforma que combina gerenciamento de tarefas, assistência de IA, execução autônoma de código e um fluxo de trabalho visual—tudo em um só lugar.",
+      "callout": {
+        "prefix": "Outras ferramentas ajudam você a rastrear tarefas ou escrever código.",
+        "highlight": "Loopforge",
+        "suffix": "mostra um fluxo de trabalho visual completo de agentes de IA construindo seu software."
+      }
+    },
+    "featuresExpanded": {
+      "sectionTitle": "Tudo que você precisa para entregar mais rápido",
+      "sectionSubtitle": "Uma interface visual completa para codificação autônoma com IA. Chega de linhas de comando, chega de mudança de contexto.",
+      "aiBrainstorming": {
+        "title": "Chat de Brainstorming com IA",
+        "description": "Conversa de múltiplas rodadas para refinar requisitos. Explore abordagens e esclareça o escopo antes de qualquer código ser escrito."
+      },
+      "diffPreview": {
+        "title": "Visualização e Aprovação de Diff",
+        "description": "Revise cada mudança gerada pela IA antes de ser commitada. Veja exatamente o que está sendo modificado com diffs visuais."
+      },
+      "visualKanban": {
+        "title": "Fluxo de Trabalho Kanban Visual",
+        "description": "Arraste e solte tarefas por um pipeline de IA de 7 etapas. Do brainstorm ao concluído, cada passo é visível."
+      },
+      "taskDependencies": {
+        "title": "Dependências de Tarefas",
+        "description": "Tarefas bloqueiam umas às outras com auto-execução quando desbloqueadas. Construa fluxos de trabalho complexos com cadeias de dependência."
+      },
+      "rollbackSafety": {
+        "title": "Segurança de Rollback",
+        "description": "Reverta qualquer execução de IA com verificações de segurança. Desfazer com um clique para restaurar sua base de código a um estado anterior."
+      },
+      "activityFeed": {
+        "title": "Feed de Atividades",
+        "description": "Rastreamento de eventos em tempo real para todas as ações de IA. Trilha de auditoria completa de commits, execuções e mudanças."
+      }
+    },
+    "demoKanban": {
+      "url": "loopforge.studio/dashboard",
+      "columns": {
+        "todo": "A Fazer",
+        "brainstorm": "Brainstorm",
+        "plan": "Planejar",
+        "ready": "Pronto",
+        "execute": "Executar",
+        "review": "Revisar",
+        "done": "Concluído",
+        "stuck": "Travado"
+      },
+      "cards": {
+        "addAuth": {
+          "title": "Adicionar autenticação de usuário",
+          "description": "Implementar login OAuth2 com provedor GitHub"
+        },
+        "setupDb": {
+          "title": "Configurar esquema de banco de dados",
+          "description": "Criar tabelas de usuários e sessões"
+        },
+        "passwordReset": {
+          "title": "Adicionar redefinição de senha",
+          "description": "Fluxo de recuperação de senha por e-mail"
+        },
+        "fixLogin": {
+          "title": "Corrigir validação de login",
+          "description": "Melhorar mensagens de erro no formulário"
+        },
+        "rateLimit": {
+          "title": "Limitação de taxa de API",
+          "description": "Adicionar limites de taxa aos endpoints de autenticação"
+        }
+      },
+      "tags": {
+        "feature": "recurso",
+        "priority": "prioridade",
+        "setup": "configuração",
+        "bugfix": "correção",
+        "security": "segurança"
+      },
+      "statuses": {
+        "blocked": "Bloqueado",
+        "readyToStart": "Pronto para iniciar",
+        "complete": "Completo!",
+        "needsAttention": "Precisa de atenção",
+        "waiting": "Aguardando...",
+        "thinking": "Pensando...",
+        "planning": "Planejando...",
+        "queued": "Na fila...",
+        "executing": "Executando...",
+        "processing": "Processando..."
+      },
+      "timeAgo": {
+        "seconds": "{seconds}s atrás",
+        "minutes": "{minutes}m atrás"
+      },
+      "progress": "Executando..."
+    }
+  },
+  "errors": {
+    "rateLimit": "Limite de Taxa Atingido",
+    "rateLimitMessage": "Você atingiu o limite de taxa. Por favor, tente novamente mais tarde.",
+    "configureApiKey": "Configurar Chave de API",
+    "billingError": "Erro de faturamento",
+    "noExecutionData": "Nenhum dado de execução disponível",
+    "loading": "Carregando...",
+    "retry": "Tentar Novamente",
+    "error": "Erro",
+    "somethingWentWrong": "Algo deu errado"
+  },
+  "repositories": {
+    "title": "Repositórios",
+    "subtitle": "Gerencie seus repositórios GitHub conectados",
+    "add": "Adicionar Repositório",
+    "getStarted": "Começar",
+    "noRepos": "Nenhum repositório ainda",
+    "noReposMessage": "Adicione seu primeiro repositório para começar a usar o Loopforge",
+    "private": "Privado",
+    "tasks": "tarefas",
+    "status": {
+      "notCloned": "Não Clonado",
+      "notClonedMessage": "O repositório precisa ser clonado localmente antes que as tarefas possam executar",
+      "ready": "Pronto",
+      "readyMessage": "O repositório está clonado e indexado, pronto para tarefas",
+      "indexing": "Indexando",
+      "indexingMessage": "O repositório está sendo indexado para contexto de IA",
+      "pending": "Pendente",
+      "pendingMessage": "O repositório está clonado mas ainda não indexado",
+      "failed": "Falha na Indexação",
+      "failedMessage": "A indexação do repositório falhou. Por favor, tente novamente ou verifique os logs.",
+      "unknown": "Desconhecido",
+      "unknownMessage": "Status do repositório desconhecido"
+    },
+    "clone": {
+      "completed": "Repositório clonado",
+      "completedMessage": "Repositório está clonado e pronto",
+      "cloning": "Clonando em andamento",
+      "cloningMessage": "Repositório está sendo clonado...",
+      "failed": "Clone falhou",
+      "failedMessage": "Falha ao clonar repositório",
+      "pending": "Ainda não clonado",
+      "pendingMessage": "Repositório precisa ser clonado",
+      "inProgress": "Clone em andamento...",
+      "waiting": "Aguardando para clonar..."
+    }
+  },
+  "execution": {
+    "failed": {
+      "title": "Tarefas Falhas",
+      "subtitle": "Tarefas que travaram ou encontraram erros",
+      "refresh": "Atualizar tarefas falhas",
+      "noFailed": "Nenhuma tarefa falha",
+      "noFailedMessage": "Todas as suas tarefas estão funcionando perfeitamente. Tarefas falhas aparecerão aqui se precisarem de atenção.",
+      "loadMore": "Carregar mais"
+    },
+    "performance": {
+      "title": "Análise",
+      "subtitle": "Acompanhe suas métricas de desenvolvimento alimentadas por IA",
+      "noData": "Nenhum dado ainda",
+      "noDataMessage": "A análise aparecerá aqui assim que você começar a criar e executar tarefas. Tente criar sua primeira tarefa para começar!",
+      "goToDashboard": "Ir para o Painel",
+      "dateRanges": {
+        "today": "Hoje",
+        "week": "Esta semana",
+        "month": "Este mês",
+        "year": "Este ano"
+      },
+      "export": "Exportar",
+      "stats": {
+        "totalTasks": "Total de Tarefas",
+        "completed": "Concluídas",
+        "successRate": "Taxa de Sucesso",
+        "avgTime": "Tempo Médio"
+      },
+      "sections": {
+        "aiUsage": "Uso de IA",
+        "repoActivity": "Atividade do Repositório"
+      }
+    }
+  },
+  "testResults": {
+    "passed": "Testes aprovados",
+    "failed": "Testes falharam",
+    "timedOut": "Testes expiraram",
+    "skipped": "Testes ignorados"
+  },
+  "analytics": {
+    "stats": {
+      "totalTasks": "Total de Tarefas",
+      "completed": "Concluídas",
+      "successRate": "Taxa de Sucesso",
+      "avgTime": "Tempo Médio"
+    }
+  },
+  "dashboard": {
+    "title": "Painel",
+    "welcomeBack": "Bem-vindo de volta,",
+    "tip": "Dica:",
+    "noRepos": "Nenhum repositório ainda",
+    "noReposMessage": "Adicione seu primeiro repositório para começar a usar o Loopforge",
+    "stats": {
+      "inProgress": "Em Andamento"
+    }
+  },
+  "workers": {
+    "stats": {
+      "active": "Ativos",
+      "failed": "Falhados"
+    },
+    "refreshTitle": "Atualizar workers"
+  },
+  "experiments": {
+    "title": "Experimentos",
+    "subtitle": "Visualize e gerencie experimentos de teste A/B",
+    "generateWithAI": "Gerar com IA",
+    "noExperiments": "Nenhum Experimento Ainda",
+    "noExperimentsMessage": "Crie experimentos de teste A/B com IA para otimizar seu fluxo de trabalho. Teste diferentes prompts, modelos e parâmetros.",
+    "viewDetails": "Ver Detalhes",
+    "wizard": {
+      "title": "Gerar Experimento com IA",
+      "step": "Passo {current} de {total}",
+      "back": "Voltar",
+      "next": "Próximo",
+      "generating": "Gerando...",
+      "creating": "Criando...",
+      "createExperiment": "Criar Experimento",
+      "step1": {
+        "title": "Escolha a Área de Teste",
+        "subtitle": "Selecione qual aspecto do fluxo de trabalho da IA você deseja experimentar",
+        "selectArea": "Por favor, selecione uma área de teste"
+      },
+      "step2": {
+        "title": "Responda Algumas Perguntas",
+        "subtitle": "Ajude a IA a entender suas preferências para este experimento",
+        "answerAll": "Por favor, responda todas as perguntas"
+      },
+      "step3": {
+        "title": "Revise as Variantes Geradas",
+        "subtitle": "Revise a configuração do experimento gerada pela IA"
+      },
+      "step4": {
+        "title": "Confirme e Crie",
+        "subtitle": "Revise as configurações finais e crie seu experimento",
+        "experimentName": "Nome do Experimento",
+        "experimentNamePlaceholder": "Digite o nome do experimento...",
+        "trafficAllocation": "Alocação de Tráfego ({percent}%)",
+        "trafficDescription": "Porcentagem de novas tarefas que serão atribuídas a este experimento",
+        "whatWillHappen": "O que acontecerá:",
+        "trafficAssignment": "{percent}% das novas tarefas serão atribuídas aleatoriamente a uma das 3 variantes",
+        "metricsCollection": "As métricas serão coletadas automaticamente durante a execução",
+        "statisticalAnalysis": "A análise estatística determinará a variante vencedora"
+      }
+    },
+    "testAreas": {
+      "brainstorming": {
+        "title": "Brainstorming",
+        "description": "Teste diferentes estilos e abordagens de conversação de brainstorming",
+        "examples": "Velocidade vs. minuciosidade, Foco técnico vs. contexto de negócios"
+      },
+      "planning": {
+        "title": "Planejamento",
+        "description": "Experimente com granularidade e estrutura de geração de planos",
+        "examples": "Passo a passo vs. marcos, Com/sem caminhos de arquivo"
+      },
+      "codeGeneration": {
+        "title": "Geração de Código",
+        "description": "Teste estilos de codificação autônoma e abordagens de refatoração",
+        "examples": "Conservador vs. agressivo, Densidade de comentários"
+      },
+      "modelParams": {
+        "title": "Parâmetros do Modelo",
+        "description": "Otimize temperatura, tokens e outras configurações do modelo",
+        "examples": "Qualidade vs. custo, Criatividade vs. consistência"
+      }
+    },
+    "questions": {
+      "typeAnswer": "Digite sua resposta...",
+      "selectOption": "Selecione uma opção..."
+    },
+    "status": {
+      "draft": "Rascunho",
+      "active": "Ativo",
+      "paused": "Pausado",
+      "completed": "Concluído",
+      "running": "Em Execução",
+      "winner": "Vencedor",
+      "losing": "Perdendo",
+      "control": "Controle"
+    },
+    "metrics": {
+      "successRate": "Taxa de Sucesso",
+      "avgDuration": "Duração Média",
+      "errorRate": "Taxa de Erro",
+      "sampleSize": "{count} tarefas",
+      "confidence": "{percent}% confiante",
+      "trafficAllocation": "Alocação de Tráfego"
+    },
+    "actions": {
+      "start": "Iniciar",
+      "pause": "Pausar",
+      "complete": "Concluir",
+      "viewResults": "Ver Resultados"
+    },
+    "variant": {
+      "type": "Tipo",
+      "weight": "{percent}%",
+      "controlLabel": "{name} (Controle)"
+    }
+  }
+}

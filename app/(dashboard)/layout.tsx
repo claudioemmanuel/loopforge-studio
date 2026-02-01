@@ -4,6 +4,7 @@ import { DashboardLayoutClient } from "@/components/layout";
 import { db } from "@/lib/db";
 import { repos, tasks } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { getFeatureFlag } from "@/lib/config/feature-flags";
 
 export default async function DashboardLayout({
   children,
@@ -24,6 +25,7 @@ export default async function DashboardLayout({
       fullName: repos.fullName,
       isCloned: repos.isCloned,
       indexingStatus: repos.indexingStatus,
+      cloneStatus: repos.cloneStatus,
       taskCount: sql<number>`count(${tasks.id})::int`,
     })
     .from(repos)
@@ -35,11 +37,19 @@ export default async function DashboardLayout({
       repos.fullName,
       repos.isCloned,
       repos.indexingStatus,
+      repos.cloneStatus,
     )
     .orderBy(repos.name);
 
+  // Get feature flags on server side to avoid hydration mismatches
+  const enableABTesting = getFeatureFlag("ENABLE_AB_TESTING");
+
   return (
-    <DashboardLayoutClient user={session.user} repos={userRepos}>
+    <DashboardLayoutClient
+      user={session.user}
+      repos={userRepos}
+      enableABTesting={enableABTesting}
+    >
       {children}
     </DashboardLayoutClient>
   );

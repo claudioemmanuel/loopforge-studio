@@ -263,11 +263,11 @@ fi
 print_step "Running database migrations..."
 
 # Run migrations from host (drizzle-kit is a dev dependency not in container)
-# Use DATABASE_URL pointing to the Docker PostgreSQL
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/loopforge" npm run db:migrate 2>/dev/null || {
+# Use DATABASE_URL pointing to the Docker PostgreSQL with loopforge user
+DATABASE_URL="postgresql://loopforge:loopforge@localhost:5432/loopforge" npm run db:migrate 2>/dev/null || {
     # Fallback: try after a short delay
     sleep 5
-    DATABASE_URL="postgresql://postgres:postgres@localhost:5432/loopforge" npm run db:migrate
+    DATABASE_URL="postgresql://loopforge:loopforge@localhost:5432/loopforge" npm run db:migrate
 }
 
 print_success "Database migrations complete"

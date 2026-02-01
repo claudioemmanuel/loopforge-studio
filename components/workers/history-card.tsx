@@ -411,7 +411,7 @@ export const HistoryCard = React.memo(function HistoryCard({
                 </Button>
               )}
 
-              <Link href={`/execution/${item.taskId}`}>
+              <Link href={`/execution/${item.id}`}>
                 <Button size="sm" variant="outline" className="gap-1.5">
                   View Execution Details
                   <ArrowRight className="w-3.5 h-3.5" />

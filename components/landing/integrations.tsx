@@ -140,13 +140,13 @@ function getProviders(t: (key: string) => string) {
 function getStats(t: (key: string) => string) {
   return [
     {
-      value: t("landing.integrations.stats.providers.value"),
-      label: t("landing.integrations.stats.providers.label"),
+      value: t("landing.integrations.stats.executions.value"),
+      label: t("landing.integrations.stats.executions.label"),
       numericValue: null,
     },
     {
-      value: t("landing.integrations.stats.byok.value"),
-      label: t("landing.integrations.stats.byok.label"),
+      value: t("landing.integrations.stats.providers.value"),
+      label: t("landing.integrations.stats.providers.label"),
       numericValue: null,
     },
     {
@@ -155,8 +155,8 @@ function getStats(t: (key: string) => string) {
       numericValue: null,
     },
     {
-      value: t("landing.integrations.stats.hosted.value"),
-      label: t("landing.integrations.stats.hosted.label"),
+      value: t("landing.integrations.stats.teams.value"),
+      label: t("landing.integrations.stats.teams.label"),
       numericValue: null,
     },
   ];

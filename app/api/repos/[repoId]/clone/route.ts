@@ -8,8 +8,30 @@ import simpleGit from "simple-git";
 import path from "path";
 import fs from "fs/promises";
 import { handleError, Errors } from "@/lib/errors";
+import { expandPath, getDefaultCloneDirectory } from "@/lib/utils/path-utils";
+import { emitCloneStatusChange } from "@/lib/events/clone-status";
 
-const REPOS_DIR = process.env.REPOS_DIR || "/app/repos";
+/**
+ * Get clone directory for user with fallback priority
+ */
+async function getCloneDirectory(userId: string): Promise<string> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+  });
+
+  // Priority 1: User's configured directory
+  if (user?.defaultCloneDirectory) {
+    return expandPath(user.defaultCloneDirectory);
+  }
+
+  // Priority 2: Environment variable (Docker compatibility)
+  if (process.env.REPOS_DIR) {
+    return process.env.REPOS_DIR;
+  }
+
+  // Priority 3: OS-specific default
+  return getDefaultCloneDirectory();
+}
 
 /**
  * POST /api/repos/[repoId]/clone
@@ -59,14 +81,27 @@ export async function POST(
     // No body provided, use default path
   }
 
-  // Determine target path
-  const sanitizedName = repo.fullName.replace("/", "_");
-  const targetPath = customPath || path.join(REPOS_DIR, sanitizedName);
-
   // Get user's GitHub token
   const user = await db.query.users.findFirst({
     where: eq(users.id, session.user.id),
   });
+
+  // Check if clone directory is configured
+  if (!user?.defaultCloneDirectory && !process.env.REPOS_DIR) {
+    return NextResponse.json(
+      {
+        error: "Clone directory not configured",
+        requiresConfiguration: true,
+        message: "Please configure a clone directory in Settings",
+      },
+      { status: 400 },
+    );
+  }
+
+  // Determine target path
+  const sanitizedName = repo.fullName.replace("/", "_");
+  const baseDir = await getCloneDirectory(session.user.id);
+  const targetPath = customPath || path.join(baseDir, sanitizedName);
 
   if (!user?.encryptedGithubToken || !user?.githubTokenIv) {
     return handleError(Errors.invalidRequest("GitHub token not configured"));
@@ -88,6 +123,23 @@ export async function POST(
   cloneUrl.password = githubToken;
 
   try {
+    // Update status to "cloning" before starting
+    await db
+      .update(repos)
+      .set({
+        cloneStatus: "cloning",
+        cloneStartedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(repos.id, repoId));
+
+    // Emit cloning started event
+    emitCloneStatusChange({
+      repoId,
+      status: "cloning",
+      timestamp: new Date(),
+    });
+
     // Ensure parent directory exists
     await fs.mkdir(path.dirname(targetPath), { recursive: true });
 
@@ -135,10 +187,20 @@ export async function POST(
         localPath: targetPath,
         isCloned: true,
         clonedAt: new Date(),
+        cloneStatus: "completed",
+        clonePath: targetPath,
+        cloneCompletedAt: new Date(),
         indexingStatus: "pending", // Ready for indexing
         updatedAt: new Date(),
       })
       .where(eq(repos.id, repoId));
+
+    // Emit completion event
+    emitCloneStatusChange({
+      repoId,
+      status: "completed",
+      timestamp: new Date(),
+    });
 
     // Queue indexing job
     let indexingJobId: string | undefined;
@@ -162,6 +224,23 @@ export async function POST(
       indexingJobId,
     });
   } catch (error) {
+    // Update status to "failed" on error
+    await db
+      .update(repos)
+      .set({
+        cloneStatus: "failed",
+        updatedAt: new Date(),
+      })
+      .where(eq(repos.id, repoId));
+
+    // Emit failure event
+    emitCloneStatusChange({
+      repoId,
+      status: "failed",
+      timestamp: new Date(),
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+
     return handleError(error);
   }
 }

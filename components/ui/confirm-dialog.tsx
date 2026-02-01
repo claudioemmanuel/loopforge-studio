@@ -4,17 +4,24 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { AlertTriangle, X } from "lucide-react";
 
 export interface ConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
+  description: string | React.ReactNode;
   confirmLabel?: string;
+  confirmText?: string; // Alias for confirmLabel
   cancelLabel?: string;
   onConfirm: () => void;
   variant?: "default" | "destructive";
+  disabled?: boolean;
+  children?: React.ReactNode; // Optional custom content to replace description
+  requireTextConfirmation?: string; // If provided, user must type this text to confirm
+  confirmationPlaceholder?: string; // Placeholder for confirmation input
+  confirmationInstruction?: string; // Custom instruction text (if not provided, will use default)
 }
 
 export function ConfirmDialog({
@@ -22,17 +29,37 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "Confirm",
+  confirmLabel,
+  confirmText,
   cancelLabel = "Cancel",
   onConfirm,
   variant = "default",
+  disabled = false,
+  children,
+  requireTextConfirmation,
+  confirmationPlaceholder = "Type to confirm",
+  confirmationInstruction,
 }: ConfirmDialogProps) {
   const isDestructive = variant === "destructive";
+  const effectiveConfirmLabel = confirmText || confirmLabel || "Confirm";
+  const [confirmationInput, setConfirmationInput] = React.useState("");
+
+  // Reset input when dialog opens/closes
+  React.useEffect(() => {
+    if (!open) {
+      setConfirmationInput("");
+    }
+  }, [open]);
 
   const handleConfirm = () => {
     onConfirm();
     onOpenChange(false);
   };
+
+  // Determine if confirm button should be disabled
+  const isConfirmDisabled =
+    disabled ||
+    (requireTextConfirmation && confirmationInput !== requireTextConfirmation);
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -41,7 +68,7 @@ export function ConfirmDialog({
           className={cn(
             "fixed inset-0 z-50 bg-black/60 backdrop-blur-sm",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
-            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           )}
         />
         <DialogPrimitive.Content
@@ -53,7 +80,7 @@ export function ConfirmDialog({
             "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
             "data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]",
             "data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
-            "duration-200"
+            "duration-200",
           )}
         >
           {/* Close button */}
@@ -61,7 +88,7 @@ export function ConfirmDialog({
             className={cn(
               "absolute right-4 top-4 p-1.5 rounded-lg",
               "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-              "transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+              "transition-colors focus:outline-none focus:ring-2 focus:ring-ring",
             )}
           >
             <X className="w-4 h-4" />
@@ -74,13 +101,13 @@ export function ConfirmDialog({
             <div
               className={cn(
                 "mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4",
-                isDestructive ? "bg-destructive/10" : "bg-primary/10"
+                isDestructive ? "bg-destructive/10" : "bg-primary/10",
               )}
             >
               <AlertTriangle
                 className={cn(
                   "w-6 h-6",
-                  isDestructive ? "text-destructive" : "text-primary"
+                  isDestructive ? "text-destructive" : "text-primary",
                 )}
               />
             </div>
@@ -90,10 +117,32 @@ export function ConfirmDialog({
               {title}
             </DialogPrimitive.Title>
 
-            {/* Description */}
-            <DialogPrimitive.Description className="text-sm text-muted-foreground leading-relaxed">
-              {description}
-            </DialogPrimitive.Description>
+            {/* Description or custom children */}
+            {children ? (
+              <div className="text-left">{children}</div>
+            ) : (
+              <DialogPrimitive.Description className="text-sm text-muted-foreground leading-relaxed">
+                {description}
+              </DialogPrimitive.Description>
+            )}
+
+            {/* Text confirmation input */}
+            {requireTextConfirmation && (
+              <div className="mt-4">
+                <Input
+                  value={confirmationInput}
+                  onChange={(e) => setConfirmationInput(e.target.value)}
+                  placeholder={confirmationPlaceholder}
+                  className="text-center font-mono"
+                  autoComplete="off"
+                />
+                {confirmationInstruction && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {confirmationInstruction}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -101,9 +150,10 @@ export function ConfirmDialog({
             <Button
               variant={isDestructive ? "destructive" : "default"}
               onClick={handleConfirm}
+              disabled={isConfirmDisabled}
               className="min-w-[100px]"
             >
-              {confirmLabel}
+              {effectiveConfirmLabel}
             </Button>
             <Button
               variant="outline"

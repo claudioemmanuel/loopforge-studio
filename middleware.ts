@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { locales } from "./i18n";
 
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -27,7 +28,7 @@ export default async function middleware(request: NextRequest) {
   // Protected routes - check authentication using JWT token
   const protectedPaths = ["/repos", "/onboarding", "/welcome"];
   const isProtectedPath = protectedPaths.some((path) =>
-    pathname.startsWith(path)
+    pathname.startsWith(path),
   );
 
   if (isProtectedPath) {
@@ -44,7 +45,50 @@ export default async function middleware(request: NextRequest) {
     // The middleware only handles authentication
   }
 
-  return NextResponse.next();
+  // Locale detection
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  // Get locale from user preference (in token), cookie, or Accept-Language header
+  let locale = "en";
+
+  if (
+    token?.locale &&
+    locales.includes(token.locale as (typeof locales)[number])
+  ) {
+    // Authenticated user - use database preference
+    locale = token.locale as string;
+  } else {
+    // Check for locale cookie (set by LanguageSwitcher for unauthenticated users)
+    const localeCookie = request.cookies.get("preferred-locale")?.value;
+    if (
+      localeCookie &&
+      locales.includes(localeCookie as (typeof locales)[number])
+    ) {
+      locale = localeCookie;
+    } else {
+      // Parse Accept-Language header as fallback
+      const acceptLanguage = request.headers.get("accept-language");
+      if (acceptLanguage) {
+        const preferredLocale = acceptLanguage
+          .split(",")[0]
+          .trim()
+          .split(";")[0];
+        if (locales.includes(preferredLocale as (typeof locales)[number])) {
+          locale = preferredLocale;
+        } else if (preferredLocale.startsWith("pt")) {
+          locale = "pt-BR";
+        }
+      }
+    }
+  }
+
+  // Set locale header for i18n.ts to read
+  const response = NextResponse.next();
+  response.headers.set("x-locale", locale);
+  return response;
 }
 
 export const config = {

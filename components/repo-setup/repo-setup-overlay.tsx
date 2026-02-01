@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Loader2, GitBranch } from "lucide-react";
+import { CloneDirectoryModal } from "@/components/settings/clone-directory-modal";
 
 interface RepoSetupOverlayProps {
   repoId: string;
@@ -24,6 +25,12 @@ export function RepoSetupOverlay({
   >("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCloning, setIsCloning] = useState(false);
+  const [cloneProgress, setCloneProgress] = useState<{
+    phase: "preparing" | "cloning" | "indexing";
+    substep?: string;
+    percentage?: number;
+  } | null>(null);
+  const [showCloneDirModal, setShowCloneDirModal] = useState(false);
 
   // Auto-hide after successful clone (with delay for user feedback)
   useEffect(() => {
@@ -40,10 +47,32 @@ export function RepoSetupOverlay({
     }
   }, [cloneStatus, onCloneComplete]);
 
+  const checkCloneDirectory = async () => {
+    try {
+      const res = await fetch("/api/settings/clone-directory");
+      const data = await res.json();
+
+      if (!data.cloneDirectory) {
+        setShowCloneDirModal(true);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleClone = async () => {
+    // Check configuration first
+    const hasConfig = await checkCloneDirectory();
+    if (!hasConfig) {
+      return; // Modal will show
+    }
+
     setIsCloning(true);
     setCloneStatus("cloning");
     setErrorMessage(null);
+    setCloneProgress({ phase: "preparing", percentage: 0 });
 
     try {
       const res = await fetch(`/api/repos/${repoId}/clone`, {
@@ -52,8 +81,24 @@ export function RepoSetupOverlay({
 
       if (!res.ok) {
         const errorData = await res.json();
+
+        // Handle configuration requirement
+        if (errorData.requiresConfiguration) {
+          setShowCloneDirModal(true);
+          setCloneStatus("idle");
+          setCloneProgress(null);
+          return;
+        }
+
         throw new Error(errorData.error || "Failed to clone repository");
       }
+
+      // Simulate progress for MVP (real streaming in future enhancement)
+      setCloneProgress({ phase: "cloning", percentage: 50 });
+
+      setTimeout(() => {
+        setCloneProgress({ phase: "indexing", percentage: 90 });
+      }, 1000);
 
       setCloneStatus("success");
     } catch (error) {
@@ -63,6 +108,7 @@ export function RepoSetupOverlay({
       );
     } finally {
       setIsCloning(false);
+      setCloneProgress(null);
     }
   };
 
@@ -179,6 +225,28 @@ export function RepoSetupOverlay({
                 </span>
               )}
             </DialogPrimitive.Description>
+
+            {/* Progress UI */}
+            {cloneProgress && (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="capitalize font-medium">
+                    {cloneProgress.phase}...
+                  </span>
+                  {cloneProgress.percentage !== undefined && (
+                    <span className="text-muted-foreground">
+                      {cloneProgress.percentage}%
+                    </span>
+                  )}
+                </div>
+                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{ width: `${cloneProgress.percentage || 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -231,6 +299,16 @@ export function RepoSetupOverlay({
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
+
+      {/* Clone Directory Configuration Modal */}
+      <CloneDirectoryModal
+        open={showCloneDirModal}
+        onOpenChange={setShowCloneDirModal}
+        onConfigured={() => {
+          setShowCloneDirModal(false);
+          handleClone();
+        }}
+      />
     </DialogPrimitive.Root>
   );
 }

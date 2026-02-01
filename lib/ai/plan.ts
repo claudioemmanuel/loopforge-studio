@@ -35,8 +35,48 @@ export async function generatePlan(
   title: string,
   description: string | null,
   brainstormResult: string | null,
-  repoInfo?: RepoInfo
+  repoInfo?: RepoInfo,
 ): Promise<PlanResult> {
+  // Skills Framework Integration - Apply planning skills
+  const skillsEnabled = process.env.ENABLE_SKILLS_SYSTEM !== "false";
+  let skillsPromptAugmentation = "";
+
+  if (skillsEnabled) {
+    try {
+      const { invokePhaseSkills, isSkillsSystemEnabled } =
+        await import("@/lib/skills");
+      const { combineAugmentedPrompts } =
+        await import("@/lib/skills/enforcement");
+
+      if (isSkillsSystemEnabled()) {
+        const skillContext = {
+          taskId: "planning-session",
+          phase: "planning" as const,
+          taskDescription: title,
+          workingDir: "",
+          planContent: "", // Will be populated after generation
+          metadata: {
+            provider: client.getProvider(),
+            model: client.getModel(),
+          },
+        };
+
+        const skillResults = await invokePhaseSkills(
+          "planning",
+          skillContext,
+          client,
+        );
+
+        if (skillResults.length > 0) {
+          skillsPromptAugmentation = combineAugmentedPrompts("", skillResults);
+        }
+      }
+    } catch (error) {
+      // Skills framework optional
+      console.warn("[Plan] Skills framework not available:", error);
+    }
+  }
+
   const repoContext = repoInfo
     ? `## REPOSITORY
 Name: ${repoInfo.fullName}
@@ -46,7 +86,7 @@ ${repoInfo.defaultBranch ? `Default Branch: ${repoInfo.defaultBranch}` : ""}
 `
     : "";
 
-  const prompt = `You are an expert Scrum Master and senior software engineer facilitating Sprint Planning.
+  const basePrompt = `You are an expert Scrum Master and senior software engineer facilitating Sprint Planning.
 
 ${repoContext}## TASK TO PLAN
 Title: ${title}
@@ -107,10 +147,14 @@ Create a comprehensive Sprint Plan using these Scrum principles:
 
 Respond ONLY with valid JSON, no markdown or additional text.`;
 
-  const text = await client.chat(
-    [{ role: "user", content: prompt }],
-    { maxTokens: 4096 }
-  );
+  // Apply skills augmentation to prompt
+  const prompt = skillsPromptAugmentation
+    ? `${basePrompt}\n\n${skillsPromptAugmentation}`
+    : basePrompt;
+
+  const text = await client.chat([{ role: "user", content: prompt }], {
+    maxTokens: 4096,
+  });
 
   // Strip markdown code blocks if present (common with Gemini)
   let cleanedText = text.trim();
@@ -188,19 +232,24 @@ Respond ONLY with valid JSON, no markdown or additional text.`;
       }
 
       if (steps.length === 0) {
-        steps = [{
-          id: "1",
-          title: "Review and implement the plan",
-          description: "The plan structure could not be fully parsed. Review the original requirements and implement accordingly.",
-          acceptanceCriteria: ["Task is implemented as specified"],
-          estimatedEffort: "medium",
-          priority: "high",
-        }];
+        steps = [
+          {
+            id: "1",
+            title: "Review and implement the plan",
+            description:
+              "The plan structure could not be fully parsed. Review the original requirements and implement accordingly.",
+            acceptanceCriteria: ["Task is implemented as specified"],
+            estimatedEffort: "medium",
+            priority: "high",
+          },
+        ];
       }
 
       return {
         sprintGoal: sprintGoalMatch?.[1] || "Complete the requested task",
-        overview: overviewMatch?.[1] || "Plan generated - some details may need manual review.",
+        overview:
+          overviewMatch?.[1] ||
+          "Plan generated - some details may need manual review.",
         steps,
         definitionOfDone: [
           "All acceptance criteria met",

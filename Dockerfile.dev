@@ -14,8 +14,9 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 
 # Install all dependencies (including devDependencies)
+# Using npm install instead of npm ci for development flexibility
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+    npm install
 
 # Copy entrypoint script
 COPY scripts/docker-entrypoint.sh /usr/local/bin/

@@ -206,6 +206,47 @@ async function runClassicLoop(
       timestamp: new Date(),
     });
 
+    // Skills Framework Integration - Invoke applicable skills at iteration start
+    const skillsEnabled = process.env.ENABLE_SKILLS_SYSTEM !== "false";
+    let skillResults: Array<{ skillId: string; status: string }> = [];
+
+    if (skillsEnabled) {
+      try {
+        const { invokePhaseSkills, isSkillsSystemEnabled } =
+          await import("@/lib/skills");
+
+        if (isSkillsSystemEnabled()) {
+          const skillContext = {
+            taskId: context.changeId,
+            phase: "executing" as const,
+            taskDescription: context.project,
+            workingDir: context.workingDir,
+            iteration,
+            modifiedFiles: [], // Would be populated from git status
+            commits: [], // Would be populated from git log
+            executionId: context.changeId,
+          };
+
+          skillResults = await invokePhaseSkills(
+            "executing",
+            skillContext,
+            client,
+          );
+
+          if (skillResults.length > 0) {
+            await onEvent({
+              type: "thinking",
+              content: `Skills executed: ${skillResults.map((r) => `${r.skillId}(${r.status})`).join(", ")}`,
+              timestamp: new Date(),
+            });
+          }
+        }
+      } catch (error) {
+        // Skills framework optional - don't fail if not available
+        console.warn("[Ralph] Skills framework not available:", error);
+      }
+    }
+
     const promptContext: PromptContext = {
       project: context.project,
       changeId: context.changeId,
@@ -219,6 +260,17 @@ async function runClassicLoop(
     };
 
     let prompt = generatePrompt(promptContext);
+
+    // Apply skill-augmented prompts if available
+    if (skillResults.length > 0) {
+      try {
+        const { combineAugmentedPrompts } =
+          await import("@/lib/skills/enforcement");
+        prompt = combineAugmentedPrompts(prompt, skillResults);
+      } catch (error) {
+        // Ignore if enforcement module not available
+      }
+    }
 
     // Add format instructions if previous iterations produced no files
     if (consecutiveNoFileIterations > 0) {
