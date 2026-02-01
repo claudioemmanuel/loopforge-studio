@@ -60,6 +60,7 @@ beforeAll(async () => {
       preferred_openai_model TEXT DEFAULT 'gpt-4o',
       preferred_gemini_model TEXT DEFAULT 'gemini-2.5-pro',
       preferred_provider ai_provider DEFAULT 'anthropic',
+      default_clone_directory TEXT,
       billing_mode billing_mode,
       stripe_customer_id TEXT,
       onboarding_completed BOOLEAN DEFAULT false,
@@ -70,6 +71,8 @@ beforeAll(async () => {
     -- Add billing columns if they don't exist
     ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_mode billing_mode;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+    -- Add workflow settings columns if they don't exist
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS default_clone_directory TEXT;
 
     DO $$ BEGIN
       CREATE TYPE indexing_status AS ENUM ('pending', 'indexing', 'indexed', 'failed');
