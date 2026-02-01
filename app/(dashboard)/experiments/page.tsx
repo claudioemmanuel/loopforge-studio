@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FlaskConical } from "lucide-react";
-import { ExperimentCard } from "@/components/experiments/experiment-card";
+import { FlaskConical, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ExperimentFlowCard } from "@/components/experiments/experiment-flow-card";
 import { ExperimentResultsModal } from "@/components/experiments/experiment-results-modal";
 import { ExperimentSkeleton } from "@/components/experiments/experiment-skeleton";
+import { GenerateWizardModal } from "@/components/experiments/generate-wizard-modal";
 
 interface Variant {
   id: string;
@@ -31,6 +33,7 @@ export default function ExperimentsPage() {
   const [selectedExperiment, setSelectedExperiment] = useState<string | null>(
     null,
   );
+  const [showWizard, setShowWizard] = useState(false);
 
   useEffect(() => {
     fetchExperiments();
@@ -50,6 +53,10 @@ export default function ExperimentsPage() {
     }
   }
 
+  function handleWizardSuccess() {
+    fetchExperiments();
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -61,9 +68,13 @@ export default function ExperimentsPage() {
               View and manage A/B testing experiments
             </p>
           </div>
+          <Button onClick={() => setShowWizard(true)}>
+            <Sparkles className="w-4 h-4 mr-2" />
+            Generate with AI
+          </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4">
           {[1, 2, 3].map((i) => (
             <ExperimentSkeleton key={i} />
           ))}
@@ -75,47 +86,74 @@ export default function ExperimentsPage() {
   // Empty state when no experiments
   if (experiments.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-        <FlaskConical className="w-16 h-16 text-muted-foreground mb-4" />
-        <h2 className="text-xl font-semibold mb-2">No Experiments Yet</h2>
-        <p className="text-muted-foreground max-w-md">
-          A/B testing experiments will appear here. Create experiments via API
-          to start testing prompt variants.
-        </p>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+          <FlaskConical className="w-16 h-16 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">No Experiments Yet</h2>
+          <p className="text-muted-foreground max-w-md mb-6">
+            Create AI-powered A/B testing experiments to optimize your workflow.
+            Test different prompts, models, and parameters.
+          </p>
+          <Button onClick={() => setShowWizard(true)} size="lg">
+            <Sparkles className="w-5 h-5 mr-2" />
+            Generate with AI
+          </Button>
+        </div>
+
+        {showWizard && (
+          <GenerateWizardModal
+            onClose={() => setShowWizard(false)}
+            onSuccess={handleWizardSuccess}
+          />
+        )}
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Experiments</h1>
-          <p className="text-muted-foreground mt-1">
-            View and manage A/B testing experiments
-          </p>
+    <>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Experiments</h1>
+            <p className="text-muted-foreground mt-1">
+              View and manage A/B testing experiments
+            </p>
+          </div>
+          <Button onClick={() => setShowWizard(true)}>
+            <Sparkles className="w-4 h-4 mr-2" />
+            Generate with AI
+          </Button>
         </div>
-      </div>
 
-      {/* Experiments grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {experiments.map((experiment) => (
-          <ExperimentCard
-            key={experiment.id}
-            experiment={experiment}
-            onViewResults={() => setSelectedExperiment(experiment.id)}
-            onRefresh={fetchExperiments}
+        {/* Experiments list with flow visualization */}
+        <div className="space-y-4">
+          {experiments.map((experiment) => (
+            <ExperimentFlowCard
+              key={experiment.id}
+              experiment={experiment}
+              onViewResults={() => setSelectedExperiment(experiment.id)}
+              onRefresh={fetchExperiments}
+            />
+          ))}
+        </div>
+
+        {/* Results modal */}
+        {selectedExperiment && (
+          <ExperimentResultsModal
+            experimentId={selectedExperiment}
+            onClose={() => setSelectedExperiment(null)}
           />
-        ))}
+        )}
       </div>
 
-      {/* Results modal */}
-      {selectedExperiment && (
-        <ExperimentResultsModal
-          experimentId={selectedExperiment}
-          onClose={() => setSelectedExperiment(null)}
+      {/* Wizard modal */}
+      {showWizard && (
+        <GenerateWizardModal
+          onClose={() => setShowWizard(false)}
+          onSuccess={handleWizardSuccess}
         />
       )}
-    </div>
+    </>
   );
 }

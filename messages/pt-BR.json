@@ -140,7 +140,54 @@
     },
     "accountPage": {
       "title": "Conta",
-      "profile": "Perfil"
+      "profile": "Perfil",
+      "billing": {
+        "title": "Cobrança e Assinatura"
+      },
+      "dangerZone": {
+        "title": "Zona de Perigo",
+        "subtitle": "Ações irreversíveis. Prossiga com cautela.",
+        "exportData": {
+          "title": "Exportar Todos os Dados",
+          "description": "Baixar todas as suas tarefas, execuções e configurações",
+          "button": "Exportar JSON"
+        },
+        "disconnectRepos": {
+          "title": "Desconectar Todos os Repositórios",
+          "description": "Remover todos os repositórios conectados. As tarefas serão preservadas.",
+          "button": "Desconectar Todos",
+          "disconnecting": "Desconectando...",
+          "confirmTitle": "Desconectar Todos os Repositórios?",
+          "confirmDescription": "Esta ação desconectará todos os repositórios do Loopforge. Por favor, revise o que acontecerá:",
+          "activeWarning": "⚠️ Aviso de Tarefas Ativas",
+          "activeWarningMessage": "Quaisquer tarefas atualmente em brainstorming, planejamento ou execução serão interrompidas. Trabalho incompleto pode ser perdido.",
+          "willRemove": "O que será removido:",
+          "removeConnections": "Conexões de repositório (acesso ao GitHub revogado)",
+          "removeClones": "Clones de repositórios locais (se configurados)",
+          "removeHistory": "Histórico e logs de execução de tarefas",
+          "willPreserve": "O que será preservado:",
+          "preserveTasks": "Definições e descrições de tarefas",
+          "preserveAccount": "Sua conta e configurações",
+          "preserveBilling": "Informações de assinatura e cobrança",
+          "canReconnect": "Você pode reconectar repositórios a qualquer momento, mas o histórico de execução não será restaurado."
+        },
+        "deleteAccount": "Excluir Conta",
+        "deleteDescription": "Excluir permanentemente sua conta e todos os dados associados",
+        "deleteButton": "Excluir Conta",
+        "confirmTitle": "Excluir Conta Permanentemente?",
+        "confirmDescription": "Esta ação não pode ser desfeita. Sua conta e todos os dados serão permanentemente excluídos.",
+        "confirmPlaceholder": "Digite DELETE MY ACCOUNT para confirmar",
+        "confirmText": "DELETE MY ACCOUNT",
+        "whatHappens": "O que será permanentemente excluído:",
+        "allRepos": "Todos os repositórios conectados",
+        "allTasks": "Todas as tarefas e histórico de execução",
+        "allExecutions": "Todos os logs e resultados de execução",
+        "allSettings": "Todas as configurações e preferências",
+        "apiKeys": "Todas as chaves de API armazenadas (criptografadas)",
+        "subscription": "Sua assinatura será cancelada",
+        "noUndo": "Esta ação não pode ser desfeita",
+        "dataLoss": "Todos os dados serão permanentemente perdidos"
+      }
     },
     "integrationsPage": {
       "aiProviders": "Provedores de IA",
@@ -173,6 +220,13 @@
       "addRepos": "+ Adicionar Repos",
       "noReposConnected": "Nenhum repositório conectado ainda.",
       "disconnect": "Desconectar",
+      "disconnectConfirmTitle": "Desconectar Repositório?",
+      "disconnectConfirmDescription": "Isso removerá o repositório do Loopforge Studio.",
+      "activeTasksWarning": "{count, plural, one {1 tarefa ativa} other {# tarefas ativas}} falharão se você desconectar agora.",
+      "disconnectConsequences": "O que acontece ao desconectar:",
+      "tasksWillFail": "Tarefas ativas usando este repo falharão",
+      "branchesPreserved": "Branches e commits no GitHub permanecem inalterados",
+      "canReconnect": "Você pode reconectar este repositório depois",
       "webhooks": "Webhooks",
       "webhooksDescription": "Configure webhooks para notificar serviços externos quando tarefas forem concluídas ou encontrarem erros.",
       "notifyWhenAvailable": "Me notifique quando disponível"
@@ -195,15 +249,73 @@
       "saving": "Salvando...",
       "saveConfiguration": "Salvar Configuração",
       "path": "Caminho",
+      "pathLabel": "Caminho do Diretório",
       "browse": "Procurar",
       "selectDirectory": "Selecionar Diretório"
     },
     "billingPage": {
-      "title": "Faturamento",
-      "cycle": "Ciclo de Faturamento",
-      "nextDate": "Próxima Data de Faturamento",
-      "usage": "Uso",
-      "upgrade": "Fazer Upgrade do Plano"
+      "title": "Assinatura",
+      "subtitle": "Gerencie seu plano e faturamento",
+      "billingMode": {
+        "byok": "Traga Sua Própria Chave",
+        "managed": "IA Gerenciada"
+      },
+      "billingCycle": {
+        "monthly": "Mensal",
+        "yearly": "Anual",
+        "save": "(Economize 20%)"
+      },
+      "plans": {
+        "popular": "Popular",
+        "perMonth": "/mês",
+        "billedYearly": "Cobrado {price}/ano",
+        "managePlan": "Gerenciar Plano",
+        "currentPlan": "Plano Atual",
+        "freeForever": "Grátis Para Sempre",
+        "upgrade": "Fazer Upgrade",
+        "switch": "Mudar",
+        "to": "para"
+      },
+      "features": {
+        "free": {
+          "repos": "1 repositório",
+          "tasks": "5 tarefas por mês",
+          "tokens": "50K tokens por mês",
+          "support": "Suporte da comunidade"
+        },
+        "pro": {
+          "repos": "5 repositórios",
+          "tasks": "100 tarefas por mês",
+          "tokens": "2M tokens por mês",
+          "support": "Suporte prioritário",
+          "analytics": "Análises avançadas"
+        },
+        "team": {
+          "repos": "Repositórios ilimitados",
+          "tasks": "Tarefas ilimitadas",
+          "tokens": "10M tokens por mês",
+          "support": "Suporte dedicado",
+          "collaboration": "Colaboração em equipe",
+          "integrations": "Integrações personalizadas"
+        }
+      },
+      "billingDetails": {
+        "title": "Detalhes de Faturamento",
+        "status": "Status",
+        "cycle": "Ciclo de Faturamento",
+        "nextDate": "Próxima Data de Faturamento",
+        "cancelNotice": "Sua assinatura será cancelada no final do período de faturamento",
+        "manageBilling": "Gerenciar Faturamento"
+      },
+      "errors": {
+        "checkoutTitle": "Erro no checkout",
+        "checkoutMessage": "Falha ao iniciar checkout",
+        "billingTitle": "Erro de faturamento",
+        "billingMessage": "Falha ao abrir portal de faturamento"
+      },
+      "notices": {
+        "stripeNotConfigured": "O Stripe não está configurado. Upgrades de plano não estão disponíveis."
+      }
     }
   },
   "landing": {
@@ -253,7 +365,7 @@
       "headline": "Pronto para enviar código no piloto automático?",
       "subheading": "Junte-se aos desenvolvedores que estão entregando mais rápido com codificação autônoma alimentada por IA.",
       "primary": "Comece a Construir Grátis",
-      "secondary": "Ver no GitHub",
+      "secondary": "Ver Preços",
       "disclaimer": "Nível gratuito disponível. Não é necessário cartão de crédito."
     },
     "footer": {
@@ -328,21 +440,21 @@
         "bestFor": "Busca de código, gerenciamento de branches"
       },
       "stats": {
+        "executions": {
+          "value": "10M+",
+          "label": "Execuções de IA"
+        },
         "providers": {
           "value": "3",
           "label": "Provedores de IA"
         },
-        "byok": {
-          "value": "BYOK",
-          "label": "Traga Sua Própria Chave"
-        },
         "uptime": {
           "value": "99.9%",
-          "label": "SLA de Uptime"
+          "label": "SLA de Disponibilidade"
         },
-        "hosted": {
-          "value": "24/7",
-          "label": "Hospedado na Nuvem"
+        "teams": {
+          "value": "500+",
+          "label": "Equipes Ativas"
         }
       },
       "hoverCard": {
@@ -599,11 +711,127 @@
     "timedOut": "Testes expiraram",
     "skipped": "Testes ignorados"
   },
+  "analytics": {
+    "stats": {
+      "totalTasks": "Total de Tarefas",
+      "completed": "Concluídas",
+      "successRate": "Taxa de Sucesso",
+      "avgTime": "Tempo Médio"
+    }
+  },
   "dashboard": {
     "title": "Painel",
     "welcomeBack": "Bem-vindo de volta,",
     "tip": "Dica:",
     "noRepos": "Nenhum repositório ainda",
-    "noReposMessage": "Adicione seu primeiro repositório para começar a usar o Loopforge"
+    "noReposMessage": "Adicione seu primeiro repositório para começar a usar o Loopforge",
+    "stats": {
+      "inProgress": "Em Andamento"
+    }
+  },
+  "workers": {
+    "stats": {
+      "active": "Ativos",
+      "failed": "Falhados"
+    },
+    "refreshTitle": "Atualizar workers"
+  },
+  "experiments": {
+    "title": "Experimentos",
+    "subtitle": "Visualize e gerencie experimentos de teste A/B",
+    "generateWithAI": "Gerar com IA",
+    "noExperiments": "Nenhum Experimento Ainda",
+    "noExperimentsMessage": "Crie experimentos de teste A/B com IA para otimizar seu fluxo de trabalho. Teste diferentes prompts, modelos e parâmetros.",
+    "viewDetails": "Ver Detalhes",
+    "wizard": {
+      "title": "Gerar Experimento com IA",
+      "step": "Passo {current} de {total}",
+      "back": "Voltar",
+      "next": "Próximo",
+      "generating": "Gerando...",
+      "creating": "Criando...",
+      "createExperiment": "Criar Experimento",
+      "step1": {
+        "title": "Escolha a Área de Teste",
+        "subtitle": "Selecione qual aspecto do fluxo de trabalho da IA você deseja experimentar",
+        "selectArea": "Por favor, selecione uma área de teste"
+      },
+      "step2": {
+        "title": "Responda Algumas Perguntas",
+        "subtitle": "Ajude a IA a entender suas preferências para este experimento",
+        "answerAll": "Por favor, responda todas as perguntas"
+      },
+      "step3": {
+        "title": "Revise as Variantes Geradas",
+        "subtitle": "Revise a configuração do experimento gerada pela IA"
+      },
+      "step4": {
+        "title": "Confirme e Crie",
+        "subtitle": "Revise as configurações finais e crie seu experimento",
+        "experimentName": "Nome do Experimento",
+        "experimentNamePlaceholder": "Digite o nome do experimento...",
+        "trafficAllocation": "Alocação de Tráfego ({percent}%)",
+        "trafficDescription": "Porcentagem de novas tarefas que serão atribuídas a este experimento",
+        "whatWillHappen": "O que acontecerá:",
+        "trafficAssignment": "{percent}% das novas tarefas serão atribuídas aleatoriamente a uma das 3 variantes",
+        "metricsCollection": "As métricas serão coletadas automaticamente durante a execução",
+        "statisticalAnalysis": "A análise estatística determinará a variante vencedora"
+      }
+    },
+    "testAreas": {
+      "brainstorming": {
+        "title": "Brainstorming",
+        "description": "Teste diferentes estilos e abordagens de conversação de brainstorming",
+        "examples": "Velocidade vs. minuciosidade, Foco técnico vs. contexto de negócios"
+      },
+      "planning": {
+        "title": "Planejamento",
+        "description": "Experimente com granularidade e estrutura de geração de planos",
+        "examples": "Passo a passo vs. marcos, Com/sem caminhos de arquivo"
+      },
+      "codeGeneration": {
+        "title": "Geração de Código",
+        "description": "Teste estilos de codificação autônoma e abordagens de refatoração",
+        "examples": "Conservador vs. agressivo, Densidade de comentários"
+      },
+      "modelParams": {
+        "title": "Parâmetros do Modelo",
+        "description": "Otimize temperatura, tokens e outras configurações do modelo",
+        "examples": "Qualidade vs. custo, Criatividade vs. consistência"
+      }
+    },
+    "questions": {
+      "typeAnswer": "Digite sua resposta...",
+      "selectOption": "Selecione uma opção..."
+    },
+    "status": {
+      "draft": "Rascunho",
+      "active": "Ativo",
+      "paused": "Pausado",
+      "completed": "Concluído",
+      "running": "Em Execução",
+      "winner": "Vencedor",
+      "losing": "Perdendo",
+      "control": "Controle"
+    },
+    "metrics": {
+      "successRate": "Taxa de Sucesso",
+      "avgDuration": "Duração Média",
+      "errorRate": "Taxa de Erro",
+      "sampleSize": "{count} tarefas",
+      "confidence": "{percent}% confiante",
+      "trafficAllocation": "Alocação de Tráfego"
+    },
+    "actions": {
+      "start": "Iniciar",
+      "pause": "Pausar",
+      "complete": "Concluir",
+      "viewResults": "Ver Resultados"
+    },
+    "variant": {
+      "type": "Tipo",
+      "weight": "{percent}%",
+      "controlLabel": "{name} (Controle)"
+    }
   }
 }
