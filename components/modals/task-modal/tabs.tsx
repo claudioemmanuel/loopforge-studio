@@ -2,14 +2,15 @@
 
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { FileText, Clock, Activity, Sparkles } from "lucide-react";
+import { FileText, Clock, Activity, Sparkles, GitBranch } from "lucide-react";
 
-export type TabId = "details" | "timeline" | "execution" | "skills";
+export type TabId = "details" | "timeline" | "execution" | "graph" | "skills";
 
 interface TabsProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
   showExecutionTab?: boolean;
+  showGraphTab?: boolean;
   showSkillsTab?: boolean;
 }
 
@@ -30,6 +31,14 @@ const getExecutionTab = (
   icon: Activity,
 });
 
+const getGraphTab = (
+  t: TranslationFunction,
+): { id: TabId; label: string; icon: typeof FileText } => ({
+  id: "graph",
+  label: t("tasks.tabs.graph"),
+  icon: GitBranch,
+});
+
 const getSkillsTab = (
   t: TranslationFunction,
 ): { id: TabId; label: string; icon: typeof FileText } => ({
@@ -42,12 +51,14 @@ export function TaskModalTabs({
   activeTab,
   onTabChange,
   showExecutionTab = false,
+  showGraphTab = false,
   showSkillsTab = false,
 }: TabsProps) {
   const t = useTranslations();
 
   const baseTabs = getBaseTabs(t);
   const optionalTabs = [];
+  if (showGraphTab) optionalTabs.push(getGraphTab(t));
   if (showExecutionTab) optionalTabs.push(getExecutionTab(t));
   if (showSkillsTab) optionalTabs.push(getSkillsTab(t));
 

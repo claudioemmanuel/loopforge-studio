@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, tasks, executions } from "@/lib/db";
+import { db, tasks, executions, executionEvents } from "@/lib/db";
 import { eq, and, ne } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import type { TaskStatus, StatusHistoryEntry } from "@/lib/db/schema";
@@ -11,9 +11,91 @@ import {
 } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
+import {
+  createStatusChangeEvent,
+  createTaskUpdatedEvent,
+  createExecutionStartEvent,
+} from "@/lib/activity";
+import { buildExecutionGraph } from "@/lib/execution/graph-builder";
+import type { ExecutionData } from "@/lib/execution/graph-types";
 
 export const GET = withTask(async (request, { task }) => {
-  return NextResponse.json(task);
+  // Check if graph data is requested via query param
+  const { searchParams } = new URL(request.url);
+  const includeGraph = searchParams.get("include") === "graph";
+
+  if (!includeGraph) {
+    return NextResponse.json(task);
+  }
+
+  // If executionGraph is already cached, return it
+  if (task.executionGraph) {
+    return NextResponse.json({
+      ...task,
+      executionGraph: task.executionGraph,
+    });
+  }
+
+  // Build graph from execution data
+  try {
+    // Get latest execution for this task
+    const latestExecution = await db.query.executions.findFirst({
+      where: eq(executions.taskId, task.id),
+      orderBy: (executions, { desc }) => [desc(executions.createdAt)],
+    });
+
+    if (!latestExecution) {
+      // No execution yet, return task without graph
+      return NextResponse.json(task);
+    }
+
+    // Get execution events
+    const events = await db.query.executionEvents.findMany({
+      where: eq(executionEvents.executionId, latestExecution.id),
+      orderBy: (executionEvents, { asc }) => [asc(executionEvents.createdAt)],
+    });
+
+    // Build execution data structure
+    const executionData: ExecutionData = {
+      taskId: task.id,
+      executionId: latestExecution.id,
+      status: latestExecution.status,
+      phase: task.processingPhase || undefined,
+      events: events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        title: e.title || undefined,
+        content: e.content,
+        metadata: e.metadata as Record<string, unknown> | undefined,
+        createdAt: e.createdAt,
+      })),
+      commits: latestExecution.commits || undefined,
+      startedAt: latestExecution.startedAt || undefined,
+      completedAt: latestExecution.completedAt || undefined,
+      errorMessage: latestExecution.errorMessage || undefined,
+    };
+
+    // Build the execution graph
+    const executionGraph = await buildExecutionGraph(executionData);
+
+    // Cache the graph in the task record
+    await db
+      .update(tasks)
+      .set({ executionGraph, updatedAt: new Date() })
+      .where(eq(tasks.id, task.id));
+
+    return NextResponse.json({
+      ...task,
+      executionGraph,
+    });
+  } catch (error) {
+    apiLogger.error(
+      { taskId: task.id, error },
+      "Error building execution graph",
+    );
+    // Return task without graph on error
+    return NextResponse.json(task);
+  }
 });
 
 export const PATCH = withTask(async (request, { user, task, taskId }) => {
@@ -178,6 +260,55 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
   const updatedTask = await db.query.tasks.findFirst({
     where: eq(tasks.id, taskId),
   });
+
+  // Create activity events for the update
+  const activityPromises: Promise<unknown>[] = [];
+
+  // Status change event
+  if (body.status !== undefined && body.status !== task.status) {
+    activityPromises.push(
+      createStatusChangeEvent({
+        taskId,
+        repoId: task.repoId,
+        userId: user.id,
+        taskTitle: task.title,
+        fromStatus: task.status,
+        toStatus: body.status,
+      }),
+    );
+  }
+
+  // Task updated event (for other changes)
+  const changes: string[] = [];
+  if (body.title !== undefined && body.title !== task.title) {
+    changes.push("title");
+  }
+  if (body.description !== undefined && body.description !== task.description) {
+    changes.push("description");
+  }
+  if (
+    body.autonomousMode !== undefined &&
+    body.autonomousMode !== task.autonomousMode
+  ) {
+    changes.push("autonomous mode");
+  }
+
+  if (changes.length > 0) {
+    activityPromises.push(
+      createTaskUpdatedEvent({
+        taskId,
+        repoId: task.repoId,
+        userId: user.id,
+        taskTitle: updatedTask?.title || task.title,
+        changes,
+      }),
+    );
+  }
+
+  // Create all activity events in parallel
+  if (activityPromises.length > 0) {
+    await Promise.all(activityPromises);
+  }
 
   return NextResponse.json(updatedTask);
 });

@@ -14,6 +14,7 @@
     "repositories": "Repositories",
     "allRepositories": "All Repositories",
     "execution": "Execution",
+    "graph": "Graph",
     "activeTasks": "Active Tasks",
     "history": "History",
     "failed": "Failed",
@@ -67,6 +68,8 @@
     "modal": {
       "title": "Task Details",
       "loadingExecution": "Loading execution details...",
+      "loadingGraph": "Loading execution graph...",
+      "noGraphData": "No graph data available",
       "noExecutionData": "No execution data available",
       "autonomousModeActive": "Autonomous mode active",
       "starting": "Starting...",
@@ -101,6 +104,7 @@
       "details": "Details",
       "timeline": "Timeline",
       "execution": "Execution",
+      "graph": "Graph",
       "skills": "Skills"
     }
   },

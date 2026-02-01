@@ -22,6 +22,8 @@ import { TaskActions } from "./task-modal/task-actions";
 import { workflowSteps } from "./task-modal/task-config";
 import { DetailsTab } from "./task-modal/details-tab";
 import { ExecutionDetailTabs } from "@/components/workers/execution-detail-tabs";
+import { ExecutionGraph } from "@/components/execution/execution-graph";
+import type { ExecutionGraph as ExecutionGraphType } from "@/lib/execution/graph-types";
 
 const BrainstormPanel = dynamic(() =>
   import("@/components/brainstorm").then((mod) => mod.BrainstormPanel),
@@ -75,6 +77,14 @@ export function TaskModal({
     events: ExecutionEvent[];
   } | null>(null);
   const [executionLoading, setExecutionLoading] = useState(false);
+  const [executionGraph, setExecutionGraph] =
+    useState<ExecutionGraphType | null>(null);
+  const [graphLoading, setGraphLoading] = useState(false);
+
+  // Handle real-time graph updates
+  const handleGraphUpdate = useCallback((updatedGraph: ExecutionGraphType) => {
+    setExecutionGraph(updatedGraph);
+  }, []);
   const [showDiffModal, setShowDiffModal] = useState(false);
   const [showRollbackModal, setShowRollbackModal] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
@@ -102,6 +112,9 @@ export function TaskModal({
     task.status === "stuck" ||
     task.status === "executing" ||
     task.status === "review";
+
+  // Determine if graph tab should be shown
+  const showGraphTab = showExecutionTab;
 
   // Error handling
   const {
@@ -282,6 +295,32 @@ export function TaskModal({
     }
   }, [task.id, activeTab, showExecutionTab, executionData, executionLoading]);
 
+  // Fetch execution graph when graph tab is selected
+  useEffect(() => {
+    const fetchGraphData = async () => {
+      if (!showGraphTab) return;
+      if (activeTab !== "graph" && executionGraph !== null) return;
+      if (graphLoading) return;
+
+      setGraphLoading(true);
+      try {
+        const res = await fetch(`/api/tasks/${task.id}?include=graph`);
+        if (res.ok) {
+          const data = await res.json();
+          setExecutionGraph(data.executionGraph || null);
+        }
+      } catch (error) {
+        clientLogger.error("Error fetching graph data", { error });
+      } finally {
+        setGraphLoading(false);
+      }
+    };
+
+    if (activeTab === "graph" || (showGraphTab && executionGraph === null)) {
+      fetchGraphData();
+    }
+  }, [task.id, activeTab, showGraphTab, executionGraph, graphLoading]);
+
   const handleBrainstormFinalize = async () => {
     try {
       const res = await fetch(`/api/tasks/${task.id}`);
@@ -439,6 +478,7 @@ export function TaskModal({
               activeTab={activeTab}
               onTabChange={setActiveTab}
               showExecutionTab={showExecutionTab}
+              showGraphTab={showGraphTab}
             />
 
             {/* Content - Scrollable */}
@@ -446,6 +486,36 @@ export function TaskModal({
               {/* Timeline Tab */}
               {activeTab === "timeline" && (
                 <TimelineTab history={task.statusHistory || []} />
+              )}
+
+              {/* Graph Tab */}
+              {activeTab === "graph" && showGraphTab && (
+                <div className="p-6">
+                  {graphLoading && !executionGraph ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        {t("tasks.modal.loadingGraph")}
+                      </span>
+                    </div>
+                  ) : executionGraph ? (
+                    <div className="h-[600px] rounded-lg border border-slate-700 overflow-hidden">
+                      <ExecutionGraph
+                        taskId={task.id}
+                        executionGraph={executionGraph}
+                        onGraphUpdate={handleGraphUpdate}
+                        enableRealtime={task.status === "executing"}
+                        showMinimap={true}
+                        showLegend={true}
+                        showControls={true}
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p>{t("tasks.modal.noGraphData")}</p>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Execution Tab */}

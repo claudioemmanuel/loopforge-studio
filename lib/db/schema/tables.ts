@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { ExecutionEventMetadata } from "@/lib/ralph/types";
 import type { ExperimentVariantConfig } from "./types";
+import type { ExecutionGraph } from "@/lib/execution/graph-types";
 import {
   taskStatusEnum,
   executionStatusEnum,
@@ -174,6 +175,8 @@ export const tasks = pgTable("tasks", {
     false,
   ),
   dependencyPriority: integer("dependency_priority").default(0),
+  // Execution graph for DAG visualization (Task Detail Visualization 2026-02-01)
+  executionGraph: jsonb("execution_graph").$type<ExecutionGraph>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -234,6 +237,7 @@ export const executionEvents = pgTable("execution_events", {
   title: text("title"), // Phase 2.3: Activity Tracking - event title for display (nullable for backwards compat)
   content: text("content").notNull(),
   metadata: jsonb("metadata").$type<ExecutionEventMetadata>(),
+  agentType: varchar("agent_type", { length: 20 }), // Task Detail Visualization 2026-02-01
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
