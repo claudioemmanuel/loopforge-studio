@@ -10,9 +10,48 @@ const stripeKey =
   process.env.STRIPE_SECRET_KEY ||
   (process.env.NODE_ENV === "test" ? "sk_test_dummy_key_for_tests" : "");
 
-export const stripe = new Stripe(stripeKey, {
-  apiVersion: "2024-12-18.acacia",
-  typescript: true,
+// Lazy-initialize Stripe client to avoid errors when STRIPE_SECRET_KEY is not set
+let _stripe: Stripe | null = null;
+
+/**
+ * Get Stripe client instance (lazy-initialized)
+ * Returns null if Stripe is not configured (missing STRIPE_SECRET_KEY)
+ */
+export function getStripeClient(): Stripe | null {
+  if (_stripe) return _stripe;
+
+  // Don't initialize if no API key is configured (except in test mode)
+  if (!stripeKey) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        "⚠️  STRIPE_SECRET_KEY not configured. Billing features will be unavailable.",
+      );
+    }
+    return null;
+  }
+
+  _stripe = new Stripe(stripeKey, {
+    apiVersion: "2024-12-18.acacia",
+    typescript: true,
+  });
+
+  return _stripe;
+}
+
+/**
+ * Legacy export for backward compatibility
+ * @deprecated Use getStripeClient() instead to handle missing configuration
+ */
+export const stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    const client = getStripeClient();
+    if (!client) {
+      throw new Error(
+        "Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.",
+      );
+    }
+    return client[prop as keyof Stripe];
+  },
 });
 
 // Subscription plan definitions

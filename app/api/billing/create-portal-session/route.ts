@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
-import { stripe } from "@/lib/stripe/client";
+import { getStripeClient } from "@/lib/stripe/client";
 
 /**
  * POST /api/billing/create-portal-session
@@ -18,6 +18,16 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Check if Stripe is configured
+    const stripe = getStripeClient();
+    if (!stripe) {
+      return handleError(
+        Errors.invalidRequest(
+          "Billing is not configured. Please contact support.",
+        ),
+      );
+    }
+
     // Get user's Stripe customer ID
     const user = await db.query.users.findFirst({
       where: eq(users.id, session.user.id),

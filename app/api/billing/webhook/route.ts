@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { stripe } from "@/lib/stripe/client";
+import { getStripeClient } from "@/lib/stripe/client";
 import type Stripe from "stripe";
 
 /**
@@ -11,6 +11,14 @@ import type Stripe from "stripe";
  * Phase 3.1: Stripe Integration
  */
 export async function POST(request: Request) {
+  const stripe = getStripeClient();
+  if (!stripe) {
+    return NextResponse.json(
+      { error: "Billing not configured" },
+      { status: 503 },
+    );
+  }
+
   const body = await request.text();
   const headersList = await headers();
   const signature = headersList.get("stripe-signature");

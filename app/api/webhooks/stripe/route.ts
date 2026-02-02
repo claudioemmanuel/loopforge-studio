@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { stripe } from "@/lib/stripe/client";
+import { getStripeClient } from "@/lib/stripe/client";
 import { db, users, repos } from "@/lib/db";
 import { eq, count } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
@@ -19,6 +19,15 @@ const STRIPE_ENTERPRISE_PRICE_ID = process.env.STRIPE_PRICE_ENTERPRISE || "";
 
 export async function POST(request: NextRequest) {
   try {
+    const stripe = getStripeClient();
+    if (!stripe) {
+      apiLogger.error("Stripe not configured");
+      return NextResponse.json(
+        { error: "Billing not configured" },
+        { status: 503 },
+      );
+    }
+
     const body = await request.text();
     const headersList = await headers();
     const signature = headersList.get("stripe-signature");
