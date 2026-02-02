@@ -10,6 +10,7 @@ import { UserAggregate } from "../domain/user-aggregate";
 import { UserRepository } from "../infrastructure/user-repository";
 import type { AIProvider } from "../domain/provider-config";
 import { encryptApiKey, decryptApiKey } from "../infrastructure/crypto";
+import { UserAdapter, type UserApiResponse } from "../api/adapters";
 
 /**
  * User service for coordinating IAM operations
@@ -222,5 +223,35 @@ export class UserService {
       return false;
     }
     return user.isOnboardingComplete();
+  }
+
+  /**
+   * Get full user state in API format
+   *
+   * Returns complete user information formatted for API responses.
+   * Uses UserAdapter to transform domain state to API format.
+   */
+  async getUserFull(
+    userId: string,
+    additionalData?: {
+      encryptedGithubToken?: string | null;
+      githubTokenIv?: string | null;
+      defaultCloneDirectory?: string | null;
+      defaultTestCommand?: string | null;
+      defaultTestTimeout?: number | null;
+      defaultTestGatePolicy?: string | null;
+      billingMode?: string;
+      subscriptionTier?: string | null;
+    },
+  ): Promise<UserApiResponse | null> {
+    const user = await this.repository.findById(userId);
+    if (!user) {
+      return null;
+    }
+
+    const state = user.getState();
+
+    // Use adapter to transform to API format
+    return UserAdapter.toApiResponse(state, additionalData);
   }
 }
