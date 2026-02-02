@@ -7,15 +7,15 @@ import { buildDependencyMap } from "@/lib/graph/layout";
 import type { ExecutionGraph } from "@/lib/execution/graph-types";
 
 /**
- * GET /api/repos/[id]/graph
+ * GET /api/repos/[repoId]/graph
  * Fetch all tasks with dependencies and execution graphs for graph view
  */
 export const GET = withAuth(
   async (
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+    { params }: { params: Promise<{ repoId: string }> },
   ) => {
-    const { id: repoId } = await params;
+    const { repoId } = await params;
 
     // Fetch all tasks for this repository
     const allTasks = await db.query.tasks.findMany({
