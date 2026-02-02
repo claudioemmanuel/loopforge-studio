@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { getConversation, deleteConversation } from "@/lib/ai";
 import { withTask } from "@/lib/api";
 import { apiLogger } from "@/lib/logger";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export const POST = withTask(async (request, { taskId }) => {
   // Get conversation
@@ -16,25 +15,22 @@ export const POST = withTask(async (request, { taskId }) => {
   }
 
   try {
-    // Save final brainstorm result
+    const taskService = getTaskService();
+
+    // Save final brainstorm result using service
     const brainstormResult = conversation.currentPreview;
 
-    await db
-      .update(tasks)
-      .set({
-        brainstormResult: JSON.stringify(brainstormResult, null, 2),
-        brainstormConversation: null, // Clear conversation on finalize
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await taskService.updateBrainstormResult(taskId, {
+      summary: JSON.stringify(brainstormResult, null, 2),
+      conversation: [], // Clear conversation on finalize
+      suggestComplete: true, // Finalize marks brainstorm as complete
+    });
 
     // Delete conversation from memory
     deleteConversation(taskId);
 
-    // Get updated task
-    const updatedTask = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-    });
+    // Get updated task using service
+    const updatedTask = await taskService.getTaskFull(taskId);
 
     return NextResponse.json(updatedTask);
   } catch (error) {

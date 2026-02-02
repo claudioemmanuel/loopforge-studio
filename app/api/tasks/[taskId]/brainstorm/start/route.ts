@@ -1,3 +1,12 @@
+/**
+ * POST /api/tasks/[taskId]/brainstorm/start
+ *
+ * TODO (DDD Migration): Similar to main brainstorm route - needs atomic operation preservation.
+ * Future work:
+ * 1. Create TaskService.startBrainstormJob(taskId, userId) method
+ * 2. Move queue orchestration to Application Service
+ * 3. Domain events should auto-create activity events (remove manual creation)
+ */
 import { NextResponse } from "next/server";
 import { db, tasks, buildStatusHistoryAppend } from "@/lib/db";
 import { eq, and, isNull } from "drizzle-orm";

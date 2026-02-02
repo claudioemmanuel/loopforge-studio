@@ -1,3 +1,19 @@
+/**
+ * POST /api/tasks/[taskId]/brainstorm
+ *
+ * TODO (DDD Migration): This handler uses atomic DB operations for race condition prevention.
+ * Proper migration requires:
+ * 1. Create TaskService.startBrainstorm(taskId, userId) method
+ * 2. Implement atomic processing slot claiming in domain layer
+ * 3. Move AI brainstorm orchestration to Application Service
+ * 4. Use taskService.updateBrainstormResult() for saving results
+ * 5. Ensure atomic state verification remains intact
+ *
+ * Current critical operations:
+ * - Atomic claim: Prevents concurrent brainstorm requests (lines 24-38)
+ * - State verification: Discards result if task state changed (lines 56-70)
+ * - Error reversion: Reverts to "todo" on AI errors (lines 96-104)
+ */
 import { NextResponse } from "next/server";
 import { db, tasks } from "@/lib/db";
 import { eq, and, isNull } from "drizzle-orm";
