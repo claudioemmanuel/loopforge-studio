@@ -1,4 +1,8 @@
-export { connectionOptions, createConnectionOptions } from "./connection";
+export {
+  connectionOptions,
+  createConnectionOptions,
+  getRedis,
+} from "./connection";
 export {
   executionQueue,
   queueExecution,

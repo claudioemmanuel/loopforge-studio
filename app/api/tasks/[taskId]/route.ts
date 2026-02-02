@@ -18,8 +18,17 @@ import {
 } from "@/lib/activity";
 import { buildExecutionGraph } from "@/lib/execution/graph-builder";
 import type { ExecutionData } from "@/lib/execution/graph-types";
+import { getTaskService } from "@/lib/contexts/task/api";
 
-export const GET = withTask(async (request, { task }) => {
+export const GET = withTask(async (request, { taskId }) => {
+  // Use DDD service to load task
+  const taskService = getTaskService();
+  const task = await taskService.getTaskFull(taskId);
+
+  if (!task) {
+    return handleError(Errors.taskNotFound(taskId));
+  }
+
   // Check if graph data is requested via query param
   const { searchParams } = new URL(request.url);
   const includeGraph = searchParams.get("include") === "graph";
@@ -40,7 +49,7 @@ export const GET = withTask(async (request, { task }) => {
   try {
     // Get latest execution for this task
     const latestExecution = await db.query.executions.findFirst({
-      where: eq(executions.taskId, task.id),
+      where: eq(executions.taskId, taskId),
       orderBy: (executions, { desc }) => [desc(executions.createdAt)],
     });
 
@@ -78,21 +87,19 @@ export const GET = withTask(async (request, { task }) => {
     // Build the execution graph
     const executionGraph = await buildExecutionGraph(executionData);
 
-    // Cache the graph in the task record
+    // Cache the graph in the task record (direct DB update for now)
+    // TODO: Move this to TaskService when adding graph caching support
     await db
       .update(tasks)
       .set({ executionGraph, updatedAt: new Date() })
-      .where(eq(tasks.id, task.id));
+      .where(eq(tasks.id, taskId));
 
     return NextResponse.json({
       ...task,
       executionGraph,
     });
   } catch (error) {
-    apiLogger.error(
-      { taskId: task.id, error },
-      "Error building execution graph",
-    );
+    apiLogger.error({ taskId, error }, "Error building execution graph");
     // Return task without graph on error
     return NextResponse.json(task);
   }
