@@ -357,6 +357,27 @@ beforeAll(async () => {
     CREATE INDEX IF NOT EXISTS task_dependencies_task_id_idx ON task_dependencies(task_id);
     CREATE INDEX IF NOT EXISTS task_dependencies_blocked_by_id_idx ON task_dependencies(blocked_by_id);
 
+    -- =========================================
+    -- Domain Events (DDD Architecture)
+    -- =========================================
+
+    CREATE TABLE IF NOT EXISTS domain_events (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_type TEXT NOT NULL,
+      aggregate_id TEXT NOT NULL,
+      aggregate_type TEXT NOT NULL,
+      occurred_at TIMESTAMP DEFAULT now() NOT NULL,
+      persisted_at TIMESTAMP DEFAULT now() NOT NULL,
+      data JSONB DEFAULT '{}'::jsonb NOT NULL,
+      metadata JSONB DEFAULT '{}'::jsonb NOT NULL,
+      version INTEGER DEFAULT 1 NOT NULL
+    );
+
+    -- Create indexes for domain_events
+    CREATE INDEX IF NOT EXISTS idx_domain_events_event_type ON domain_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_domain_events_aggregate ON domain_events(aggregate_type, aggregate_id);
+    CREATE INDEX IF NOT EXISTS idx_domain_events_occurred_at ON domain_events(occurred_at DESC);
+
   `);
 });
 

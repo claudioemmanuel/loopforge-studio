@@ -46,6 +46,19 @@ import type {
 // Core Tables
 // =============================================================================
 
+// Domain Events table (for DDD architecture)
+export const domainEvents = pgTable("domain_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventType: text("event_type").notNull(),
+  aggregateId: text("aggregate_id").notNull(),
+  aggregateType: text("aggregate_type").notNull(),
+  occurredAt: timestamp("occurred_at").notNull().defaultNow(),
+  persistedAt: timestamp("persisted_at").notNull().defaultNow(),
+  data: jsonb("data").notNull().default({}),
+  metadata: jsonb("metadata").notNull().default({}),
+  version: integer("version").notNull().default(1),
+});
+
 // Users table
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -274,6 +287,15 @@ export const workerEvents = pgTable("worker_events", {
   eventType: workerEventTypeEnum("event_type").notNull(),
   content: text("content").notNull(),
   metadata: jsonb("metadata").$type<WorkerEventMetadata>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Worker heartbeats - tracks worker health and uptime
+export const workerHeartbeats = pgTable("worker_heartbeats", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull().default("worker-1"),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
