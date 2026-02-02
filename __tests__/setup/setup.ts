@@ -234,6 +234,11 @@ beforeAll(async () => {
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS auto_approve BOOLEAN NOT NULL DEFAULT false;
     -- Brainstorm summary column
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS brainstorm_summary TEXT;
+    -- Context compaction columns (Prompt Engineering Framework 2026-01-29)
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS brainstorm_message_count INTEGER DEFAULT 0;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS brainstorm_compacted_at TIMESTAMP;
+    -- Execution graph for DAG visualization (Task Detail Visualization 2026-02-01)
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS execution_graph JSONB;
 
     CREATE TABLE IF NOT EXISTS executions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

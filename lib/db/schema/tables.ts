@@ -186,6 +186,9 @@ export const tasks = pgTable("tasks", {
   // PR info after execution
   prUrl: text("pr_url"),
   prNumber: integer("pr_number"),
+  // P0: PR configuration overrides (task-level)
+  prTargetBranch: text("pr_target_branch"),
+  prDraft: boolean("pr_draft"),
   // Task dependency fields
   blockedByIds: jsonb("blocked_by_ids").$type<string[]>().default([]),
   autoExecuteWhenUnblocked: boolean("auto_execute_when_unblocked").default(
