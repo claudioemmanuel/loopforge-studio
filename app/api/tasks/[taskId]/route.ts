@@ -105,6 +105,25 @@ export const GET = withTask(async (request, { taskId }) => {
   }
 });
 
+/**
+ * PATCH /api/tasks/[taskId]
+ *
+ * TODO (DDD Migration): This handler has complex orchestration logic that spans
+ * multiple contexts (Task, Execution, Queue). Future refactoring should:
+ * 1. Extract execution queueing logic to ExecutionService.startExecution()
+ * 2. Use TaskService methods for updates (updateMetadata, updatePriority, etc.)
+ * 3. Remove direct DB calls
+ * 4. Consider creating an ApplicationService to orchestrate cross-context operations
+ *
+ * Current complexity:
+ * - Field updates (title, description, priority, etc.)
+ * - Status transitions with history tracking
+ * - Phase reset logic
+ * - Execution slot claiming (atomic DB operation to prevent race conditions)
+ * - Execution record creation
+ * - Job queueing
+ * - Activity event creation
+ */
 export const PATCH = withTask(async (request, { user, task, taskId }) => {
   const body = await request.json();
   const updates: Partial<{
@@ -320,7 +339,17 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
   return NextResponse.json(updatedTask);
 });
 
+/**
+ * DELETE /api/tasks/[taskId]
+ *
+ * TODO (DDD Migration): Migrate to use TaskService.deleteTask()
+ * Current implementation uses direct DB delete which bypasses:
+ * - Domain events (TaskDeleted event should be published)
+ * - Cascade deletion validation
+ * - Business rule enforcement
+ */
 export const DELETE = withTask(async (request, { taskId }) => {
+  // TODO: Replace with taskService.deleteTask(taskId)
   await db.delete(tasks).where(eq(tasks.id, taskId));
 
   return NextResponse.json({ success: true });
