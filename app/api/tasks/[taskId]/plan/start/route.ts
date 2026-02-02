@@ -1,3 +1,9 @@
+/**
+ * POST /api/tasks/[taskId]/plan/start
+ *
+ * TODO (DDD Migration): Atomic claim + queue orchestration pattern.
+ * Same complexity as brainstorm/start - needs Application Service layer.
+ */
 import { NextResponse } from "next/server";
 import { db, tasks, buildStatusHistoryAppend } from "@/lib/db";
 import { eq, and, isNull } from "drizzle-orm";
