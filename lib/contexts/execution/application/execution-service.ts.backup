@@ -11,16 +11,12 @@ import { ExecutionAggregate } from "../domain/execution-aggregate";
 import type {
   ExecutionConfiguration,
   ExtractionResult,
-  ExtractionStrategy,
   CommitInfo,
   StuckSignal,
   RecoveryAttempt,
   ValidationReport,
 } from "../domain/types";
 import { randomUUID } from "crypto";
-import type { AIClient } from "@/lib/ai/client";
-import type { ParallelExecutionOptions } from "@/lib/agents/types";
-import type { ExecutionEvent } from "@/lib/ralph/types";
 
 /**
  * Execution service
@@ -303,15 +299,15 @@ export class ExecutionService {
     repoPath: string;
     plan: string;
     branchName: string;
-    aiClient: AIClient; // AIClient from @/lib/ai/client
+    aiClient: any; // AIClient from @/lib/ai/client
     mode?: 'classic' | 'multi-agent';
     maxIterations?: number;
     stuckThreshold?: number;
     taskTitle?: string;
     repoName?: string;
-    parallelOptions?: Partial<ParallelExecutionOptions>;
-    onEvent?: (event: ExecutionEvent) => void | Promise<void>;
-    onProgress?: (event: ExecutionEvent) => void | Promise<void>;
+    parallelOptions?: any;
+    onEvent?: (event: any) => void | Promise<void>;
+    onProgress?: (event: any) => void | Promise<void>;
   }): Promise<{
     status: 'complete' | 'stuck' | 'continue';
     iterations: number;
@@ -392,17 +388,17 @@ export class ExecutionService {
     taskId: string;
     repoPath: string;
     plan: string;
-    aiClient: AIClient;
-    parallelOptions?: Partial<ParallelExecutionOptions>;
-    onEvent?: (event: ExecutionEvent) => void | Promise<void>;
-    onProgress?: (event: ExecutionEvent) => void | Promise<void>;
+    aiClient: any;
+    parallelOptions?: any;
+    onEvent?: (event: any) => void | Promise<void>;
+    onProgress?: (event: any) => void | Promise<void>;
   }): Promise<{
     status: 'complete' | 'stuck' | 'continue';
     iterations: number;
     commits: string[];
     error?: string;
   }> {
-    const { runParallelExecution } = await import('@/lib/ralph/parallel-executor');
+    const { runParallelExecution, getExecutionSummary } = await import('@/lib/ralph/parallel-executor');
 
     try {
       const result = await runParallelExecution(
@@ -477,12 +473,12 @@ export class ExecutionService {
     repoPath: string;
     plan: string;
     branchName: string;
-    aiClient: AIClient;
+    aiClient: any;
     maxIterations: number;
     stuckThreshold: number;
     taskTitle: string;
     repoName: string;
-    onEvent?: (event: ExecutionEvent) => void | Promise<void>;
+    onEvent?: (event: any) => void | Promise<void>;
   }): Promise<{
     status: 'complete' | 'stuck' | 'continue';
     iterations: number;
@@ -526,13 +522,13 @@ export class ExecutionService {
 
     // Track reliability data
     const reliabilityData: {
-      stuckSignals?: StuckSignal[];
+      stuckSignals?: any[];
       recoveryAttempts?: Array<{
         tier: string;
         success: boolean;
         iteration: number;
       }>;
-      validationReport?: ValidationReport;
+      validationReport?: any;
     } = {};
 
     // Helper to check completion markers
@@ -548,7 +544,7 @@ export class ExecutionService {
     };
 
     // Helper to emit events
-    const emitEvent = async (event: ExecutionEvent) => {
+    const emitEvent = async (event: any) => {
       if (params.onEvent) {
         await params.onEvent(event);
       }
@@ -594,7 +590,7 @@ export class ExecutionService {
                 executionId: params.executionId,
                 skillName: result.skillId,
                 phase: 'executing',
-                result: result.status as "complete" | "stuck" | "continue",
+                result: result.status as any,
               });
             }
 
@@ -673,12 +669,12 @@ export class ExecutionService {
         await this.recordExtraction({
           executionId: params.executionId,
           result: {
-            files: extraction.files.map((f: { path: string; content: string; action?: string }) => ({
+            files: extraction.files.map((f: any) => ({
               path: f.path,
               content: f.content,
               language: f.language,
             })),
-            strategy: (extraction.method || 'strict') as ExtractionStrategy,
+            strategy: extraction.method as any,
             confidence: extraction.confidence,
             fallbackUsed: false,
           },
@@ -810,9 +806,9 @@ export class ExecutionService {
 
           await emitEvent({
             type: 'file_write',
-            content: `Writing ${extraction.files.length} file(s): ${extraction.files.map((f: { path: string; content: string; action?: string }) => f.path).join(', ')}`,
+            content: `Writing ${extraction.files.length} file(s): ${extraction.files.map((f: any) => f.path).join(', ')}`,
             metadata: {
-              files: extraction.files.map((f: { path: string; content: string; action?: string }) => f.path),
+              files: extraction.files.map((f: any) => f.path),
               method: extraction.method,
               iteration,
             },
@@ -822,7 +818,7 @@ export class ExecutionService {
           // Write files
           const writeResult = await applyFileChanges(
             params.repoPath,
-            extraction.files.map((f: { path: string; content: string; action?: string }) => ({
+            extraction.files.map((f: any) => ({
               path: f.path,
               action: f.action,
               content: f.content,
@@ -832,7 +828,7 @@ export class ExecutionService {
           if (writeResult.errors.length > 0) {
             await emitEvent({
               type: 'error',
-              content: `File write errors: ${writeResult.errors.map((e: { path: string; error: string }) => `${e.path}: ${e.error}`).join('; ')}`,
+              content: `File write errors: ${writeResult.errors.map((e: any) => `${e.path}: ${e.error}`).join('; ')}`,
               timestamp: new Date(),
               metadata: { iteration },
             });
@@ -889,7 +885,7 @@ export class ExecutionService {
         await this.completeIteration({
           executionId: params.executionId,
           thoughts: [output.substring(0, 500)],
-          actions: extraction.files.map((f: { path: string; content: string; action?: string }) => `${f.action} ${f.path}`),
+          actions: extraction.files.map((f: any) => `${f.action} ${f.path}`),
         });
 
         // Check completion status
@@ -1022,8 +1018,8 @@ export class ExecutionService {
           await this.detectStuckSignal({
             executionId: params.executionId,
             signal: {
-              type: signal.type,
-              severity: signal.severity,
+              type: signal.type as any,
+              severity: signal.severity as any,
               details: {
                 confidence: signal.confidence,
                 evidence: signal.evidence,

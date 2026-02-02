@@ -20,6 +20,12 @@ export default async function ExecutionDetailPage({
 
   const { id } = await params;
 
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(id)) {
+    notFound();
+  }
+
   // Get execution with task and repo
   const execution = await db.query.executions.findFirst({
     where: eq(executions.id, id),

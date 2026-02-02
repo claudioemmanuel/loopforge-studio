@@ -51,6 +51,7 @@ export const processingPhaseEnum = pgEnum("processing_phase", [
   "brainstorming",
   "planning",
   "executing",
+  "recovering",
 ]);
 
 export const workerJobPhaseEnum = pgEnum("worker_job_phase", [

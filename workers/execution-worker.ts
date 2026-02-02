@@ -23,7 +23,8 @@ import type {
 import type { ExecutionEventMetadata } from "../lib/ralph/types";
 import { eq, sql } from "drizzle-orm";
 import { canExecuteTask, recordUsage } from "../lib/billing";
-import { runLoop, type LoopContext, type ExecutionMode } from "../lib/ralph";
+import type { LoopContext, ExecutionMode } from "../lib/ralph";
+import { getExecutionService } from "../lib/contexts/execution/api";
 import {
   TestGate,
   parseTestOutput,
@@ -1047,7 +1048,8 @@ async function processExecution(
       }
     } catch (error) {
       // Skills framework optional - don't fail execution if not available
-      workerLogger.warn("Skills framework not available:", error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      workerLogger.warn({ error: errorMsg }, "Skills framework not available");
     }
   }
 
@@ -1341,11 +1343,22 @@ async function processExecution(
       { mode: useMultiAgent ? "multi-agent" : "classic" },
       "Execution mode",
     );
-    const result = await runLoop(loopContext, {
-      client: aiClient,
+
+    // Use ExecutionService instead of runLoop
+    const executionService = getExecutionService();
+    const result = await executionService.executeTask({
+      taskId,
+      userId,
+      repoId: task.repoId,
+      repoPath,
+      plan: planContent,
+      branchName: `loopforge/task-${task.id.slice(0, 8)}`,
+      aiClient,
+      mode: useMultiAgent ? "multi-agent" : "classic",
       maxIterations: 50,
       stuckThreshold: 3,
-      mode: useMultiAgent ? "multi-agent" : "classic",
+      taskTitle: task.title,
+      repoName: task.repo.name,
       parallelOptions: {
         maxConcurrency: 3,
         retryOnFailure: true,
@@ -3242,15 +3255,99 @@ planWorker.on("error", (err) => {
 
 workerLogger.info("Plan worker started");
 
+// ===========================================
+// Worker Health & Heartbeat System
+// ===========================================
+
+/**
+ * Health endpoint for Docker healthcheck
+ * Simple HTTP server on port 3001
+ */
+import express from "express";
+
+const healthApp = express();
+const HEALTH_PORT = process.env.HEALTH_PORT || 3001;
+
+healthApp.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    workers: {
+      execution: worker.isRunning(),
+      autonomous: autonomousWorker.isRunning(),
+      brainstorm: brainstormWorker.isRunning(),
+      plan: planWorker.isRunning(),
+    },
+  });
+});
+
+const healthServer = healthApp.listen(HEALTH_PORT, () => {
+  workerLogger.info({ port: HEALTH_PORT }, "Health server started");
+});
+
+/**
+ * Heartbeat publisher
+ * Calls /api/workers/heartbeat every 30 seconds
+ */
+const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+const WORKER_SECRET = process.env.WORKER_SECRET || "development-worker-secret";
+
+async function publishHeartbeat() {
+  try {
+    const response = await fetch(`${NEXTAUTH_URL}/api/workers/heartbeat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Worker-Token": WORKER_SECRET,
+      },
+      body: JSON.stringify({
+        workerId: process.env.WORKER_ID || "worker-1",
+        version: process.env.npm_package_version || "unknown",
+      }),
+    });
+
+    if (!response.ok) {
+      workerLogger.warn(
+        { status: response.status },
+        "Failed to publish heartbeat"
+      );
+    }
+  } catch (error) {
+    workerLogger.error({ error }, "Error publishing heartbeat");
+  }
+}
+
+// Publish initial heartbeat
+publishHeartbeat();
+
+// Set up heartbeat interval
+const heartbeatInterval = setInterval(publishHeartbeat, HEARTBEAT_INTERVAL);
+
+workerLogger.info(
+  { interval: HEARTBEAT_INTERVAL },
+  "Heartbeat publisher started"
+);
+
 // Graceful shutdown handler
 async function gracefulShutdown(signal: string) {
   workerLogger.info({ signal }, "Received shutdown signal, closing workers...");
+
+  // Clear heartbeat interval
+  clearInterval(heartbeatInterval);
+
+  // Close health server
+  healthServer.close();
+
+  // Close all workers
   await Promise.allSettled([
     worker.close(),
     autonomousWorker.close(),
     brainstormWorker.close(),
     planWorker.close(),
   ]);
+
   process.exit(0);
 }
 

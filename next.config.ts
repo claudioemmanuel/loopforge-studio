@@ -97,11 +97,6 @@ const nextConfig: NextConfig = {
       destination: "/activity/failed",
       permanent: true,
     },
-    {
-      source: "/workers/:taskId*",
-      destination: "/activity/:taskId*",
-      permanent: true,
-    },
     // Settings redirects
     {
       source: "/settings/integrations",

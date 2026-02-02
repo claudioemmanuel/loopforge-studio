@@ -14,11 +14,11 @@ import {
   MeasuringStrategy,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { useTranslations } from "next-intl";
 import { KanbanColumn } from "./kanban-column";
 import { KanbanCard } from "./kanban-card";
 import { DependencyHighlightProvider } from "./dependency-highlight-context";
 import { DependencyLines } from "./dependency-lines";
-import { cn } from "@/lib/utils";
 import { KanbanFocusProvider, useKanbanFocus } from "./kanban-focus-context";
 import { useKeyboardShortcuts } from "@/components/hooks/use-keyboard-shortcuts";
 import type { Task, TaskStatus } from "@/lib/db/schema";
@@ -39,34 +39,33 @@ interface KanbanBoardProps {
   slidingCards?: Set<string>;
 }
 
-// Column definitions with workflow order
-export const columns: { id: TaskStatus; title: string; description: string }[] =
-  [
-    { id: "todo", title: "To Do", description: "Tasks waiting to start" },
-    {
-      id: "brainstorming",
-      title: "Brainstorming",
-      description: "AI generating ideas",
-    },
-    {
-      id: "planning",
-      title: "Planning",
-      description: "Creating execution plans",
-    },
-    { id: "ready", title: "Ready", description: "Ready to execute" },
-    { id: "executing", title: "Executing", description: "AI working on code" },
-    {
-      id: "review",
-      title: "Review",
-      description: "Changes ready for approval",
-    },
-    { id: "done", title: "Done", description: "Completed tasks" },
-    {
-      id: "stuck",
-      title: "Failed",
-      description: "Tasks that encountered errors",
-    },
-  ];
+// Column IDs in workflow order
+export const columnIds: TaskStatus[] = [
+  "todo",
+  "brainstorming",
+  "planning",
+  "ready",
+  "executing",
+  "review",
+  "done",
+  "stuck",
+];
+
+// Helper function to get column definitions with translations
+export function useKanbanColumns() {
+  const t = useTranslations("tasks");
+  const tKanban = useTranslations("kanban");
+
+  return useMemo(
+    () =>
+      columnIds.map((id) => ({
+        id,
+        title: t(`statuses.${id}`),
+        description: tKanban(`columnDescriptions.${id}`),
+      })),
+    [t, tKanban]
+  );
+}
 
 // Measuring configuration for smoother animations
 const measuringConfig = {
@@ -96,6 +95,7 @@ function KanbanBoardInner({
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
+  const columns = useKanbanColumns();
 
   // Focus management and keyboard shortcuts
   const {
@@ -181,7 +181,7 @@ function KanbanBoardInner({
       if (group) group.push(task);
     });
     return grouped;
-  }, [tasks]);
+  }, [tasks, columns]);
 
   // Get tasks for a specific status
   const getTasksByStatus = useCallback(
@@ -235,7 +235,7 @@ function KanbanBoardInner({
         onTaskMove(taskId, overTask.status);
       }
     },
-    [tasks, onTaskMove],
+    [tasks, columns, onTaskMove],
   );
 
   // Handle drag cancel

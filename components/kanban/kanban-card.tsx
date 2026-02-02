@@ -35,6 +35,9 @@ import {
 } from "./card-status-badge";
 import { CardProcessingOverlay } from "./card-processing-overlay";
 import { SkillBadgeGroup } from "./skill-badge";
+import { RecoveryStatusBadge } from "./recovery-status-badge";
+import { RecoveryPopover } from "./recovery-popover";
+import type { RecoveryStatus } from "./recovery-status-badge";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import type { CardProcessingState } from "@/components/hooks/use-card-processing";
 import { formatDistanceToNow } from "date-fns";
@@ -71,6 +74,50 @@ export const KanbanCard = React.memo(function KanbanCard({
   const [starting, setStarting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [recoveryStatus, setRecoveryStatus] = useState<RecoveryStatus>({
+    isRecovering: false,
+    currentTier: null,
+    attemptNumber: 0,
+    maxAttempts: 3,
+    progress: 0,
+    status: "idle",
+  });
+  const [recoveryElapsedTime, setRecoveryElapsedTime] = useState(0);
+  const [recoveryError, setRecoveryError] = useState<string>();
+
+  // Fetch recovery status when task is stuck or recovering
+  useEffect(() => {
+    if (
+      task.status === "stuck" ||
+      task.processingPhase === "recovering"
+    ) {
+      const fetchRecoveryStatus = async () => {
+        try {
+          const res = await fetch(`/api/tasks/${task.id}/recovery-status`);
+          if (res.ok) {
+            const data = await res.json();
+            setRecoveryStatus({
+              isRecovering: data.isRecovering,
+              currentTier: data.currentTier,
+              attemptNumber: data.attemptNumber,
+              maxAttempts: data.maxAttempts,
+              progress: data.progress,
+              status: data.status,
+            });
+            setRecoveryElapsedTime(data.elapsedTime || 0);
+            setRecoveryError(data.lastError);
+          }
+        } catch (error) {
+          console.error("Failed to fetch recovery status:", error);
+        }
+      };
+
+      fetchRecoveryStatus();
+      // Poll every 2 seconds while recovering
+      const interval = setInterval(fetchRecoveryStatus, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [task.id, task.status, task.processingPhase]);
 
   // Dependency highlight context
   const dependencyContext = useDependencyHighlight();
@@ -217,6 +264,8 @@ export const KanbanCard = React.memo(function KanbanCard({
         processingState.processingPhase === "planning" && "ring-blue-500/50",
         processingState.processingPhase === "executing" &&
           "ring-emerald-500/50",
+        processingState.processingPhase === "recovering" &&
+          "ring-amber-500/50 motion-safe:animate-pulse",
       ],
     // Dependency highlight styles
     !isDragOverlay && [
@@ -312,6 +361,11 @@ export const KanbanCard = React.memo(function KanbanCard({
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           {/* Status badge, autonomous indicator, blocker badge */}
           <CardStatusBadge task={task} allTasks={allTasks} />
+
+          {/* Recovery status badge */}
+          {(task.status === "stuck" || task.processingPhase === "recovering") && (
+            <RecoveryStatusBadge status={recoveryStatus} compact={true} />
+          )}
 
           {/* Skill badges - show active skills for this task */}
           {processingState?.activeSkills &&
@@ -557,6 +611,22 @@ export const KanbanCard = React.memo(function KanbanCard({
       <ProcessingPopover processingState={processingState}>
         {baseCard}
       </ProcessingPopover>
+    );
+  }
+
+  // Wrap with recovery popover when recovering or stuck
+  if (
+    (task.status === "stuck" || task.processingPhase === "recovering") &&
+    recoveryStatus.status !== "idle"
+  ) {
+    return (
+      <RecoveryPopover
+        status={recoveryStatus}
+        elapsedTime={recoveryElapsedTime}
+        lastError={recoveryError}
+      >
+        {baseCard}
+      </RecoveryPopover>
     );
   }
 

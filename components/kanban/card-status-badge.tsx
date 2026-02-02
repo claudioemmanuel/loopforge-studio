@@ -115,13 +115,10 @@ interface CardStatusBadgeProps {
 }
 
 /**
- * Renders the status badge, optional autonomous-mode indicator, and
- * dependency/blocker badge for a Kanban card.
+ * Renders optional autonomous-mode indicator and dependency/blocker badge
+ * for a Kanban card. Status is communicated by the column header.
  */
 export function CardStatusBadge({ task, allTasks }: CardStatusBadgeProps) {
-  const config = getCardConfig(task.status);
-  const StatusIcon = config.icon;
-
   const blockedByIds = (task.blockedByIds as string[]) || [];
   const hasIncompleteBlockers =
     blockedByIds.length > 0 &&
@@ -129,22 +126,6 @@ export function CardStatusBadge({ task, allTasks }: CardStatusBadgeProps) {
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      {/* Status badge */}
-      <div
-        className={cn(
-          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full",
-          "text-xs font-medium",
-          config.bgColor,
-          config.textColor,
-          "transition-colors duration-200",
-        )}
-      >
-        <StatusIcon
-          className={cn("w-3 h-3", config.isActive && "animate-pulse")}
-        />
-        <span>{config.label}</span>
-      </div>
-
       {/* Autonomous mode indicator */}
       {task.autonomousMode && (
         <div

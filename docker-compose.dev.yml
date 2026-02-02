@@ -100,6 +100,7 @@ services:
     volumes:
       - .:/app
       - /app/.next
+      - /app/node_modules  # Exclude host node_modules - allows container to use Linux-native binaries
     command: npm run dev
     depends_on:
       postgres:
@@ -128,9 +129,15 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=loopforge
+      - NEXTAUTH_URL=http://web:3000
+      - WORKER_SECRET=${WORKER_SECRET:-development-worker-secret}
+      - HEALTH_PORT=3001
+    ports:
+      - "3001:3001"  # Health endpoint port
     volumes:
       - .:/app
       - repos-dev-data:/app/repos
+      - /app/node_modules  # Exclude host node_modules - allows container to use Linux-native binaries
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,6 +145,12 @@ services:
         condition: service_healthy
     networks:
       - loopforge-studio-dev
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     command: npx tsx --watch workers/execution-worker.ts
 
   # ===========================================

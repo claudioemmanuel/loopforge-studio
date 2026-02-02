@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/utils";
 import {
   Plus,
@@ -59,6 +59,28 @@ export function RepoHeader({
             <span>Dashboard</span>
           </Link>
           <div className="flex items-center gap-2">
+            {/* View Switcher - positioned with actions */}
+            <SegmentedControl
+              options={[
+                {
+                  value: "kanban",
+                  label: "Kanban",
+                  icon: <LayoutGrid className="w-4 h-4" />,
+                  ariaLabel: "Kanban board view",
+                },
+                {
+                  value: "graph",
+                  label: "Graph",
+                  icon: <Network className="w-4 h-4" />,
+                  ariaLabel: "Graph visualization view",
+                },
+              ]}
+              value={view}
+              onValueChange={(v) => onViewChange(v as "kanban" | "graph")}
+            />
+
+            <div className="w-px h-6 bg-border" />
+
             <Button
               variant="ghost"
               size="sm"
@@ -86,36 +108,15 @@ export function RepoHeader({
         {/* Title and description */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
-                {repo?.name || "Repository"}
-              </h1>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
+              {repo?.name || "Repository"}
+            </h1>
             {repo?.fullName && (
               <div className="flex items-center gap-2 mt-1.5 text-muted-foreground">
                 <GitBranch className="w-4 h-4" />
                 <span className="text-sm font-mono">{repo.fullName}</span>
               </div>
             )}
-          </div>
-
-          {/* View Toggle */}
-          <div className="flex items-center">
-            <Tabs
-              value={view}
-              onValueChange={(v) => onViewChange(v as "kanban" | "graph")}
-            >
-              <TabsList>
-                <TabsTrigger value="kanban" className="gap-2">
-                  <LayoutGrid className="w-4 h-4" />
-                  <span className="hidden sm:inline">Kanban</span>
-                </TabsTrigger>
-                <TabsTrigger value="graph" className="gap-2">
-                  <Network className="w-4 h-4" />
-                  <span className="hidden sm:inline">Graph</span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
           </div>
 
           {/* Quick stats and usage indicator */}

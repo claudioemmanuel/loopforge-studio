@@ -25,6 +25,14 @@ export interface PlanJobResult {
 // Queue for plan jobs
 export const planQueue = new Queue<PlanJobData, PlanJobResult>("plan", {
   connection: connectionOptions,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: {
+      type: "exponential",
+      delay: 2000,
+    },
+    timeout: 10 * 60 * 1000, // 10 minute timeout - auto-fail stuck jobs
+  },
 });
 
 // Add a job to the queue
