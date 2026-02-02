@@ -14,8 +14,46 @@ import type {
   TaskConfiguration,
   BrainstormResult,
   ExecutionResult,
+  TaskStatus,
 } from "../domain/types";
 import { randomUUID } from "crypto";
+
+/**
+ * API response format for task
+ */
+export interface TaskApiResponse {
+  id: string;
+  repoId: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: number;
+  brainstormSummary: string | null;
+  brainstormConversation: string | null;
+  brainstormMessageCount: number | null;
+  brainstormCompactedAt: Date | null;
+  planContent: string | null;
+  branch: string | null;
+  autonomousMode: boolean;
+  autoApprove: boolean;
+  processingPhase: string | null;
+  processingJobId: string | null;
+  processingStartedAt: Date | null;
+  processingStatusText: string | null;
+  processingProgress: number | null;
+  statusHistory: Array<{
+    status: TaskStatus;
+    timestamp: Date;
+    reason?: string;
+  }>;
+  prUrl: string | null;
+  prNumber: number | null;
+  prTargetBranch: string | null;
+  prDraft: boolean | null;
+  blockedByIds: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 /**
  * Task service
@@ -313,5 +351,96 @@ export class TaskService {
     }
 
     return task.canExecute();
+  }
+
+  /**
+   * Update task metadata (title, description, etc.)
+   */
+  async updateMetadata(params: {
+    taskId: string;
+    metadata: Partial<TaskMetadata>;
+  }): Promise<void> {
+    const task = await this.taskRepository.findById(params.taskId);
+    if (!task) {
+      throw new Error(`Task ${params.taskId} not found`);
+    }
+
+    task.updateMetadata(params.metadata);
+    await this.taskRepository.save(task);
+  }
+
+  /**
+   * Update task status (direct transition)
+   */
+  async updateStatus(params: {
+    taskId: string;
+    status: TaskStatus;
+    reason?: string;
+  }): Promise<void> {
+    const task = await this.taskRepository.findById(params.taskId);
+    if (!task) {
+      throw new Error(`Task ${params.taskId} not found`);
+    }
+
+    await task.transitionStatus(params.status, params.reason);
+    await this.taskRepository.save(task);
+  }
+
+  /**
+   * Delete task
+   */
+  async deleteTask(taskId: string): Promise<void> {
+    // Remove from dependency graph first
+    await this.dependencyGraph.removeAllDependenciesFor(taskId);
+
+    // Delete from database
+    const { db, tasks } = await import("@/lib/db");
+    const { eq } = await import("drizzle-orm");
+    await db.delete(tasks).where(eq(tasks.id, taskId));
+  }
+
+  /**
+   * Get full task state (for API responses)
+   */
+  async getTaskFull(taskId: string): Promise<TaskApiResponse | null> {
+    const task = await this.taskRepository.findById(taskId);
+    if (!task) {
+      return null;
+    }
+
+    const state = task.getState();
+
+    // Map to API response format (matches existing schema)
+    return {
+      id: state.id,
+      repoId: state.repositoryId,
+      title: state.metadata.title,
+      description: state.metadata.description ?? null,
+      status: state.status,
+      priority: state.metadata.priority,
+      brainstormSummary: state.brainstormResult?.summary ?? null,
+      brainstormConversation: state.brainstormResult?.conversation
+        ? JSON.stringify(state.brainstormResult.conversation)
+        : null,
+      brainstormMessageCount: state.brainstormResult?.messageCount ?? null,
+      brainstormCompactedAt: state.brainstormResult?.compactedAt ?? null,
+      planContent: state.planContent,
+      branch: state.executionResult?.branchName ?? null,
+      autonomousMode: state.configuration.autonomousMode,
+      autoApprove: state.configuration.autoApprove,
+      processingPhase: state.processingState.phase,
+      processingJobId: state.processingState.jobId,
+      processingStartedAt: state.processingState.startedAt,
+      processingStatusText: state.processingState.statusText,
+      processingProgress: state.processingState.progress,
+      statusHistory: state.statusHistory,
+      prUrl: state.executionResult?.prUrl ?? null,
+      prNumber: state.executionResult?.prNumber ?? null,
+      prTargetBranch: state.configuration.prTargetBranch ?? null,
+      prDraft: state.configuration.prDraft ?? null,
+      blockedByIds: state.blockedByIds,
+      createdAt: state.createdAt,
+      updatedAt: state.updatedAt,
+    };
   }
 }

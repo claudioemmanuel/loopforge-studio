@@ -550,6 +550,17 @@ export class TaskAggregate {
   }
 
   /**
+   * Update metadata (title, description)
+   */
+  updateMetadata(metadata: Partial<TaskMetadata>): void {
+    this.state.metadata = {
+      ...this.state.metadata,
+      ...metadata,
+    };
+    this.state.updatedAt = new Date();
+  }
+
+  /**
    * Update configuration
    */
   updateConfiguration(config: Partial<TaskConfiguration>): void {
