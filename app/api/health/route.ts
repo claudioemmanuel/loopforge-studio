@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
+import {
+  getHandlerHealthStatus,
+  areAllHandlersHealthy,
+  type HandlerHealth,
+} from "@/lib/contexts/event-initialization";
 
 export const revalidate = 60;
 
@@ -8,43 +13,75 @@ interface HealthStatus {
   status: "healthy" | "degraded" | "unhealthy";
   timestamp: string;
   version: string;
-  database: {
-    connected: boolean;
-    schemaValid?: boolean;
-    missingColumns?: string[];
+  checks: {
+    database: {
+      connected: boolean;
+      schemaValid?: boolean;
+      missingColumns?: string[];
+    };
+    eventHandlers: {
+      status: "healthy" | "degraded";
+      handlers: HandlerHealth[];
+    };
   };
   message?: string;
 }
 
 export async function GET() {
-  const health: HealthStatus = {
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || "0.1.0",
-    database: {
-      connected: false,
-    },
-  };
+  let dbConnected = false;
+  let schemaValid = false;
+  let missingColumns: string[] = [];
+  let dbError: string | undefined;
 
+  // Check database
   try {
-    // Test database connectivity
     await db.execute(sql`SELECT 1`);
-    health.database.connected = true;
+    dbConnected = true;
 
     // Validate critical schema columns
     const schemaCheck = await validateSchema();
-    health.database.schemaValid = schemaCheck.valid;
-    health.database.missingColumns = schemaCheck.missingColumns;
-
-    if (!schemaCheck.valid) {
-      health.status = "degraded";
-      health.message = "Database schema outdated. Run: npm run db:migrate";
-    }
+    schemaValid = schemaCheck.valid;
+    missingColumns = schemaCheck.missingColumns;
   } catch (error) {
-    health.status = "unhealthy";
-    health.database.connected = false;
-    health.message = error instanceof Error ? error.message : "Unknown error";
+    dbError = error instanceof Error ? error.message : "Unknown error";
   }
+
+  // Check event handlers
+  const eventHandlers = getHandlerHealthStatus();
+  const handlersHealthy = areAllHandlersHealthy();
+
+  // Determine overall status
+  let overallStatus: "healthy" | "degraded" | "unhealthy" = "healthy";
+  let message: string | undefined;
+
+  if (!dbConnected) {
+    overallStatus = "unhealthy";
+    message = dbError || "Database connection failed";
+  } else if (!schemaValid) {
+    overallStatus = "degraded";
+    message = "Database schema outdated. Run: npm run db:migrate";
+  } else if (!handlersHealthy) {
+    overallStatus = "degraded";
+    message = "One or more event handlers failed to initialize";
+  }
+
+  const health: HealthStatus = {
+    status: overallStatus,
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || "0.1.0",
+    checks: {
+      database: {
+        connected: dbConnected,
+        schemaValid,
+        missingColumns: missingColumns.length > 0 ? missingColumns : undefined,
+      },
+      eventHandlers: {
+        status: handlersHealthy ? "healthy" : "degraded",
+        handlers: eventHandlers,
+      },
+    },
+    message,
+  };
 
   const statusCode = health.status === "healthy" ? 200 : 503;
   return NextResponse.json(health, { status: statusCode });
