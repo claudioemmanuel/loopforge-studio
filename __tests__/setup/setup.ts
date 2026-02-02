@@ -395,6 +395,30 @@ beforeAll(async () => {
     CREATE INDEX IF NOT EXISTS idx_domain_events_aggregate ON domain_events(aggregate_type, aggregate_id);
     CREATE INDEX IF NOT EXISTS idx_domain_events_occurred_at ON domain_events(occurred_at DESC);
 
+    -- =========================================
+    -- Usage Records (Billing Context)
+    -- =========================================
+
+    CREATE TABLE IF NOT EXISTS usage_records (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
+      execution_id UUID REFERENCES executions(id) ON DELETE SET NULL,
+      period_start TIMESTAMP NOT NULL,
+      period_end TIMESTAMP NOT NULL,
+      model TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      estimated_cost INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    -- Create indexes for usage_records
+    CREATE INDEX IF NOT EXISTS idx_usage_records_user_id ON usage_records(user_id);
+    CREATE INDEX IF NOT EXISTS idx_usage_records_created_at ON usage_records(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_usage_records_period ON usage_records(period_start, period_end);
+
   `);
 });
 
