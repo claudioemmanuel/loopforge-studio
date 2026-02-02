@@ -78,6 +78,9 @@ beforeAll(async () => {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS locale TEXT DEFAULT 'en';
     -- Add workflow settings columns if they don't exist
     ALTER TABLE users ADD COLUMN IF NOT EXISTS default_clone_directory TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS default_test_command TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS default_test_timeout INTEGER DEFAULT 300000;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS default_test_gate_policy TEXT DEFAULT 'warn';
 
     DO $$ BEGIN
       CREATE TYPE indexing_status AS ENUM ('pending', 'indexing', 'indexed', 'failed');
