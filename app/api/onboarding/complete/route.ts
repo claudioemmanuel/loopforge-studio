@@ -4,6 +4,8 @@ import { db, users, repos } from "@/lib/db";
 import { encryptApiKey } from "@/lib/crypto";
 import { eq } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
+import { checkRepoLimit } from "@/lib/api/subscription-limits";
+import { Errors, handleError } from "@/lib/errors";
 
 interface GitHubRepo {
   id: number;
@@ -43,6 +45,47 @@ export const POST = withAuth(async (request, { user }) => {
       return NextResponse.json(
         { error: "At least one repository is required" },
         { status: 400 },
+      );
+    }
+
+    // PRE-VALIDATION: Check if user can add these repos
+    const limitCheck = await checkRepoLimit(user.id);
+
+    if (!limitCheck.allowed) {
+      return handleError(
+        Errors.repoLimitExceeded(limitCheck.tier, limitCheck.limit),
+      );
+    }
+
+    // Check if adding this batch would exceed limit
+    if (
+      limitCheck.limit !== -1 &&
+      limitCheck.current + reposToAdd.length > limitCheck.limit
+    ) {
+      // Calculate available slots
+      const availableSlots = limitCheck.limit - limitCheck.current;
+
+      if (availableSlots > 0) {
+        // GRACEFUL DEGRADATION: Offer partial success
+        return NextResponse.json(
+          {
+            error: "repository_limit_exceeded",
+            message: `You can only add ${availableSlots} more ${availableSlots === 1 ? "repository" : "repositories"} on the ${limitCheck.tier} tier.`,
+            partialAllowed: true,
+            maxAllowed: availableSlots,
+            selectedCount: reposToAdd.length,
+            tier: limitCheck.tier,
+            limit: limitCheck.limit,
+            current: limitCheck.current,
+            upgradeUrl: "/billing",
+          },
+          { status: 403 },
+        );
+      }
+
+      // No slots available
+      return handleError(
+        Errors.repoLimitExceeded(limitCheck.tier, limitCheck.limit),
       );
     }
 
@@ -152,6 +195,28 @@ export const POST = withAuth(async (request, { user }) => {
       success: true,
     });
   } catch (error) {
+    // Parse database constraint errors
+    const pgError = error as { code?: string; message?: string };
+
+    if (pgError.code === "23514") {
+      // Database constraint violation - repository limit exceeded
+      apiLogger.warn(
+        { error },
+        "Database constraint blocked repo limit violation",
+      );
+
+      return NextResponse.json(
+        {
+          error: "repository_limit_exceeded",
+          message:
+            "Repository limit exceeded for your subscription tier. Please upgrade to add more repositories.",
+          upgradeUrl: "/billing",
+        },
+        { status: 403 },
+      );
+    }
+
+    // Generic error (fallback)
     apiLogger.error({ error }, "Error completing onboarding");
     return NextResponse.json(
       { error: "Failed to complete onboarding" },

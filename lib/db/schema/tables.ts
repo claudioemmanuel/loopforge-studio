@@ -72,6 +72,10 @@ export const users = pgTable("users", {
   onboardingCompleted: boolean("onboarding_completed").default(false),
   // Workflow settings
   defaultCloneDirectory: text("default_clone_directory"),
+  // Test defaults (Workflow Settings Expansion 2026-02-01)
+  defaultTestCommand: text("default_test_command"),
+  defaultTestTimeout: integer("default_test_timeout").default(300000), // 5 minutes default
+  defaultTestGatePolicy: text("default_test_gate_policy").default("warn"), // strict | warn | skip | autoApprove
   // Billing fields
   billingMode: billingModeEnum("billing_mode").default("byok"),
   stripeCustomerId: text("stripe_customer_id"),

@@ -211,7 +211,7 @@ export default function WorkersPage() {
             Tasks will appear here when they&apos;re being processed
             (brainstorming, planning, or executing).
           </p>
-          <Link href="/execution/history">
+          <Link href="/activity/history">
             <Button variant="outline" size="sm" className="gap-2">
               <History className="w-4 h-4" />
               View execution history
@@ -225,7 +225,7 @@ export default function WorkersPage() {
       {workerCards.length > 0 && (
         <div className="mt-8 pt-6 border-t">
           <Link
-            href="/execution/history"
+            href="/activity/history"
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <History className="w-4 h-4" />

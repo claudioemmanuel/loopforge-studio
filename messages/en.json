@@ -13,12 +13,12 @@
     "dashboard": "Dashboard",
     "repositories": "Repositories",
     "allRepositories": "All Repositories",
-    "execution": "Execution",
+    "activity": "Activity",
+    "analytics": "Analytics",
     "graph": "Graph",
-    "activeTasks": "Active Tasks",
+    "activeTasks": "Active",
     "history": "History",
     "failed": "Failed",
-    "performance": "Performance",
     "settings": "Settings",
     "billing": "Billing",
     "dangerZone": "Danger Zone",
@@ -80,7 +80,17 @@
       "delete": "Delete",
       "progress": "Progress",
       "elapsed": "Elapsed:",
-      "activeSkills": "Active Skills:"
+      "activeSkills": "Active Skills:",
+      "workflowProgress": "Workflow Progress",
+      "clickToEdit": "Click to edit",
+      "dependencies": "Dependencies",
+      "lastUpdated": "Last updated",
+      "noDescription": "No description provided",
+      "brainstormResult": "Brainstorm Result",
+      "summary": "Summary",
+      "requirements": "Requirements",
+      "considerations": "Considerations",
+      "suggestedApproach": "Suggested Approach"
     },
     "newTask": {
       "title": "New Task",
@@ -111,8 +121,8 @@
   "settings": {
     "account": "Account",
     "preferences": "Preferences",
-    "integrations": "Integrations",
-    "workflow": "Workflow",
+    "connections": "Connections",
+    "automation": "Automation",
     "language": "Language",
     "selectLanguage": "Select Language",
     "dangerZone": {
@@ -238,6 +248,10 @@
     "workflowPage": {
       "title": "Workflow Settings",
       "subtitle": "Configure how Loopforge interacts with your repositories",
+      "tabs": {
+        "cloneDirectory": "Clone Directory",
+        "testDefaults": "Test Defaults"
+      },
       "cloneDirectory": "Clone Directory",
       "cloneDirectoryDescription": "Where repositories are cloned on your local machine. Use ~ for home directory.",
       "placeholder": "~/Documents/GitHub/loopforge-repos",
@@ -248,6 +262,7 @@
       "pleaseEnterValid": "Please enter a valid directory path",
       "configurationSaved": "Configuration saved",
       "cloneDirectoryUpdated": "Clone directory updated successfully",
+      "testDefaultsUpdated": "Test defaults updated successfully",
       "failedToSave": "Failed to save",
       "unknownError": "Unknown error occurred",
       "saving": "Saving...",
@@ -255,7 +270,31 @@
       "path": "Path",
       "pathLabel": "Directory Path",
       "browse": "Browse",
-      "selectDirectory": "Select Directory"
+      "selectDirectory": "Select Directory",
+      "testDefaults": {
+        "title": "Default Test Configuration",
+        "description": "These settings will be used for new repositories. Existing repositories keep their current configuration.",
+        "command": "Test Command",
+        "commandPlaceholder": "npm test",
+        "commandDescription": "Command to run tests (e.g., npm test, yarn test, pytest)",
+        "timeout": "Test Timeout",
+        "timeoutDescription": "Maximum time to wait for tests to complete",
+        "timeoutSeconds": "{seconds}s ({minutes} minutes)",
+        "gatePolicy": "Test Gate Policy",
+        "gatePolicyDescription": "How to handle test results before creating pull requests",
+        "gatePolicyOptions": {
+          "strict": "Strict - Block PR if tests fail",
+          "strictDescription": "Pull requests will not be created if any tests fail",
+          "warn": "Warn - Create PR with warning",
+          "warnDescription": "Create PR even if tests fail, but add a warning comment",
+          "skip": "Skip - No test enforcement",
+          "skipDescription": "Tests are run but results don't affect PR creation",
+          "autoApprove": "Auto-Approve - Log only",
+          "autoApproveDescription": "Tests run for logging purposes only"
+        },
+        "noDefaults": "No defaults configured",
+        "noDefaultsMessage": "Configure test defaults to automatically apply them to new repositories."
+      }
     },
     "billingPage": {
       "title": "Subscription",
@@ -739,6 +778,14 @@
       "failed": "Failed"
     },
     "refreshTitle": "Refresh workers"
+  },
+  "kanban": {
+    "start": "Start",
+    "plan": "Plan",
+    "setting": "Setting...",
+    "ready": "Ready",
+    "execute": "Execute",
+    "processingInBackground": "Processing in background"
   },
   "experiments": {
     "title": "Experiments",

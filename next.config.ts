@@ -55,31 +55,65 @@ const nextConfig: NextConfig = {
 
   // Redirects for backward compatibility
   redirects: async () => [
+    // Execution → Activity redirects (Navigation Restructure 2026-02-01)
+    {
+      source: "/execution/active",
+      destination: "/activity/active",
+      permanent: true,
+    },
+    {
+      source: "/execution/history",
+      destination: "/activity/history",
+      permanent: true,
+    },
+    {
+      source: "/execution/failed",
+      destination: "/activity/failed",
+      permanent: true,
+    },
+    {
+      source: "/execution/performance",
+      destination: "/analytics",
+      permanent: true,
+    },
+    {
+      source: "/execution/:taskId*",
+      destination: "/activity/:taskId*",
+      permanent: true,
+    },
+    // Workers → Activity redirects
     {
       source: "/workers",
-      destination: "/execution/active",
+      destination: "/activity/active",
       permanent: true,
     },
     {
       source: "/workers/history",
-      destination: "/execution/history",
+      destination: "/activity/history",
       permanent: true,
     },
     {
       source: "/workers/failed",
-      destination: "/execution/failed",
+      destination: "/activity/failed",
       permanent: true,
     },
     {
       source: "/workers/:taskId*",
-      destination: "/execution/:taskId*",
+      destination: "/activity/:taskId*",
+      permanent: true,
+    },
+    // Settings redirects
+    {
+      source: "/settings/integrations",
+      destination: "/settings/connections",
       permanent: true,
     },
     {
-      source: "/analytics",
-      destination: "/execution/performance",
+      source: "/settings/workflow",
+      destination: "/settings/automation",
       permanent: true,
     },
+    // Legacy billing redirects
     {
       source: "/subscription",
       destination: "/billing",

@@ -281,6 +281,13 @@
       "when": 1772061600000,
       "tag": "0039_subscription_limit_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1772148000000,
+      "tag": "0040_workflow_test_defaults",
+      "breakpoints": true
     }
   ]
 }

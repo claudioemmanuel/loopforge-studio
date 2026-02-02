@@ -13,12 +13,12 @@
     "dashboard": "Painel",
     "repositories": "Repositórios",
     "allRepositories": "Todos os Repositórios",
-    "execution": "Execução",
+    "activity": "Atividade",
+    "analytics": "Análise",
     "graph": "Grafo",
-    "activeTasks": "Tarefas Ativas",
+    "activeTasks": "Ativas",
     "history": "Histórico",
     "failed": "Falhas",
-    "performance": "Desempenho",
     "settings": "Configurações",
     "billing": "Faturamento",
     "dangerZone": "Zona de Perigo",
@@ -80,7 +80,17 @@
       "delete": "Excluir",
       "progress": "Progresso",
       "elapsed": "Decorrido:",
-      "activeSkills": "Habilidades Ativas:"
+      "activeSkills": "Habilidades Ativas:",
+      "workflowProgress": "Progresso do Fluxo de Trabalho",
+      "clickToEdit": "Clique para editar",
+      "dependencies": "Dependências",
+      "lastUpdated": "Última atualização",
+      "noDescription": "Nenhuma descrição fornecida",
+      "brainstormResult": "Resultado do Brainstorming",
+      "summary": "Resumo",
+      "requirements": "Requisitos",
+      "considerations": "Considerações",
+      "suggestedApproach": "Abordagem Sugerida"
     },
     "newTask": {
       "title": "Nova Tarefa",
@@ -111,8 +121,8 @@
   "settings": {
     "account": "Conta",
     "preferences": "Preferências",
-    "integrations": "Integrações",
-    "workflow": "Fluxo de Trabalho",
+    "connections": "Conexões",
+    "automation": "Automação",
     "language": "Idioma",
     "selectLanguage": "Selecionar Idioma",
     "dangerZone": {
@@ -238,6 +248,10 @@
     "workflowPage": {
       "title": "Configurações de Fluxo de Trabalho",
       "subtitle": "Configure como o Loopforge interage com seus repositórios",
+      "tabs": {
+        "cloneDirectory": "Diretório de Clone",
+        "testDefaults": "Padrões de Teste"
+      },
       "cloneDirectory": "Diretório de Clone",
       "cloneDirectoryDescription": "Onde os repositórios são clonados em sua máquina local. Use ~ para o diretório home.",
       "placeholder": "~/Documents/GitHub/loopforge-repos",
@@ -248,6 +262,7 @@
       "pleaseEnterValid": "Por favor, insira um caminho de diretório válido",
       "configurationSaved": "Configuração salva",
       "cloneDirectoryUpdated": "Diretório de clone atualizado com sucesso",
+      "testDefaultsUpdated": "Padrões de teste atualizados com sucesso",
       "failedToSave": "Falha ao salvar",
       "unknownError": "Erro desconhecido ocorreu",
       "saving": "Salvando...",
@@ -255,7 +270,31 @@
       "path": "Caminho",
       "pathLabel": "Caminho do Diretório",
       "browse": "Procurar",
-      "selectDirectory": "Selecionar Diretório"
+      "selectDirectory": "Selecionar Diretório",
+      "testDefaults": {
+        "title": "Configuração Padrão de Testes",
+        "description": "Estas configurações serão usadas para novos repositórios. Repositórios existentes mantêm sua configuração atual.",
+        "command": "Comando de Teste",
+        "commandPlaceholder": "npm test",
+        "commandDescription": "Comando para executar testes (ex: npm test, yarn test, pytest)",
+        "timeout": "Timeout de Teste",
+        "timeoutDescription": "Tempo máximo para aguardar a conclusão dos testes",
+        "timeoutSeconds": "{seconds}s ({minutes} minutos)",
+        "gatePolicy": "Política de Gate de Teste",
+        "gatePolicyDescription": "Como lidar com resultados de teste antes de criar pull requests",
+        "gatePolicyOptions": {
+          "strict": "Estrito - Bloquear PR se testes falharem",
+          "strictDescription": "Pull requests não serão criados se algum teste falhar",
+          "warn": "Avisar - Criar PR com aviso",
+          "warnDescription": "Criar PR mesmo se testes falharem, mas adicionar um comentário de aviso",
+          "skip": "Pular - Sem aplicação de testes",
+          "skipDescription": "Testes são executados mas resultados não afetam criação de PR",
+          "autoApprove": "Auto-Aprovar - Apenas log",
+          "autoApproveDescription": "Testes executam apenas para fins de registro"
+        },
+        "noDefaults": "Nenhum padrão configurado",
+        "noDefaultsMessage": "Configure padrões de teste para aplicá-los automaticamente a novos repositórios."
+      }
     },
     "billingPage": {
       "title": "Assinatura",
@@ -739,6 +778,14 @@
       "failed": "Falhados"
     },
     "refreshTitle": "Atualizar workers"
+  },
+  "kanban": {
+    "start": "Iniciar",
+    "plan": "Planejar",
+    "setting": "Configurando...",
+    "ready": "Pronto",
+    "execute": "Executar",
+    "processingInBackground": "Processando em segundo plano"
   },
   "experiments": {
     "title": "Experimentos",

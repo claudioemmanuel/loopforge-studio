@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       return handleError(Errors.notFound("Repository"));
     }
 
-    // Fetch activity events with 'change' category for this repo
+    // Fetch activity events with 'git' category (commits and file changes) for this repo
     const changes = await db
       .select({
         id: activityEvents.id,
@@ -49,10 +49,7 @@ export async function GET(request: Request) {
       .from(activityEvents)
       .innerJoin(tasks, eq(activityEvents.taskId, tasks.id))
       .where(
-        and(
-          eq(tasks.repoId, repoId),
-          eq(activityEvents.eventCategory, "change"),
-        ),
+        and(eq(tasks.repoId, repoId), eq(activityEvents.eventCategory, "git")),
       )
       .orderBy(desc(activityEvents.createdAt))
       .limit(limit);

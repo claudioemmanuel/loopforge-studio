@@ -19,7 +19,7 @@ import {
   AlertTriangle,
   PanelLeftClose,
   PanelLeft,
-  Zap,
+  Activity,
   Play,
   History,
   FlaskConical,
@@ -67,16 +67,15 @@ interface SidebarProps {
 // Note: Labels will be translated in the component using useTranslations
 const settingsSubItems = [
   { href: "/settings/account", labelKey: "account", icon: User },
+  { href: "/settings/connections", labelKey: "connections", icon: Plug },
   { href: "/settings/preferences", labelKey: "preferences", icon: Sliders },
-  { href: "/settings/integrations", labelKey: "integrations", icon: Plug },
-  { href: "/settings/workflow", labelKey: "workflow", icon: GitBranch },
+  { href: "/settings/automation", labelKey: "automation", icon: GitBranch },
 ];
 
-const executionSubItems = [
-  { href: "/execution/active", labelKey: "activeTasks", icon: Play },
-  { href: "/execution/history", labelKey: "history", icon: History },
-  { href: "/execution/failed", labelKey: "failed", icon: AlertTriangle },
-  { href: "/execution/performance", labelKey: "performance", icon: BarChart3 },
+const activitySubItems = [
+  { href: "/activity/active", labelKey: "activeTasks", icon: Play },
+  { href: "/activity/history", labelKey: "history", icon: History },
+  { href: "/activity/failed", labelKey: "failed", icon: AlertTriangle },
 ];
 
 export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
@@ -106,7 +105,8 @@ export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
   const isDashboardActive = pathname === "/dashboard";
   const isRepositoriesActive =
     pathname === "/repositories" || pathname.startsWith("/repos/");
-  const isExecutionActive = pathname.startsWith("/execution");
+  const isActivityActive = pathname.startsWith("/activity");
+  const isAnalyticsActive = pathname === "/analytics";
   const isSettingsActive = pathname.startsWith("/settings");
   const isExperimentsActive = pathname === "/experiments";
 
@@ -313,7 +313,7 @@ export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
                 )}
               </div>
 
-              {/* Execution with cascade */}
+              {/* Activity with cascade */}
               <div>
                 {collapsed ? (
                   <Popover>
@@ -321,20 +321,20 @@ export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
                       <button
                         className={cn(
                           "flex items-center justify-center p-2 rounded-lg transition-colors w-full",
-                          isExecutionActive
+                          isActivityActive
                             ? "bg-primary/10 text-primary"
                             : "text-muted-foreground hover:text-foreground",
                         )}
                       >
-                        <Zap className="w-5 h-5" />
+                        <Activity className="w-5 h-5" />
                       </button>
                     </PopoverTrigger>
                     <PopoverContent side="right" className="w-52 p-2">
                       <div className="space-y-1">
                         <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
-                          {t("execution")}
+                          {t("activity")}
                         </div>
-                        {executionSubItems.map((item) => {
+                        {activitySubItems.map((item) => {
                           const Icon = item.icon;
                           const isActive = pathname === item.href;
                           return (
@@ -373,14 +373,14 @@ export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
                         "text-muted-foreground",
                       )}
                     >
-                      <Zap className="w-4 h-4" />
+                      <Activity className="w-4 h-4" />
                       <span className="flex-1 text-left font-medium">
-                        {t("execution")}
+                        {t("activity")}
                       </span>
                     </div>
 
                     <div className="ml-4 mt-1 space-y-0.5 border-l pl-3">
-                      {executionSubItems.map((item) => {
+                      {activitySubItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = pathname === item.href;
                         return (
@@ -412,6 +412,39 @@ export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
                   </>
                 )}
               </div>
+
+              {/* Analytics (single view) */}
+              {collapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href="/analytics"
+                      className={cn(
+                        "flex items-center justify-center p-2 rounded-lg transition-colors",
+                        isAnalyticsActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <BarChart3 className="w-5 h-5" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{t("analytics")}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Link
+                  href="/analytics"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                    isAnalyticsActive
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  {t("analytics")}
+                </Link>
+              )}
 
               {/* Settings with cascade */}
               <div>
