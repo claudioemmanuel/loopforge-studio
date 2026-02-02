@@ -6,6 +6,7 @@ import { clientLogger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 import { KanbanBoard } from "@/components/kanban";
+import { RepositoryGraphView } from "@/components/repository/repository-graph-view";
 import { NewTaskModal } from "@/components/modals/new-task-modal";
 
 const TaskModal = dynamic(
@@ -51,6 +52,7 @@ export default function RepoPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [autoStartBrainstorm, setAutoStartBrainstorm] = useState(false);
+  const [view, setView] = useState<"kanban" | "graph">("kanban");
 
   // Error dialog state for task start failures
   const [errorDialog, setErrorDialog] = useState<ErrorDialogState>({
@@ -276,6 +278,8 @@ export default function RepoPage() {
         repo={repo}
         taskStats={taskStats}
         refreshing={refreshing}
+        view={view}
+        onViewChange={setView}
         onRefresh={handleRefresh}
         onNewTask={() => {
           if (repo?.isCloned) {
@@ -285,24 +289,30 @@ export default function RepoPage() {
         onRepoUpdate={setRepo}
       />
 
-      {/* Kanban Board with overlays */}
+      {/* Main Content - Kanban Board or Graph View */}
       <main
         className={cn(
-          "flex-1 overflow-hidden px-6 lg:px-8 py-6 relative transition-opacity duration-300",
+          "flex-1 overflow-hidden relative transition-opacity duration-300",
           !repo?.isCloned && "opacity-40",
         )}
       >
-        <KanbanBoard
-          tasks={tasks}
-          onTaskMove={handleTaskMove}
-          onTaskClick={handleTaskClick}
-          onTaskDelete={handleTaskDelete}
-          onTaskStart={handleTaskStart}
-          onTaskAdvance={handleTaskAdvance}
-          onAddTask={() => setShowNewTask(true)}
-          processingCards={processingCards}
-          slidingCards={slidingCards}
-        />
+        {view === "kanban" ? (
+          <div className="h-full px-6 lg:px-8 py-6">
+            <KanbanBoard
+              tasks={tasks}
+              onTaskMove={handleTaskMove}
+              onTaskClick={handleTaskClick}
+              onTaskDelete={handleTaskDelete}
+              onTaskStart={handleTaskStart}
+              onTaskAdvance={handleTaskAdvance}
+              onAddTask={() => setShowNewTask(true)}
+              processingCards={processingCards}
+              slidingCards={slidingCards}
+            />
+          </div>
+        ) : (
+          <RepositoryGraphView repositoryId={repoId} />
+        )}
 
         {/* Repo setup overlay (when not cloned) */}
         {repo && !repo.isCloned && (

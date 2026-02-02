@@ -1,8 +1,16 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { Plus, GitBranch, ArrowLeft, RefreshCw } from "lucide-react";
+import {
+  Plus,
+  GitBranch,
+  ArrowLeft,
+  RefreshCw,
+  LayoutGrid,
+  Network,
+} from "lucide-react";
 import Link from "next/link";
 import { UsageIndicator } from "@/components/billing/usage-indicator";
 import { RepoData, statConfig } from "./use-task-actions";
@@ -16,6 +24,8 @@ interface RepoHeaderProps {
     stuck: number;
   };
   refreshing: boolean;
+  view: "kanban" | "graph";
+  onViewChange: (view: "kanban" | "graph") => void;
   onRefresh: () => void;
   onNewTask: () => void;
   onRepoUpdate?: (repo: RepoData) => void;
@@ -25,6 +35,8 @@ export function RepoHeader({
   repo,
   taskStats,
   refreshing,
+  view,
+  onViewChange,
   onRefresh,
   onNewTask,
   onRepoUpdate,
@@ -73,7 +85,7 @@ export function RepoHeader({
 
         {/* Title and description */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-          <div>
+          <div className="flex-1">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight">
                 {repo?.name || "Repository"}
@@ -85,6 +97,25 @@ export function RepoHeader({
                 <span className="text-sm font-mono">{repo.fullName}</span>
               </div>
             )}
+          </div>
+
+          {/* View Toggle */}
+          <div className="flex items-center">
+            <Tabs
+              value={view}
+              onValueChange={(v) => onViewChange(v as "kanban" | "graph")}
+            >
+              <TabsList>
+                <TabsTrigger value="kanban" className="gap-2">
+                  <LayoutGrid className="w-4 h-4" />
+                  <span className="hidden sm:inline">Kanban</span>
+                </TabsTrigger>
+                <TabsTrigger value="graph" className="gap-2">
+                  <Network className="w-4 h-4" />
+                  <span className="hidden sm:inline">Graph</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           {/* Quick stats and usage indicator */}
