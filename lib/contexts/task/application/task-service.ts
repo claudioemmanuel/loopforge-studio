@@ -17,43 +17,7 @@ import type {
   TaskStatus,
 } from "../domain/types";
 import { randomUUID } from "crypto";
-
-/**
- * API response format for task
- */
-export interface TaskApiResponse {
-  id: string;
-  repoId: string;
-  title: string;
-  description: string | null;
-  status: TaskStatus;
-  priority: number;
-  brainstormSummary: string | null;
-  brainstormConversation: string | null;
-  brainstormMessageCount: number | null;
-  brainstormCompactedAt: Date | null;
-  planContent: string | null;
-  branch: string | null;
-  autonomousMode: boolean;
-  autoApprove: boolean;
-  processingPhase: string | null;
-  processingJobId: string | null;
-  processingStartedAt: Date | null;
-  processingStatusText: string | null;
-  processingProgress: number | null;
-  statusHistory: Array<{
-    status: TaskStatus;
-    timestamp: Date;
-    reason?: string;
-  }>;
-  prUrl: string | null;
-  prNumber: number | null;
-  prTargetBranch: string | null;
-  prDraft: boolean | null;
-  blockedByIds: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { TaskAdapter, type TaskApiResponse } from "../api/adapters";
 
 /**
  * Task service
@@ -410,37 +374,7 @@ export class TaskService {
 
     const state = task.getState();
 
-    // Map to API response format (matches existing schema)
-    return {
-      id: state.id,
-      repoId: state.repositoryId,
-      title: state.metadata.title,
-      description: state.metadata.description ?? null,
-      status: state.status,
-      priority: state.metadata.priority,
-      brainstormSummary: state.brainstormResult?.summary ?? null,
-      brainstormConversation: state.brainstormResult?.conversation
-        ? JSON.stringify(state.brainstormResult.conversation)
-        : null,
-      brainstormMessageCount: state.brainstormResult?.messageCount ?? null,
-      brainstormCompactedAt: state.brainstormResult?.compactedAt ?? null,
-      planContent: state.planContent,
-      branch: state.executionResult?.branchName ?? null,
-      autonomousMode: state.configuration.autonomousMode,
-      autoApprove: state.configuration.autoApprove,
-      processingPhase: state.processingState.phase,
-      processingJobId: state.processingState.jobId,
-      processingStartedAt: state.processingState.startedAt,
-      processingStatusText: state.processingState.statusText,
-      processingProgress: state.processingState.progress,
-      statusHistory: state.statusHistory,
-      prUrl: state.executionResult?.prUrl ?? null,
-      prNumber: state.executionResult?.prNumber ?? null,
-      prTargetBranch: state.configuration.prTargetBranch ?? null,
-      prDraft: state.configuration.prDraft ?? null,
-      blockedByIds: state.blockedByIds,
-      createdAt: state.createdAt,
-      updatedAt: state.updatedAt,
-    };
+    // Use adapter to map to API format
+    return TaskAdapter.toApiResponse(state);
   }
 }
