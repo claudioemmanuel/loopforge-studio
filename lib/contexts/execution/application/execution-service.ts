@@ -21,6 +21,11 @@ import { randomUUID } from "crypto";
 import type { AIClient } from "@/lib/ai/client";
 import type { ParallelExecutionOptions } from "@/lib/agents/types";
 import type { ExecutionEvent } from "@/lib/ralph/types";
+import {
+  ExecutionAdapter,
+  type ExecutionApiResponse,
+  type ExecutionDetailedApiResponse,
+} from "../api/adapters";
 
 /**
  * Execution service
@@ -304,7 +309,7 @@ export class ExecutionService {
     plan: string;
     branchName: string;
     aiClient: AIClient; // AIClient from @/lib/ai/client
-    mode?: 'classic' | 'multi-agent';
+    mode?: "classic" | "multi-agent";
     maxIterations?: number;
     stuckThreshold?: number;
     taskTitle?: string;
@@ -313,7 +318,7 @@ export class ExecutionService {
     onEvent?: (event: ExecutionEvent) => void | Promise<void>;
     onProgress?: (event: ExecutionEvent) => void | Promise<void>;
   }): Promise<{
-    status: 'complete' | 'stuck' | 'continue';
+    status: "complete" | "stuck" | "continue";
     iterations: number;
     commits: string[];
     error?: string;
@@ -324,11 +329,11 @@ export class ExecutionService {
       plan,
       branchName,
       aiClient,
-      mode = 'classic',
+      mode = "classic",
       maxIterations = 50,
       stuckThreshold = 3,
-      taskTitle = '',
-      repoName = '',
+      taskTitle = "",
+      repoName = "",
       parallelOptions,
       onEvent,
       onProgress,
@@ -345,7 +350,7 @@ export class ExecutionService {
 
     try {
       // Route to appropriate execution mode
-      if (mode === 'multi-agent' && plan) {
+      if (mode === "multi-agent" && plan) {
         return await this.executeMultiAgent({
           executionId,
           taskId,
@@ -372,11 +377,12 @@ export class ExecutionService {
         });
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       await this.failExecution({ executionId, error: errorMessage });
 
       return {
-        status: 'stuck',
+        status: "stuck",
         iterations: 0,
         commits: [],
         error: errorMessage,
@@ -397,12 +403,13 @@ export class ExecutionService {
     onEvent?: (event: ExecutionEvent) => void | Promise<void>;
     onProgress?: (event: ExecutionEvent) => void | Promise<void>;
   }): Promise<{
-    status: 'complete' | 'stuck' | 'continue';
+    status: "complete" | "stuck" | "continue";
     iterations: number;
     commits: string[];
     error?: string;
   }> {
-    const { runParallelExecution } = await import('@/lib/ralph/parallel-executor');
+    const { runParallelExecution } =
+      await import("@/lib/ralph/parallel-executor");
 
     try {
       const result = await runParallelExecution(
@@ -417,7 +424,7 @@ export class ExecutionService {
           options: params.parallelOptions,
           onEvent: async (event) => {
             // Map events to aggregate methods
-            if (event.type === 'commit' && event.metadata?.commitSha) {
+            if (event.type === "commit" && event.metadata?.commitSha) {
               await this.recordCommit({
                 executionId: params.executionId,
                 commit: {
@@ -445,22 +452,26 @@ export class ExecutionService {
       } else {
         await this.failExecution({
           executionId: params.executionId,
-          error: result.error || 'Multi-agent execution failed',
+          error: result.error || "Multi-agent execution failed",
         });
       }
 
       return {
-        status: result.success ? 'complete' : 'stuck',
+        status: result.success ? "complete" : "stuck",
         iterations: result.taskResults.size,
         commits: result.commits,
         error: result.error,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      await this.failExecution({ executionId: params.executionId, error: errorMessage });
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      await this.failExecution({
+        executionId: params.executionId,
+        error: errorMessage,
+      });
 
       return {
-        status: 'stuck',
+        status: "stuck",
         iterations: 0,
         commits: [],
         error: errorMessage,
@@ -484,21 +495,25 @@ export class ExecutionService {
     repoName: string;
     onEvent?: (event: ExecutionEvent) => void | Promise<void>;
   }): Promise<{
-    status: 'complete' | 'stuck' | 'continue';
+    status: "complete" | "stuck" | "continue";
     iterations: number;
     commits: string[];
     error?: string;
   }> {
     // Import dependencies
-    const { generatePrompt } = await import('@/lib/ralph/prompt-generator');
-    const { smartExtractFiles, getFormatInstructions } = await import('@/lib/ralph/smart-extractor');
-    const { applyFileChanges } = await import('@/lib/ralph/file-writer');
-    const { commitChanges } = await import('@/lib/ralph/git-operations');
-    const { StuckDetector, LegacyStuckChecker } = await import('@/lib/ralph/stuck-detector');
-    const { RecoveryOrchestrator } = await import('@/lib/ralph/recovery-strategies');
-    const { CompletionValidator, LegacyCompletionChecker } = await import('@/lib/ralph/completion-validator');
-    const { getFeatureFlag } = await import('@/lib/config/feature-flags');
-    const { RALPH_COMPLETE, RALPH_STUCK } = await import('@/lib/ralph/types');
+    const { generatePrompt } = await import("@/lib/ralph/prompt-generator");
+    const { smartExtractFiles, getFormatInstructions } =
+      await import("@/lib/ralph/smart-extractor");
+    const { applyFileChanges } = await import("@/lib/ralph/file-writer");
+    const { commitChanges } = await import("@/lib/ralph/git-operations");
+    const { StuckDetector, LegacyStuckChecker } =
+      await import("@/lib/ralph/stuck-detector");
+    const { RecoveryOrchestrator } =
+      await import("@/lib/ralph/recovery-strategies");
+    const { CompletionValidator, LegacyCompletionChecker } =
+      await import("@/lib/ralph/completion-validator");
+    const { getFeatureFlag } = await import("@/lib/config/feature-flags");
+    const { RALPH_COMPLETE, RALPH_STUCK } = await import("@/lib/ralph/types");
 
     const commits: string[] = [];
     let iteration = 1;
@@ -507,9 +522,11 @@ export class ExecutionService {
     const maxNoFileRetries = 2;
 
     // Initialize reliability modules
-    const useStuckDetector = getFeatureFlag('ENABLE_STUCK_DETECTOR');
-    const useRecovery = getFeatureFlag('ENABLE_RECOVERY_STRATEGIES');
-    const useCompletionValidation = getFeatureFlag('ENABLE_COMPLETION_VALIDATION');
+    const useStuckDetector = getFeatureFlag("ENABLE_STUCK_DETECTOR");
+    const useRecovery = getFeatureFlag("ENABLE_RECOVERY_STRATEGIES");
+    const useCompletionValidation = getFeatureFlag(
+      "ENABLE_COMPLETION_VALIDATION",
+    );
 
     const stuckDetector = useStuckDetector
       ? new StuckDetector({
@@ -519,7 +536,9 @@ export class ExecutionService {
         })
       : new LegacyStuckChecker(params.stuckThreshold);
 
-    const recoveryOrchestrator = useRecovery ? new RecoveryOrchestrator() : null;
+    const recoveryOrchestrator = useRecovery
+      ? new RecoveryOrchestrator()
+      : null;
     const completionValidator = useCompletionValidation
       ? new CompletionValidator()
       : new LegacyCompletionChecker();
@@ -536,10 +555,12 @@ export class ExecutionService {
     } = {};
 
     // Helper to check completion markers
-    const checkCompletion = (output: string): 'complete' | 'stuck' | 'continue' => {
-      if (output.includes(RALPH_COMPLETE)) return 'complete';
-      if (output.includes(RALPH_STUCK)) return 'stuck';
-      return 'continue';
+    const checkCompletion = (
+      output: string,
+    ): "complete" | "stuck" | "continue" => {
+      if (output.includes(RALPH_COMPLETE)) return "complete";
+      if (output.includes(RALPH_STUCK)) return "stuck";
+      return "continue";
     };
 
     const extractStuckReason = (output: string): string | undefined => {
@@ -560,24 +581,25 @@ export class ExecutionService {
 
       // Emit thinking event
       await emitEvent({
-        type: 'thinking',
+        type: "thinking",
         content: `Starting iteration ${iteration} (using ${params.aiClient.getProvider()}/${params.aiClient.getModel()})`,
         timestamp: new Date(),
         metadata: { iteration },
       });
 
       // Skills Framework Integration
-      const skillsEnabled = process.env.ENABLE_SKILLS_SYSTEM !== 'false';
+      const skillsEnabled = process.env.ENABLE_SKILLS_SYSTEM !== "false";
       let skillResults: Array<{ skillId: string; status: string }> = [];
 
       if (skillsEnabled) {
         try {
-          const { invokePhaseSkills, isSkillsSystemEnabled } = await import('@/lib/skills');
+          const { invokePhaseSkills, isSkillsSystemEnabled } =
+            await import("@/lib/skills");
 
           if (isSkillsSystemEnabled()) {
             const skillContext = {
               taskId: params.taskId,
-              phase: 'executing' as const,
+              phase: "executing" as const,
               taskDescription: params.taskTitle,
               workingDir: params.repoPath,
               iteration,
@@ -586,14 +608,18 @@ export class ExecutionService {
               executionId: params.executionId,
             };
 
-            skillResults = await invokePhaseSkills('executing', skillContext, params.aiClient);
+            skillResults = await invokePhaseSkills(
+              "executing",
+              skillContext,
+              params.aiClient,
+            );
 
             // Record skills
             for (const result of skillResults) {
               await this.recordSkill({
                 executionId: params.executionId,
                 skillName: result.skillId,
-                phase: 'executing',
+                phase: "executing",
                 result: result.status as "complete" | "stuck" | "continue",
               });
             }
@@ -601,8 +627,8 @@ export class ExecutionService {
             // Emit skills event
             if (skillResults.length > 0) {
               await emitEvent({
-                type: 'thinking',
-                content: `Skills executed: ${skillResults.map((r) => `${r.skillId}(${r.status})`).join(', ')}`,
+                type: "thinking",
+                content: `Skills executed: ${skillResults.map((r) => `${r.skillId}(${r.status})`).join(", ")}`,
                 timestamp: new Date(),
                 metadata: { iteration },
               });
@@ -610,7 +636,10 @@ export class ExecutionService {
           }
         } catch (error) {
           // Skills framework optional
-          console.warn('[ExecutionService] Skills framework not available:', error);
+          console.warn(
+            "[ExecutionService] Skills framework not available:",
+            error,
+          );
         }
       }
 
@@ -621,8 +650,8 @@ export class ExecutionService {
         iteration,
         workingDir: params.repoPath,
         tasksPath: params.plan,
-        quickVerify: '',
-        fullVerify: '',
+        quickVerify: "",
+        fullVerify: "",
         doConstraints: [],
         dontConstraints: [],
       });
@@ -635,7 +664,7 @@ export class ExecutionService {
         prompt = `${getFormatInstructions()}\n\n${prompt}`;
 
         await emitEvent({
-          type: 'thinking',
+          type: "thinking",
           content: `Added format instructions due to ${consecutiveNoFileIterations} iteration(s) without extractable code`,
           timestamp: new Date(),
           metadata: { iteration },
@@ -644,27 +673,34 @@ export class ExecutionService {
 
       try {
         // Call AI client
-        const output = await params.aiClient.chat([{ role: 'user', content: prompt }], {
-          maxTokens: 8192,
-        });
+        const output = await params.aiClient.chat(
+          [{ role: "user", content: prompt }],
+          {
+            maxTokens: 8192,
+          },
+        );
 
         await emitEvent({
-          type: 'thinking',
+          type: "thinking",
           content: `Iteration ${iteration} completed`,
           metadata: { output: output.substring(0, 500), iteration },
           timestamp: new Date(),
         });
 
         // Extract files
-        const useEnhancedExtraction = getFeatureFlag('ENABLE_ENHANCED_EXTRACTION');
+        const useEnhancedExtraction = getFeatureFlag(
+          "ENABLE_ENHANCED_EXTRACTION",
+        );
         const useAiAssisted = consecutiveNoFileIterations >= maxNoFileRetries;
 
         const extraction = await smartExtractFiles(output, {
           client: useAiAssisted ? params.aiClient : undefined,
           previousAttempts: consecutiveNoFileIterations,
           strategy: useEnhancedExtraction
-            ? recoveryOrchestrator?.getRecommendedTier(reliabilityData.stuckSignals || []) === 'simplified_prompt'
-              ? 'ai-single-file'
+            ? recoveryOrchestrator?.getRecommendedTier(
+                reliabilityData.stuckSignals || [],
+              ) === "simplified_prompt"
+              ? "ai-single-file"
               : undefined
             : undefined,
         });
@@ -673,19 +709,21 @@ export class ExecutionService {
         await this.recordExtraction({
           executionId: params.executionId,
           result: {
-            files: extraction.files.map((f: { path: string; content: string; action?: string }) => ({
-              path: f.path,
-              content: f.content,
-              language: f.language,
-            })),
-            strategy: (extraction.method || 'strict') as ExtractionStrategy,
+            files: extraction.files.map(
+              (f: { path: string; content: string; action?: string }) => ({
+                path: f.path,
+                content: f.content,
+                language: f.language,
+              }),
+            ),
+            strategy: (extraction.method || "strict") as ExtractionStrategy,
             confidence: extraction.confidence,
             fallbackUsed: false,
           },
         });
 
         await emitEvent({
-          type: 'thinking',
+          type: "thinking",
           content: `Extraction: ${extraction.files.length} file(s) via ${extraction.method}`,
           metadata: {
             method: extraction.method,
@@ -703,8 +741,8 @@ export class ExecutionService {
             // Attempt recovery
             if (recoveryOrchestrator && useRecovery) {
               await emitEvent({
-                type: 'thinking',
-                content: 'Attempting recovery (tier escalation)...',
+                type: "thinking",
+                content: "Attempting recovery (tier escalation)...",
                 timestamp: new Date(),
                 metadata: { iteration },
               });
@@ -713,16 +751,16 @@ export class ExecutionService {
                 executionId: params.executionId,
                 attempt: {
                   tier: 1,
-                  strategy: 'format_guidance',
+                  strategy: "format_guidance",
                   startedAt: new Date(),
                   succeeded: false,
                 },
-                reason: 'No extractable code',
+                reason: "No extractable code",
               });
 
               const recoveryResult = await recoveryOrchestrator.attemptRecovery(
                 {
-                  tier: 'format_guidance',
+                  tier: "format_guidance",
                   attemptNumber: 1,
                   maxAttempts: 4,
                   previousErrors: [],
@@ -732,7 +770,7 @@ export class ExecutionService {
                 },
                 {
                   taskDescription: params.taskTitle,
-                  planContent: params.plan || '',
+                  planContent: params.plan || "",
                   workingDir: params.repoPath,
                 },
                 params.aiClient,
@@ -750,12 +788,14 @@ export class ExecutionService {
               await this.completeRecovery({
                 executionId: params.executionId,
                 succeeded: recoveryResult.success,
-                error: recoveryResult.success ? undefined : recoveryResult.message,
+                error: recoveryResult.success
+                  ? undefined
+                  : recoveryResult.message,
               });
 
               if (recoveryResult.success) {
                 await emitEvent({
-                  type: 'thinking',
+                  type: "thinking",
                   content: `Recovery succeeded at tier: ${recoveryResult.tier}`,
                   timestamp: new Date(),
                   metadata: { iteration },
@@ -765,7 +805,7 @@ export class ExecutionService {
                 continue;
               } else {
                 await emitEvent({
-                  type: 'stuck',
+                  type: "stuck",
                   content: `Recovery exhausted. ${recoveryResult.message}`,
                   metadata: {
                     manualSteps: recoveryResult.manualSteps,
@@ -780,7 +820,7 @@ export class ExecutionService {
                 });
 
                 return {
-                  status: 'stuck',
+                  status: "stuck",
                   iterations: iteration,
                   commits,
                   error: `No extractable code after recovery attempts. ${recoveryResult.message}`,
@@ -790,17 +830,17 @@ export class ExecutionService {
 
             // No recovery or recovery failed
             const status = checkCompletion(output);
-            if (status === 'complete') {
+            if (status === "complete") {
               await this.failExecution({
                 executionId: params.executionId,
-                error: 'Agent reported completion but no code was extracted',
+                error: "Agent reported completion but no code was extracted",
               });
 
               return {
-                status: 'stuck',
+                status: "stuck",
                 iterations: iteration,
                 commits,
-                error: 'Agent reported completion but no code was extracted',
+                error: "Agent reported completion but no code was extracted",
               };
             }
           }
@@ -809,10 +849,13 @@ export class ExecutionService {
           consecutiveNoFileIterations = 0;
 
           await emitEvent({
-            type: 'file_write',
-            content: `Writing ${extraction.files.length} file(s): ${extraction.files.map((f: { path: string; content: string; action?: string }) => f.path).join(', ')}`,
+            type: "file_write",
+            content: `Writing ${extraction.files.length} file(s): ${extraction.files.map((f: { path: string; content: string; action?: string }) => f.path).join(", ")}`,
             metadata: {
-              files: extraction.files.map((f: { path: string; content: string; action?: string }) => f.path),
+              files: extraction.files.map(
+                (f: { path: string; content: string; action?: string }) =>
+                  f.path,
+              ),
               method: extraction.method,
               iteration,
             },
@@ -822,17 +865,19 @@ export class ExecutionService {
           // Write files
           const writeResult = await applyFileChanges(
             params.repoPath,
-            extraction.files.map((f: { path: string; content: string; action?: string }) => ({
-              path: f.path,
-              action: f.action,
-              content: f.content,
-            })),
+            extraction.files.map(
+              (f: { path: string; content: string; action?: string }) => ({
+                path: f.path,
+                action: f.action,
+                content: f.content,
+              }),
+            ),
           );
 
           if (writeResult.errors.length > 0) {
             await emitEvent({
-              type: 'error',
-              content: `File write errors: ${writeResult.errors.map((e: { path: string; error: string }) => `${e.path}: ${e.error}`).join('; ')}`,
+              type: "error",
+              content: `File write errors: ${writeResult.errors.map((e: { path: string; error: string }) => `${e.path}: ${e.error}`).join("; ")}`,
               timestamp: new Date(),
               metadata: { iteration },
             });
@@ -862,7 +907,7 @@ export class ExecutionService {
               });
 
               await emitEvent({
-                type: 'commit',
+                type: "commit",
                 content: `Committed ${commitResult.filesChanged} file(s)`,
                 metadata: {
                   commitSha: commitResult.sha,
@@ -873,11 +918,11 @@ export class ExecutionService {
               });
             } catch (commitError) {
               // Continue even if commit fails
-              console.error('[ExecutionService] Commit failed:', commitError);
+              console.error("[ExecutionService] Commit failed:", commitError);
 
               await emitEvent({
-                type: 'error',
-                content: `Commit failed: ${commitError instanceof Error ? commitError.message : 'Unknown error'}`,
+                type: "error",
+                content: `Commit failed: ${commitError instanceof Error ? commitError.message : "Unknown error"}`,
                 timestamp: new Date(),
                 metadata: { iteration },
               });
@@ -889,18 +934,21 @@ export class ExecutionService {
         await this.completeIteration({
           executionId: params.executionId,
           thoughts: [output.substring(0, 500)],
-          actions: extraction.files.map((f: { path: string; content: string; action?: string }) => `${f.action} ${f.path}`),
+          actions: extraction.files.map(
+            (f: { path: string; content: string; action?: string }) =>
+              `${f.action} ${f.path}`,
+          ),
         });
 
         // Check completion status
         const status = checkCompletion(output);
 
-        if (status === 'complete') {
+        if (status === "complete") {
           // Validate completion
           const validation = await completionValidator.validate({
             output,
             commits,
-            plan: params.plan || '',
+            plan: params.plan || "",
             workingDir: params.repoPath,
             aiClient: useCompletionValidation ? params.aiClient : undefined,
           });
@@ -913,12 +961,36 @@ export class ExecutionService {
               score: validation.score,
               passed: validation.passed,
               checks: {
-                hasMarker: { passed: validation.checks?.hasMarker ?? false, score: 0, weight: 20 },
-                hasCommits: { passed: validation.checks?.hasCommits ?? false, score: 0, weight: 20 },
-                matchesPlan: { passed: validation.checks?.matchesPlan ?? false, score: 0, weight: 30 },
-                qualityThreshold: { passed: validation.checks?.qualityThreshold ?? false, score: 0, weight: 15 },
-                testsExecuted: { passed: validation.checks?.testsExecuted ?? false, score: 0, weight: 5 },
-                noCriticalErrors: { passed: validation.checks?.noCriticalErrors ?? false, score: 0, weight: 10 },
+                hasMarker: {
+                  passed: validation.checks?.hasMarker ?? false,
+                  score: 0,
+                  weight: 20,
+                },
+                hasCommits: {
+                  passed: validation.checks?.hasCommits ?? false,
+                  score: 0,
+                  weight: 20,
+                },
+                matchesPlan: {
+                  passed: validation.checks?.matchesPlan ?? false,
+                  score: 0,
+                  weight: 30,
+                },
+                qualityThreshold: {
+                  passed: validation.checks?.qualityThreshold ?? false,
+                  score: 0,
+                  weight: 15,
+                },
+                testsExecuted: {
+                  passed: validation.checks?.testsExecuted ?? false,
+                  score: 0,
+                  weight: 5,
+                },
+                noCriticalErrors: {
+                  passed: validation.checks?.noCriticalErrors ?? false,
+                  score: 0,
+                  weight: 10,
+                },
               },
               generatedAt: new Date(),
             },
@@ -926,8 +998,8 @@ export class ExecutionService {
 
           if (!validation.passed) {
             await emitEvent({
-              type: 'stuck',
-              content: `Completion validation failed (score: ${validation.score}): ${validation.failures.join('; ')}`,
+              type: "stuck",
+              content: `Completion validation failed (score: ${validation.score}): ${validation.failures.join("; ")}`,
               metadata: {
                 validation,
                 reliabilityData,
@@ -942,7 +1014,7 @@ export class ExecutionService {
             });
 
             return {
-              status: 'stuck',
+              status: "stuck",
               iterations: iteration,
               commits,
               error: `Incomplete implementation: ${validation.failures[0]}`,
@@ -950,7 +1022,7 @@ export class ExecutionService {
           }
 
           await emitEvent({
-            type: 'complete',
+            type: "complete",
             content: `All tasks completed successfully (${commits.length} commit(s), validation score: ${validation.score})`,
             metadata: {
               validation,
@@ -964,17 +1036,17 @@ export class ExecutionService {
           await this.completeExecution(params.executionId);
 
           return {
-            status: 'complete',
+            status: "complete",
             iterations: iteration,
             commits,
           };
         }
 
-        if (status === 'stuck') {
-          const reason = extractStuckReason(output) || 'Unknown reason';
+        if (status === "stuck") {
+          const reason = extractStuckReason(output) || "Unknown reason";
 
           await emitEvent({
-            type: 'stuck',
+            type: "stuck",
             content: `Stuck: ${reason}`,
             timestamp: new Date(),
             metadata: { iteration },
@@ -986,7 +1058,7 @@ export class ExecutionService {
           });
 
           return {
-            status: 'stuck',
+            status: "stuck",
             iterations: iteration,
             commits,
             error: reason,
@@ -996,10 +1068,11 @@ export class ExecutionService {
         // Continue to next iteration
         iteration++;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
 
         await emitEvent({
-          type: 'error',
+          type: "error",
           content: `Error in iteration ${iteration}: ${errorMessage}`,
           timestamp: new Date(),
           metadata: { iteration },
@@ -1009,7 +1082,7 @@ export class ExecutionService {
         const signals = stuckDetector.analyze({
           iteration,
           error: errorMessage,
-          output: '',
+          output: "",
           commits: 0,
           extractionSuccess: false,
           timestamp: new Date(),
@@ -1039,7 +1112,7 @@ export class ExecutionService {
           const report = stuckDetector.generateReport(signals);
 
           await emitEvent({
-            type: 'stuck',
+            type: "stuck",
             content: report.summary,
             metadata: {
               report,
@@ -1055,7 +1128,7 @@ export class ExecutionService {
           });
 
           return {
-            status: 'stuck',
+            status: "stuck",
             iterations: iteration,
             commits,
             error: report.summary,
@@ -1071,7 +1144,7 @@ export class ExecutionService {
           });
 
           return {
-            status: 'stuck',
+            status: "stuck",
             iterations: iteration,
             commits,
             error: `Failed after ${stuckCount} consecutive errors: ${errorMessage}`,
@@ -1082,7 +1155,7 @@ export class ExecutionService {
 
     // Max iterations reached
     await emitEvent({
-      type: 'stuck',
+      type: "stuck",
       content: `Max iterations (${params.maxIterations}) reached`,
       timestamp: new Date(),
       metadata: { iteration },
@@ -1094,10 +1167,50 @@ export class ExecutionService {
     });
 
     return {
-      status: 'stuck',
+      status: "stuck",
       iterations: iteration,
       commits,
       error: `Max iterations (${params.maxIterations}) reached`,
     };
+  }
+
+  /**
+   * Get full execution state in API format
+   *
+   * Returns complete execution information formatted for API responses.
+   * Uses ExecutionAdapter to transform domain state to API format.
+   */
+  async getExecutionFull(
+    executionId: string,
+  ): Promise<ExecutionApiResponse | null> {
+    const execution = await this.executionRepository.findById(executionId);
+    if (!execution) {
+      return null;
+    }
+
+    const state = execution.getState();
+
+    // Use adapter to transform to API format (basic)
+    return ExecutionAdapter.toApiResponse(state);
+  }
+
+  /**
+   * Get detailed execution state in API format
+   *
+   * Returns complete execution with full iteration history and commit details.
+   * Uses ExecutionAdapter to transform domain state to detailed API format.
+   */
+  async getExecutionDetailed(
+    executionId: string,
+  ): Promise<ExecutionDetailedApiResponse | null> {
+    const execution = await this.executionRepository.findById(executionId);
+    if (!execution) {
+      return null;
+    }
+
+    const state = execution.getState();
+
+    // Use adapter to transform to detailed API format
+    return ExecutionAdapter.toDetailedApiResponse(state);
   }
 }
