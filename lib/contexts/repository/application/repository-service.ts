@@ -14,6 +14,7 @@ import type {
   PRConfiguration,
 } from "../domain/types";
 import { randomUUID } from "crypto";
+import { RepositoryAdapter, type RepositoryApiResponse } from "../api/adapters";
 
 /**
  * Repository service
@@ -247,5 +248,63 @@ export class RepositoryService {
       isCloned: repo.isCloned(),
       isIndexed: repo.isIndexed(),
     };
+  }
+
+  /**
+   * Delete repository
+   *
+   * Removes repository from database. Cleanup of local files
+   * should be handled separately.
+   */
+  async deleteRepository(repositoryId: string): Promise<void> {
+    // Delete from database
+    const { db, repos } = await import("@/lib/db");
+    const { eq } = await import("drizzle-orm");
+    await db.delete(repos).where(eq(repos.id, repositoryId));
+  }
+
+  /**
+   * Get full repository state in API format
+   *
+   * Returns complete repository information formatted for API responses.
+   * Uses RepositoryAdapter to transform domain state to API format.
+   */
+  async getRepositoryFull(
+    repositoryId: string,
+  ): Promise<RepositoryApiResponse | null> {
+    const repo = await this.repository.findById(repositoryId);
+    if (!repo) {
+      return null;
+    }
+
+    const state = repo.getState();
+
+    // Use adapter to transform to API format
+    return RepositoryAdapter.toApiResponse(state);
+  }
+
+  /**
+   * Update repository configuration (test + PR config)
+   *
+   * Convenience method for updating both test and PR configuration.
+   */
+  async updateConfiguration(params: {
+    repositoryId: string;
+    testConfig?: Partial<TestConfiguration>;
+    prConfig?: Partial<PRConfiguration>;
+  }): Promise<void> {
+    if (params.testConfig) {
+      await this.updateTestConfig({
+        repositoryId: params.repositoryId,
+        config: params.testConfig,
+      });
+    }
+
+    if (params.prConfig) {
+      await this.updatePRConfig({
+        repositoryId: params.repositoryId,
+        config: params.prConfig,
+      });
+    }
   }
 }
