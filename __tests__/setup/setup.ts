@@ -260,10 +260,19 @@ beforeAll(async () => {
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS branch TEXT;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS pr_url TEXT;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS pr_number INTEGER;
+    -- P0: Rollback tracking
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS reverted BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS revert_commit_sha TEXT;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS reverted_at TIMESTAMP;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS revert_reason TEXT;
     -- Ralph Loop Reliability Features (2026-01-29)
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS stuck_signals JSONB;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS recovery_attempts JSONB;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS validation_report JSONB;
+    -- Token tracking (Prompt Engineering Framework 2026-01-29)
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS token_metrics JSONB DEFAULT '{}'::jsonb;
+    -- Skills tracking (Skills Framework Integration 2026-01-29)
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS skill_executions JSONB DEFAULT '[]'::jsonb;
 
     CREATE TABLE IF NOT EXISTS execution_events (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
