@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getUsageSummary } from "@/lib/billing/domain";
+import { getBillingService } from "@/lib/contexts/billing/api";
 import { handleError, Errors } from "@/lib/errors";
 
 export async function GET() {
@@ -11,7 +11,8 @@ export async function GET() {
   }
 
   try {
-    const usage = await getUsageSummary(session.user.id);
+    const billingService = getBillingService();
+    const usage = await billingService.getUsageSummary(session.user.id);
 
     return NextResponse.json({
       currentPeriod: {
