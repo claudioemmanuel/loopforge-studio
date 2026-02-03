@@ -21,8 +21,8 @@ export function RepoSetupOverlay({
   onCloneComplete,
 }: RepoSetupOverlayProps) {
   const [cloneStatus, setCloneStatus] = useState<
-    "idle" | "cloning" | "success" | "error"
-  >("idle");
+    "pending" | "cloning" | "completed" | "failed"
+  >("pending");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCloning, setIsCloning] = useState(false);
   const [cloneProgress, setCloneProgress] = useState<{
@@ -34,7 +34,7 @@ export function RepoSetupOverlay({
 
   // Auto-hide after successful clone (with delay for user feedback)
   useEffect(() => {
-    if (cloneStatus === "success") {
+    if (cloneStatus === "completed") {
       const timer = setTimeout(() => {
         // Call parent callback if provided, otherwise refresh page
         if (onCloneComplete) {
@@ -85,7 +85,7 @@ export function RepoSetupOverlay({
         // Handle configuration requirement
         if (errorData.requiresConfiguration) {
           setShowCloneDirModal(true);
-          setCloneStatus("idle");
+          setCloneStatus("pending");
           setCloneProgress(null);
           return;
         }
@@ -100,9 +100,9 @@ export function RepoSetupOverlay({
         setCloneProgress({ phase: "indexing", percentage: 90 });
       }, 1000);
 
-      setCloneStatus("success");
+      setCloneStatus("completed");
     } catch (error) {
-      setCloneStatus("error");
+      setCloneStatus("failed");
       setErrorMessage(
         error instanceof Error ? error.message : "Unknown error occurred",
       );
@@ -116,8 +116,8 @@ export function RepoSetupOverlay({
   if (isCloned) return null;
 
   // Determine dialog state based on clone status
-  const isError = cloneStatus === "error";
-  const isSuccess = cloneStatus === "success";
+  const isError = cloneStatus === "failed";
+  const isSuccess = cloneStatus === "completed";
 
   return (
     <DialogPrimitive.Root open={true}>
