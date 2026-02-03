@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { db, tasks, buildStatusHistoryAppend } from "@/lib/db";
 import { eq, and, isNull } from "drizzle-orm";
-import { queuePlan } from "@/lib/queue";
+import { createDomainEvent } from "@/lib/domain-events/bus";
+import { initDomainEventSystem } from "@/lib/application/event-system";
+import { publishForJob } from "@/lib/application/event-handlers";
 import {
   publishProcessingEvent,
   createProcessingEvent,
@@ -88,16 +90,24 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
 
     // Now queue the job (we have exclusive processing rights)
     // Worker will decrypt API key on demand using userId
-    const job = await queuePlan({
-      taskId,
-      userId: user.id,
-      repoId: task.repoId,
-      brainstormResult: task.brainstormResult,
-      continueToExecution: task.autonomousMode,
-      repoName: task.repo.name,
-      repoFullName: task.repo.fullName,
-      repoDefaultBranch: task.repo.defaultBranch || "main",
-    });
+    const bus = initDomainEventSystem();
+    const job = await publishForJob(
+      bus,
+      createDomainEvent("TaskPlanningRequested", {
+        taskId,
+        userId: user.id,
+        repoId: task.repoId,
+        brainstormResult: task.brainstormResult,
+        continueToExecution: task.autonomousMode,
+        repoName: task.repo.name,
+        repoFullName: task.repo.fullName,
+        repoDefaultBranch: task.repo.defaultBranch || "main",
+      }),
+    );
+
+    if (!job || !job.id) {
+      throw new Error("Failed to queue plan job");
+    }
 
     // Update with the job ID
     await db

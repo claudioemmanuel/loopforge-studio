@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { db, tasks, executions } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { queueExecution } from "@/lib/queue";
+import { createDomainEvent } from "@/lib/domain-events/bus";
+import { initDomainEventSystem } from "@/lib/application/event-system";
+import { publishForJob } from "@/lib/application/event-handlers";
 import {
   withTask,
   getProviderApiKey,
@@ -107,18 +109,26 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
 
     // Queue the execution job
     // Worker will decrypt API key on demand using userId
-    const job = await queueExecution({
-      executionId,
-      taskId: task.id,
-      repoId: task.repoId,
-      userId: user.id,
-      aiProvider: finalProvider,
-      preferredModel: finalModel,
-      planContent: task.planContent,
-      branch,
-      defaultBranch: task.repo.defaultBranch || "main",
-      cloneUrl: task.repo.cloneUrl,
-    });
+    const bus = initDomainEventSystem();
+    const job = await publishForJob(
+      bus,
+      createDomainEvent("TaskExecutionRequested", {
+        executionId,
+        taskId: task.id,
+        repoId: task.repoId,
+        userId: user.id,
+        aiProvider: finalProvider,
+        preferredModel: finalModel,
+        planContent: task.planContent,
+        branch,
+        defaultBranch: task.repo.defaultBranch || "main",
+        cloneUrl: task.repo.cloneUrl,
+      }),
+    );
+
+    if (!job || !job.id) {
+      throw new Error("Failed to queue execution job");
+    }
 
     const updatedTask = await db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),

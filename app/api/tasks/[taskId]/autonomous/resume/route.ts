@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, tasks, users, executions } from "@/lib/db";
 import { eq, and, ne } from "drizzle-orm";
-import { queueExecution } from "@/lib/queue";
+import { createDomainEvent } from "@/lib/domain-events/bus";
+import { initDomainEventSystem } from "@/lib/application/event-system";
+import { publishForJob } from "@/lib/application/event-handlers";
 import type { AiProvider } from "@/lib/db/schema";
 import {
   getProviderApiKey,
@@ -66,18 +68,26 @@ async function queueTaskExecution(
 
     // Queue the execution job
     // Worker will decrypt API key on demand using userId
-    const job = await queueExecution({
-      executionId,
-      taskId: task.id,
-      repoId: task.repoId,
-      userId,
-      aiProvider: provider,
-      preferredModel: model,
-      planContent: task.planContent,
-      branch,
-      defaultBranch: task.repo.defaultBranch || "main",
-      cloneUrl: task.repo.cloneUrl,
-    });
+    const bus = initDomainEventSystem();
+    const job = await publishForJob(
+      bus,
+      createDomainEvent("TaskExecutionRequested", {
+        executionId,
+        taskId: task.id,
+        repoId: task.repoId,
+        userId,
+        aiProvider: provider,
+        preferredModel: model,
+        planContent: task.planContent,
+        branch,
+        defaultBranch: task.repo.defaultBranch || "main",
+        cloneUrl: task.repo.cloneUrl,
+      }),
+    );
+
+    if (!job || !job.id) {
+      throw new Error("Failed to queue execution job");
+    }
 
     return { executionId, jobId: job.id };
   } catch (error) {

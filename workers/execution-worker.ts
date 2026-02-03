@@ -35,8 +35,6 @@ import {
   createAutonomousFlowWorker,
   createBrainstormWorker,
   createPlanWorker,
-  queuePlan,
-  queueExecution,
   type ExecutionJobData,
   type ExecutionJobResult,
   type BrainstormJobData,
@@ -78,6 +76,9 @@ import {
   phaseStatusMessages,
 } from "../lib/workers/events";
 import simpleGit from "simple-git";
+import { createDomainEvent } from "../lib/domain-events/bus";
+import { initDomainEventSystem } from "../lib/application/event-system";
+import { publishForJob } from "../lib/application/event-handlers";
 import path from "path";
 import fs from "fs/promises";
 import { workerLogger } from "../lib/logger";
@@ -930,19 +931,26 @@ async function handleTaskOrchestration(
           );
         }
 
-        // Queue execution (worker will decrypt API key on demand using userId)
-        await queueExecution({
-          executionId: execution.id,
-          taskId: task.id,
-          repoId: task.repoId,
-          userId,
-          aiProvider: autoExecConfig.provider,
-          preferredModel: autoExecConfig.model,
-          planContent: enhancedPlan,
-          branch: task.branch || `loopforge/${task.id.slice(0, 8)}`,
-          defaultBranch: task.repo.defaultBranch || "main",
-          cloneUrl: task.repo.cloneUrl,
-        });
+        const bus = initDomainEventSystem();
+        const queuedExecution = await publishForJob(
+          bus,
+          createDomainEvent("TaskExecutionRequested", {
+            executionId: execution.id,
+            taskId: task.id,
+            repoId: task.repoId,
+            userId,
+            aiProvider: autoExecConfig.provider,
+            preferredModel: autoExecConfig.model,
+            planContent: enhancedPlan,
+            branch: task.branch || `loopforge/${task.id.slice(0, 8)}`,
+            defaultBranch: task.repo.defaultBranch || "main",
+            cloneUrl: task.repo.cloneUrl,
+          }),
+        );
+
+        if (!queuedExecution || !queuedExecution.id) {
+          throw new Error("Failed to queue auto-execution job");
+        }
 
         workerLogger.info(
           { taskId: task.id, executionId: execution.id },
@@ -1101,6 +1109,16 @@ async function processExecution(
       jobId: job.id,
     })
     .returning();
+
+  const bus = initDomainEventSystem();
+  await bus.publish(
+    createDomainEvent("ExecutionStarted", {
+      executionId,
+      taskId,
+      repoId: task.repoId,
+      userId,
+    }),
+  );
 
   // Track stats for result summary
   let filesWritten = 0;
@@ -2248,6 +2266,17 @@ async function processExecution(
       }
     }
 
+    if (result.status === "complete") {
+      await bus.publish(
+        createDomainEvent("ExecutionCompleted", {
+          executionId,
+          taskId,
+          repoId: task.repoId,
+          userId,
+        }),
+      );
+    }
+
     return {
       success: result.status === "complete",
       commits: result.commits,
@@ -2257,6 +2286,16 @@ async function processExecution(
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
+
+    await bus.publish(
+      createDomainEvent("ExecutionFailed", {
+        executionId,
+        taskId,
+        repoId: task.repoId,
+        userId,
+        reason: errorMessage,
+      }),
+    );
 
     // Update execution status
     await db
@@ -2605,16 +2644,24 @@ async function processBrainstorm(
     if (continueToPlanning) {
       workerLogger.info({ taskId }, "Autonomous mode: queueing plan");
 
-      const planJob = await queuePlan({
-        taskId,
-        userId,
-        repoId,
-        brainstormResult: brainstormResultJson,
-        continueToExecution: true,
-        repoName: task.repo.name,
-        repoFullName: task.repo.fullName,
-        repoDefaultBranch: task.repo.defaultBranch || "main",
-      });
+      const bus = initDomainEventSystem();
+      const planJob = await publishForJob(
+        bus,
+        createDomainEvent("TaskPlanningRequested", {
+          taskId,
+          userId,
+          repoId,
+          brainstormResult: brainstormResultJson,
+          continueToExecution: true,
+          repoName: task.repo.name,
+          repoFullName: task.repo.fullName,
+          repoDefaultBranch: task.repo.defaultBranch || "main",
+        }),
+      );
+
+      if (!planJob || !planJob.id) {
+        throw new Error("Failed to queue plan job");
+      }
 
       // Update task to planning phase with history
       await db
@@ -2976,6 +3023,17 @@ async function processPlan(
 
     workerLogger.info({ taskId }, "Plan complete");
 
+    const bus = initDomainEventSystem();
+    await bus.publish(
+      createDomainEvent("TaskPlanned", {
+        taskId,
+        userId,
+        repoId,
+        planSteps: stepsCount,
+        autoApprove: continueToExecution,
+      }),
+    );
+
     // If autonomous mode, queue execution job
     if (continueToExecution) {
       workerLogger.info({ taskId }, "Autonomous mode: queueing execution");
@@ -3017,20 +3075,25 @@ async function processPlan(
         })
         .where(eq(tasks.id, taskId));
 
-      // Queue execution
-      // Worker will decrypt API key on demand using userId
-      await queueExecution({
-        executionId: execution.id,
-        taskId,
-        repoId,
-        userId,
-        aiProvider: planAiConfig.provider,
-        preferredModel: planAiConfig.model,
-        planContent: planContentJson,
-        branch: branchName,
-        defaultBranch: repoDefaultBranch || task.repo.defaultBranch || "main",
-        cloneUrl: repo.cloneUrl,
-      });
+      const queuedExecution = await publishForJob(
+        bus,
+        createDomainEvent("TaskExecutionRequested", {
+          executionId: execution.id,
+          taskId,
+          repoId,
+          userId,
+          aiProvider: planAiConfig.provider,
+          preferredModel: planAiConfig.model,
+          planContent: planContentJson,
+          branch: branchName,
+          defaultBranch: repoDefaultBranch || task.repo.defaultBranch || "main",
+          cloneUrl: repo.cloneUrl,
+        }),
+      );
+
+      if (!queuedExecution || !queuedExecution.id) {
+        throw new Error("Failed to queue execution job");
+      }
 
       // Publish executing event
       await publishWorkerEvent(

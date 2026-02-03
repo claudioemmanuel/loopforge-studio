@@ -15,6 +15,8 @@ import {
 } from "../lib/queue";
 import { indexRepository } from "../lib/indexing";
 import { workerLogger } from "../lib/logger";
+import { createDomainEvent } from "../lib/domain-events/bus";
+import { initDomainEventSystem } from "../lib/application/event-system";
 
 async function processIndexing(
   job: Job<IndexingJobData, IndexingJobResult>,
@@ -97,6 +99,16 @@ async function processIndexing(
       })
       .where(eq(repos.id, repoId));
 
+    const bus = initDomainEventSystem();
+    await bus.publish(
+      createDomainEvent("RepoIndexed", {
+        repoId,
+        userId: job.data.userId,
+        success: true,
+        fileCount: result.fileCount,
+      }),
+    );
+
     return {
       success: true,
       fileCount: result.fileCount,
@@ -119,6 +131,16 @@ async function processIndexing(
         updatedAt: new Date(),
       })
       .where(eq(repos.id, repoId));
+
+    const bus = initDomainEventSystem();
+    await bus.publish(
+      createDomainEvent("RepoIndexed", {
+        repoId,
+        userId: job.data.userId,
+        success: false,
+        error: errorMessage,
+      }),
+    );
 
     return {
       success: false,

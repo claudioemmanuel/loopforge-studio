@@ -3,7 +3,9 @@ import { auth } from "@/lib/auth";
 import { db, repos, users } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { decryptGithubToken } from "@/lib/crypto";
-import { queueIndexing } from "@/lib/queue";
+import { createDomainEvent } from "@/lib/domain-events/bus";
+import { initDomainEventSystem } from "@/lib/application/event-system";
+import { publishForJob } from "@/lib/application/event-handlers";
 import simpleGit from "simple-git";
 import path from "path";
 import fs from "fs/promises";
@@ -205,13 +207,17 @@ export async function POST(
     // Queue indexing job
     let indexingJobId: string | undefined;
     try {
-      const indexJob = await queueIndexing({
-        repoId,
-        userId: session.user.id,
-        localPath: targetPath,
-        repoName: repo.name,
-      });
-      indexingJobId = indexJob.id;
+      const bus = initDomainEventSystem();
+      const indexJob = await publishForJob(
+        bus,
+        createDomainEvent("RepoIndexRequested", {
+          repoId,
+          userId: session.user.id,
+          localPath: targetPath,
+          repoName: repo.name,
+        }),
+      );
+      indexingJobId = indexJob?.id;
     } catch (indexError) {
       console.error("Failed to queue indexing:", indexError);
       // Clone succeeded, indexing queue failed - not critical
