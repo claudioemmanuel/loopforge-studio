@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getConversation } from "@/lib/ai";
 import { apiLogger } from "@/lib/logger";
 import { handleError, Errors } from "@/lib/errors";
+import { TaskAggregate, TaskRepository } from "@/lib/domain";
 
 export async function POST(
   request: Request,
@@ -36,37 +37,31 @@ export async function POST(
   }
 
   try {
-    const updateData: {
-      brainstormResult?: string;
-      brainstormConversation?: string;
-      updatedAt: Date;
-    } = {
-      updatedAt: new Date(),
-    };
+    const taskAggregate = TaskAggregate.fromPersistence(task);
 
     // Save brainstorm result if we have a preview
     if (conversation.currentPreview) {
-      updateData.brainstormResult = JSON.stringify(
-        conversation.currentPreview,
-        null,
-        2,
-      );
+      taskAggregate.recordBrainstorm({
+        brainstormResult: JSON.stringify(
+          conversation.currentPreview,
+          null,
+          2,
+        ),
+      });
     }
 
     // Save conversation messages
     if (conversation.messages.length > 0) {
-      updateData.brainstormConversation = JSON.stringify(conversation.messages);
+      taskAggregate.recordBrainstorm({
+        brainstormConversation: JSON.stringify(conversation.messages),
+      });
     }
 
-    await db.update(tasks).set(updateData).where(eq(tasks.id, taskId));
+    const taskRepository = new TaskRepository();
+    const updatedTask = await taskRepository.save(taskAggregate);
 
     // Keep conversation in memory (don't delete)
     // This allows continuing the conversation if user reopens
-
-    // Get updated task
-    const updatedTask = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-    });
 
     return NextResponse.json({
       success: true,

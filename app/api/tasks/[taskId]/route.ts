@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db, tasks, executions, executionEvents } from "@/lib/db";
-import { eq, and, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
-import type { TaskStatus, StatusHistoryEntry } from "@/lib/db/schema";
+import type { TaskStatus } from "@/lib/db/schema";
 import {
   withTask,
   getProviderApiKey,
@@ -14,10 +14,15 @@ import { apiLogger } from "@/lib/logger";
 import {
   createStatusChangeEvent,
   createTaskUpdatedEvent,
-  createExecutionStartEvent,
 } from "@/lib/activity";
 import { buildExecutionGraph } from "@/lib/execution/graph-builder";
 import type { ExecutionData } from "@/lib/execution/graph-types";
+import {
+  ExecutionAggregate,
+  ExecutionRepository,
+  TaskAggregate,
+  TaskRepository,
+} from "@/lib/domain";
 
 export const GET = withTask(async (request, { task }) => {
   // Check if graph data is requested via query param
@@ -79,10 +84,10 @@ export const GET = withTask(async (request, { task }) => {
     const executionGraph = await buildExecutionGraph(executionData);
 
     // Cache the graph in the task record
-    await db
-      .update(tasks)
-      .set({ executionGraph, updatedAt: new Date() })
-      .where(eq(tasks.id, task.id));
+    const taskAggregate = TaskAggregate.fromPersistence(task);
+    taskAggregate.updateExecutionGraph(executionGraph);
+    const taskRepository = new TaskRepository();
+    await taskRepository.save(taskAggregate);
 
     return NextResponse.json({
       ...task,
@@ -100,56 +105,12 @@ export const GET = withTask(async (request, { task }) => {
 
 export const PATCH = withTask(async (request, { user, task, taskId }) => {
   const body = await request.json();
-  const updates: Partial<{
-    title: string;
-    description: string;
-    status: TaskStatus;
-    priority: number;
-    brainstormResult: string | null;
-    planContent: string | null;
-    branch: string;
-    autonomousMode: boolean;
-    statusHistory: StatusHistoryEntry[];
-  }> = {};
-
-  if (body.title !== undefined) updates.title = body.title;
-  if (body.description !== undefined) updates.description = body.description;
-  if (body.status !== undefined) updates.status = body.status;
-  if (body.priority !== undefined) updates.priority = body.priority;
-  if (body.brainstormResult !== undefined)
-    updates.brainstormResult = body.brainstormResult;
-  if (body.planContent !== undefined) updates.planContent = body.planContent;
-  if (body.branch !== undefined) updates.branch = body.branch;
-  if (body.autonomousMode !== undefined)
-    updates.autonomousMode = body.autonomousMode;
-
-  // Record status change in history
-  if (body.status !== undefined && body.status !== task.status) {
-    const historyEntry: StatusHistoryEntry = {
-      from: task.status,
-      to: body.status as TaskStatus,
-      timestamp: new Date().toISOString(),
-      triggeredBy: "user",
-      userId: user.id,
-    };
-    updates.statusHistory = [...(task.statusHistory || []), historyEntry];
-  }
+  const taskAggregate = TaskAggregate.fromPersistence(task);
+  const taskRepository = new TaskRepository();
 
   // Handle backward movement with resetPhases option
   // When moving backward and resetPhases is true, clear data based on target status
-  if (body.resetPhases === true && body.status !== undefined) {
-    const targetStatus = body.status as TaskStatus;
-
-    // Reset logic based on target status:
-    // - Moving to "todo": clear brainstormResult and planContent
-    // - Moving to "brainstorming": clear planContent
-    if (targetStatus === "todo") {
-      updates.brainstormResult = null;
-      updates.planContent = null;
-    } else if (targetStatus === "brainstorming") {
-      updates.planContent = null;
-    }
-  }
+  const resetPhases = body.resetPhases === true;
 
   // Check if status is changing to "executing" - auto-queue execution
   const isMovingToExecuting =
@@ -179,35 +140,37 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
 
     try {
       const branch = `loopforge/${task.id.slice(0, 8)}`;
-      updates.branch = branch;
+      taskAggregate.updateDetails({
+        title: body.title,
+        description: body.description ?? undefined,
+        priority: body.priority,
+        autonomousMode: body.autonomousMode,
+        branch,
+        status: "executing",
+        resetPhases,
+        statusTriggeredBy: "user",
+        statusTriggeredByUserId: user.id,
+      });
 
       // ATOMIC: Claim the execution slot first to prevent race conditions
       // This UPDATE only succeeds if status is NOT 'executing' (not already running)
-      const claimResult = await db
-        .update(tasks)
-        .set({ ...updates, updatedAt: new Date() })
-        .where(
-          and(
-            eq(tasks.id, taskId),
-            ne(tasks.status, "executing"), // Only claim if not already executing
-          ),
-        )
-        .returning({ id: tasks.id });
+      const claimedTask = await taskRepository.saveWithStatusGuard(
+        taskAggregate,
+        { ne: "executing" },
+      );
 
-      // If no rows were updated, another request already started execution
-      if (claimResult.length === 0) {
+      if (!claimedTask) {
         return handleError(Errors.conflict("Task is already executing"));
       }
 
       // Now create execution record (we have exclusive execution rights)
       const executionId = crypto.randomUUID();
-      await db.insert(executions).values({
+      const executionAggregate = ExecutionAggregate.createQueued({
         id: executionId,
         taskId: task.id,
-        status: "queued",
-        iteration: 0,
-        createdAt: new Date(),
       });
+      const executionRepository = new ExecutionRepository();
+      await executionRepository.create(executionAggregate);
 
       // Queue the execution job
       // Worker will decrypt API key on demand using userId
@@ -224,12 +187,8 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
         cloneUrl: task.repo.cloneUrl,
       });
 
-      const updatedTask = await db.query.tasks.findFirst({
-        where: eq(tasks.id, taskId),
-      });
-
       return NextResponse.json({
-        ...updatedTask,
+        ...claimedTask,
         executionId,
         jobId: job.id,
       });
@@ -237,29 +196,36 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
       apiLogger.error({ taskId, error }, "Execution error");
 
       // Revert status on error (only if we set it to executing)
-      await db
-        .update(tasks)
-        .set({ status: task.status, branch: null, updatedAt: new Date() })
-        .where(
-          and(
-            eq(tasks.id, taskId),
-            eq(tasks.status, "executing"), // Only revert if we set it
-          ),
-        );
+      const revertAggregate = TaskAggregate.fromPersistence(task);
+      revertAggregate.revertExecution(task.status);
+      await taskRepository.saveWithStatusGuard(revertAggregate, {
+        eq: "executing",
+      });
 
       return handleError(error);
     }
   }
 
-  // Standard update (not moving to executing)
-  await db
-    .update(tasks)
-    .set({ ...updates, updatedAt: new Date() })
-    .where(eq(tasks.id, taskId));
-
-  const updatedTask = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
+  taskAggregate.updateDetails({
+    title: body.title,
+    description: body.description ?? undefined,
+    status: (body.status ?? undefined) as TaskStatus | undefined,
+    priority: body.priority,
+    branch: body.branch,
+    autonomousMode: body.autonomousMode,
+    planContent: body.planContent,
+    resetPhases,
+    statusTriggeredBy: "user",
+    statusTriggeredByUserId: user.id,
   });
+  if (body.brainstormResult !== undefined) {
+    taskAggregate.recordBrainstorm({
+      brainstormResult: body.brainstormResult,
+    });
+  }
+
+  // Standard update (not moving to executing)
+  const updatedTask = await taskRepository.save(taskAggregate);
 
   // Create activity events for the update
   const activityPromises: Promise<unknown>[] = [];
