@@ -4,7 +4,7 @@ import { db, users, repos } from "@/lib/db";
 import { encryptApiKey } from "@/lib/crypto";
 import { eq } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
-import { checkRepoLimit } from "@/lib/api/subscription-limits";
+import { checkRepoLimit } from "@/lib/billing/domain";
 import { Errors, handleError } from "@/lib/errors";
 
 interface GitHubRepo {

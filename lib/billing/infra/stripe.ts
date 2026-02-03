@@ -3,23 +3,39 @@ import { db } from "@/lib/db";
 import { users, userSubscriptions, subscriptionPlans } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
-// =============================================================================
-// Stripe Client
-// =============================================================================
+const stripeKey =
+  process.env.STRIPE_SECRET_KEY ||
+  (process.env.NODE_ENV === "test" ? "sk_test_dummy_key_for_tests" : "");
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+let stripeClient: Stripe | null = null;
 
-if (!stripeSecretKey && process.env.NODE_ENV === "production") {
-  console.warn(
-    "STRIPE_SECRET_KEY is not set - Stripe features will be disabled",
-  );
+/**
+ * Get Stripe client instance (lazy-initialized)
+ * Returns null if Stripe is not configured (missing STRIPE_SECRET_KEY)
+ */
+export function getStripeClient(): Stripe | null {
+  if (stripeClient) return stripeClient;
+
+  if (!stripeKey) {
+    if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "STRIPE_SECRET_KEY is not set - Stripe features will be disabled",
+      );
+    } else if (process.env.NODE_ENV === "development") {
+      console.warn(
+        "⚠️  STRIPE_SECRET_KEY not configured. Billing features will be unavailable.",
+      );
+    }
+    return null;
+  }
+
+  stripeClient = new Stripe(stripeKey, {
+    apiVersion: "2024-12-18.acacia",
+    typescript: true,
+  });
+
+  return stripeClient;
 }
-
-export const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
-
-// =============================================================================
-// Checkout Session
-// =============================================================================
 
 export interface CreateCheckoutParams {
   userId: string;
@@ -36,6 +52,7 @@ export interface CreateCheckoutParams {
 export async function createCheckoutSession(
   params: CreateCheckoutParams,
 ): Promise<{ url: string } | { error: string }> {
+  const stripe = getStripeClient();
   if (!stripe) {
     return { error: "Stripe is not configured" };
   }
@@ -121,10 +138,6 @@ export async function createCheckoutSession(
   return { url: session.url };
 }
 
-// =============================================================================
-// Customer Portal
-// =============================================================================
-
 /**
  * Create a Stripe Customer Portal session
  */
@@ -132,6 +145,7 @@ export async function createPortalSession(
   userId: string,
   returnUrl: string,
 ): Promise<{ url: string } | { error: string }> {
+  const stripe = getStripeClient();
   if (!stripe) {
     return { error: "Stripe is not configured" };
   }
@@ -152,10 +166,6 @@ export async function createPortalSession(
   return { url: session.url };
 }
 
-// =============================================================================
-// Webhook Handlers
-// =============================================================================
-
 export type WebhookEvent =
   | "checkout.session.completed"
   | "customer.subscription.created"
@@ -171,6 +181,7 @@ export async function verifyWebhookSignature(
   payload: string,
   signature: string,
 ): Promise<Stripe.Event | { error: string }> {
+  const stripe = getStripeClient();
   if (!stripe) {
     return { error: "Stripe is not configured" };
   }
@@ -195,6 +206,9 @@ export async function verifyWebhookSignature(
 export async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
 ): Promise<void> {
+  const stripe = getStripeClient();
+  if (!stripe) return;
+
   const userId = session.metadata?.userId;
   const planId = session.metadata?.planId;
   const billingCycle = session.metadata?.billingCycle as "monthly" | "yearly";
@@ -206,8 +220,6 @@ export async function handleCheckoutCompleted(
   }
 
   // Get subscription details from Stripe
-  if (!stripe) return;
-
   const subscriptionResponse =
     await stripe.subscriptions.retrieve(subscriptionId);
 
@@ -346,9 +358,12 @@ export async function handleSubscriptionDeleted(
 export async function handlePaymentFailed(
   invoice: Stripe.Invoice,
 ): Promise<void> {
+  const stripe = getStripeClient();
+  if (!stripe) return;
+
   // In Stripe v20, subscription is in parent.subscription_details.subscription
   const parent = invoice.parent;
-  if (!parent || parent.type !== "subscription_details" || !stripe) return;
+  if (!parent || parent.type !== "subscription_details") return;
 
   const subscriptionDetails = parent.subscription_details;
   if (!subscriptionDetails) return;
@@ -374,15 +389,11 @@ export async function handlePaymentFailed(
     .where(eq(userSubscriptions.userId, userId));
 }
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
 /**
  * Check if Stripe is configured and available
  */
 export function isStripeConfigured(): boolean {
-  return !!stripe;
+  return !!getStripeClient();
 }
 
 /**

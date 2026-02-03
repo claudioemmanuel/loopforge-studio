@@ -22,7 +22,7 @@ import type {
 } from "../lib/db/schema";
 import type { ExecutionEventMetadata } from "../lib/ralph/types";
 import { eq, sql } from "drizzle-orm";
-import { canExecuteTask, recordUsage } from "../lib/billing";
+import { canExecuteTask, recordUsage } from "../lib/billing/domain";
 import { runLoop, type LoopContext, type ExecutionMode } from "../lib/ralph";
 import {
   TestGate,

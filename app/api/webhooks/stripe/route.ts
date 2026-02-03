@@ -5,13 +5,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { getStripeClient } from "@/lib/stripe/client";
+import { getStripeClient } from "@/lib/billing/infra";
 import { db, users, repos } from "@/lib/db";
 import { eq, count } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
-import { getMaxReposForTier } from "@/lib/api/subscription-limits";
+import { getMaxReposForTier } from "@/lib/billing/domain";
 import type Stripe from "stripe";
-import type { SubscriptionTier } from "@/lib/stripe/client";
+import type { SubscriptionTier } from "@/lib/billing/domain";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 const STRIPE_PRO_PRICE_ID = process.env.STRIPE_PRICE_PRO || "";

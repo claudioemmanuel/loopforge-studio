@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, subscriptionPlans } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { isStripeConfigured, getPublishableKey } from "@/lib/billing";
+import { isStripeConfigured, getPublishableKey } from "@/lib/billing/infra";
 import { handleError } from "@/lib/errors";
 
 export async function GET() {

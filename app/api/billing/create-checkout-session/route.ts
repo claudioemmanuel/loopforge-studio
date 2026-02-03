@@ -3,11 +3,11 @@ import { auth } from "@/lib/auth";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
+import { getStripeClient } from "@/lib/billing/infra";
 import {
-  stripe,
-  STRIPE_PLANS,
+  SUBSCRIPTION_PLANS,
   type SubscriptionTier,
-} from "@/lib/stripe/client";
+} from "@/lib/billing/domain";
 
 /**
  * POST /api/billing/create-checkout-session
@@ -25,11 +25,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { tier } = body as { tier: SubscriptionTier };
 
-    if (!tier || !(tier in STRIPE_PLANS)) {
+    if (!tier || !(tier in SUBSCRIPTION_PLANS)) {
       return handleError(Errors.invalidRequest("Invalid subscription tier"));
     }
 
-    const plan = STRIPE_PLANS[tier];
+    const plan = SUBSCRIPTION_PLANS[tier];
 
     if (!plan.priceId) {
       return handleError(Errors.serverError("Price ID not configured"));
@@ -41,6 +41,11 @@ export async function POST(request: Request) {
     });
 
     let customerId = user?.stripeCustomerId;
+
+    const stripe = getStripeClient();
+    if (!stripe) {
+      return handleError(Errors.invalidRequest("Stripe is not configured"));
+    }
 
     if (!customerId) {
       const customer = await stripe.customers.create({

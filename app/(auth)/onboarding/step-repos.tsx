@@ -19,7 +19,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { GitHubRepo, FilterType } from "./onboarding-config";
-import { STRIPE_PLANS } from "@/lib/stripe/client";
+import { SUBSCRIPTION_PLANS } from "@/lib/billing/domain";
 
 export function StepRepos({
   searchQuery,
@@ -52,7 +52,7 @@ export function StepRepos({
 
   // Assume free tier during onboarding (default tier)
   const userTier = "free" as const;
-  const maxRepos = STRIPE_PLANS[userTier].maxRepos;
+  const maxRepos = SUBSCRIPTION_PLANS[userTier].maxRepos;
 
   const handleRepoToggle = (repoId: number) => {
     const isCurrentlySelected = selectedRepos.has(repoId);
@@ -61,7 +61,7 @@ export function StepRepos({
       // Check limit BEFORE adding (free tier has fixed limit of 1)
       if (selectedRepos.size >= maxRepos) {
         setLimitWarning(
-          `Free tier allows only ${maxRepos} ${maxRepos === 1 ? "repository" : "repositories"}. Upgrade to Pro for ${STRIPE_PLANS.pro.maxRepos} repositories.`,
+          `Free tier allows only ${maxRepos} ${maxRepos === 1 ? "repository" : "repositories"}. Upgrade to Pro for ${SUBSCRIPTION_PLANS.pro.maxRepos} repositories.`,
         );
         return;
       }
