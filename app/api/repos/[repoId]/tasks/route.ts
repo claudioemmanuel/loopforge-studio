@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
 import { checkTaskLimit, formatLimitError } from "@/lib/billing/domain";
 import { createTaskCreatedEvent } from "@/lib/activity";
+import { TaskAggregate, TaskRepository } from "@/lib/domain";
 
 export async function GET(
   request: Request,
@@ -90,24 +91,16 @@ export async function POST(
   }
 
   const taskId = crypto.randomUUID();
-  const newTask = {
+  const taskAggregate = TaskAggregate.createNew({
     id: taskId,
     repoId,
     title,
     description: description || null,
-    status: "todo" as const,
-    priority: 0,
-    brainstormResult: null,
-    brainstormConversation: null,
-    planContent: null,
-    branch: null,
     autonomousMode,
     autoApprove,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-
-  await db.insert(tasks).values(newTask);
+  });
+  const taskRepository = new TaskRepository();
+  const newTask = await taskRepository.create(taskAggregate);
 
   // Create activity event for task creation
   await createTaskCreatedEvent({

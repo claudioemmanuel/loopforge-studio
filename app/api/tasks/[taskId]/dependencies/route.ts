@@ -3,6 +3,7 @@ import { db, tasks, taskDependencies } from "@/lib/db";
 import { eq, and, notInArray } from "drizzle-orm";
 import { withTask } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
+import { TaskAggregate, TaskRepository } from "@/lib/domain";
 
 // GET - Get task dependencies
 export const GET = withTask(async (request, { task, taskId }) => {
@@ -144,14 +145,10 @@ export const POST = withTask(async (request, { task, taskId }) => {
   await db.insert(taskDependencies).values(newDependency);
 
   // Update the blockedByIds array on the task
-  const currentBlockedBy = (task.blockedByIds as string[]) || [];
-  await db
-    .update(tasks)
-    .set({
-      blockedByIds: [...currentBlockedBy, blockedById],
-      updatedAt: new Date(),
-    })
-    .where(eq(tasks.id, taskId));
+  const taskAggregate = TaskAggregate.fromPersistence(task);
+  taskAggregate.addDependency(blockedById);
+  const taskRepository = new TaskRepository();
+  await taskRepository.save(taskAggregate);
 
   return NextResponse.json(newDependency);
 });
@@ -176,38 +173,30 @@ export const DELETE = withTask(async (request, { task, taskId }) => {
     );
 
   // Update the blockedByIds array on the task
-  const currentBlockedBy = (task.blockedByIds as string[]) || [];
-  await db
-    .update(tasks)
-    .set({
-      blockedByIds: currentBlockedBy.filter((id) => id !== blockedById),
-      updatedAt: new Date(),
-    })
-    .where(eq(tasks.id, taskId));
+  const taskAggregate = TaskAggregate.fromPersistence(task);
+  taskAggregate.removeDependency(blockedById);
+  const taskRepository = new TaskRepository();
+  await taskRepository.save(taskAggregate);
 
   return NextResponse.json({ success: true });
 });
 
 // PATCH - Update dependency settings
-export const PATCH = withTask(async (request, { taskId }) => {
+export const PATCH = withTask(async (request, { task, taskId }) => {
   const body = await request.json();
   const { autoExecuteWhenUnblocked, dependencyPriority } = body;
 
-  // Build update object
-  const updates: Record<string, unknown> = {
-    updatedAt: new Date(),
-  };
+  const taskAggregate = TaskAggregate.fromPersistence(task);
+  taskAggregate.updateDependencySettings({
+    autoExecuteWhenUnblocked,
+    dependencyPriority,
+  });
+  const taskRepository = new TaskRepository();
+  const updatedTask = await taskRepository.save(taskAggregate);
 
-  if (typeof autoExecuteWhenUnblocked === "boolean") {
-    updates.autoExecuteWhenUnblocked = autoExecuteWhenUnblocked;
-  }
-
-  if (typeof dependencyPriority === "number") {
-    updates.dependencyPriority = dependencyPriority;
-  }
-
-  // Update the task
-  await db.update(tasks).set(updates).where(eq(tasks.id, taskId));
-
-  return NextResponse.json({ success: true, ...updates });
+  return NextResponse.json({
+    success: true,
+    autoExecuteWhenUnblocked: updatedTask.autoExecuteWhenUnblocked,
+    dependencyPriority: updatedTask.dependencyPriority,
+  });
 });

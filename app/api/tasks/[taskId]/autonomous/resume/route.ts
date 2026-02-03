@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, users, executions } from "@/lib/db";
-import { eq, and, ne } from "drizzle-orm";
+import { db, tasks, users } from "@/lib/db";
+import { eq } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
-import type { AiProvider } from "@/lib/db/schema";
+import type { AiProvider, Task } from "@/lib/db/schema";
 import {
   getProviderApiKey,
   getPreferredModel,
@@ -11,16 +11,16 @@ import {
 } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
+import {
+  ExecutionAggregate,
+  ExecutionRepository,
+  TaskAggregate,
+  TaskRepository,
+} from "@/lib/domain";
 
 // Helper to queue execution for a task with atomic claim
 async function queueTaskExecution(
-  task: {
-    id: string;
-    repoId: string;
-    planContent: string | null;
-    status: string;
-    repo: { cloneUrl: string; defaultBranch: string };
-  },
+  task: Task & { repo: { cloneUrl: string; defaultBranch: string } },
   userId: string,
   provider: AiProvider,
   model: string,
@@ -30,39 +30,29 @@ async function queueTaskExecution(
   }
 
   const branch = `loopforge/${task.id.slice(0, 8)}`;
+  const taskAggregate = TaskAggregate.fromPersistence(task);
+  taskAggregate.claimExecution(branch);
+  const taskRepository = new TaskRepository();
 
   // ATOMIC: Claim the execution slot first to prevent race conditions
   // This UPDATE only succeeds if status is NOT 'executing'
-  const claimResult = await db
-    .update(tasks)
-    .set({
-      status: "executing",
-      branch,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(tasks.id, task.id),
-        ne(tasks.status, "executing"), // Only claim if not already executing
-      ),
-    )
-    .returning({ id: tasks.id });
+  const claimedTask = await taskRepository.saveWithStatusGuard(taskAggregate, {
+    ne: "executing",
+  });
 
-  // If no rows were updated, another request already started execution
-  if (claimResult.length === 0) {
+  if (!claimedTask) {
     throw new Error("Task is already executing");
   }
 
   try {
     // Now create execution record (we have exclusive execution rights)
     const executionId = crypto.randomUUID();
-    await db.insert(executions).values({
+    const executionAggregate = ExecutionAggregate.createQueued({
       id: executionId,
       taskId: task.id,
-      status: "queued",
-      iteration: 0,
-      createdAt: new Date(),
     });
+    const executionRepository = new ExecutionRepository();
+    await executionRepository.create(executionAggregate);
 
     // Queue the execution job
     // Worker will decrypt API key on demand using userId
@@ -79,22 +69,14 @@ async function queueTaskExecution(
       cloneUrl: task.repo.cloneUrl,
     });
 
-    return { executionId, jobId: job.id };
+    return { executionId, jobId: job.id, claimedTask };
   } catch (error) {
     // If queuing failed after claiming, reset the status
-    await db
-      .update(tasks)
-      .set({
-        status: task.status as "ready",
-        branch: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(tasks.id, task.id),
-          eq(tasks.status, "executing"), // Only revert if we set it
-        ),
-      );
+    const revertAggregate = TaskAggregate.fromPersistence(task);
+    revertAggregate.revertExecution(task.status as "ready");
+    await taskRepository.saveWithStatusGuard(revertAggregate, {
+      eq: "executing",
+    });
     throw error;
   }
 }
@@ -146,10 +128,10 @@ export async function POST(
   // If task is "ready", enable autonomous mode AND queue execution atomically
   if (task.status === "ready") {
     // First enable autonomous mode (will be committed with execution claim)
-    await db
-      .update(tasks)
-      .set({ autonomousMode: true, updatedAt: new Date() })
-      .where(eq(tasks.id, taskId));
+    const taskRepository = new TaskRepository();
+    const taskAggregate = TaskAggregate.fromPersistence(task);
+    taskAggregate.updateDetails({ autonomousMode: true });
+    const updatedTask = await taskRepository.save(taskAggregate);
     if (!task.planContent) {
       return handleError(
         Errors.invalidRequest("Task must have a plan to execute"),
@@ -180,19 +162,15 @@ export async function POST(
     const finalModel = getPreferredModel(user, configuredProvider);
 
     try {
-      const { executionId, jobId } = await queueTaskExecution(
-        task,
+      const { executionId, jobId, claimedTask } = await queueTaskExecution(
+        updatedTask,
         session.user.id,
         finalProvider,
         finalModel,
       );
 
-      const updatedTask = await db.query.tasks.findFirst({
-        where: eq(tasks.id, taskId),
-      });
-
       return NextResponse.json({
-        ...updatedTask,
+        ...claimedTask,
         executionId,
         jobId,
         autoStarted: true,
@@ -201,24 +179,22 @@ export async function POST(
       apiLogger.error({ taskId, error }, "Execution error");
 
       // Revert status on error
-      await db
-        .update(tasks)
-        .set({ status: "ready", updatedAt: new Date() })
-        .where(eq(tasks.id, taskId));
+      const taskRepository = new TaskRepository();
+      const revertAggregate = TaskAggregate.fromPersistence(task);
+      revertAggregate.revertExecution("ready");
+      await taskRepository.saveWithStatusGuard(revertAggregate, {
+        eq: "executing",
+      });
 
       return handleError(error);
     }
   }
 
   // For other statuses, just enable autonomous mode and return
-  await db
-    .update(tasks)
-    .set({ autonomousMode: true, updatedAt: new Date() })
-    .where(eq(tasks.id, taskId));
-
-  const updatedTask = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-  });
+  const taskRepository = new TaskRepository();
+  const taskAggregate = TaskAggregate.fromPersistence(task);
+  taskAggregate.updateDetails({ autonomousMode: true });
+  const updatedTask = await taskRepository.save(taskAggregate);
 
   return NextResponse.json({
     ...updatedTask,
