@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { getStripeClient } from "@/lib/stripe/client";
+import { getStripeClient } from "@/lib/billing/infra";
 import type Stripe from "stripe";
 
 /**

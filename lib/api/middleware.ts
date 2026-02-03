@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { db, tasks, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import type { User, Task, Repo } from "@/lib/db/schema";
-import { checkRepoLimit } from "./subscription-limits";
+import { checkRepoLimit } from "@/lib/billing/domain";
 import { handleError, Errors } from "@/lib/errors";
 
 export interface AuthContext {

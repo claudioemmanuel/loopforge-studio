@@ -1,11 +1,86 @@
 /**
- * Subscription Limits Middleware
- * Phase 3.2: Enforce repository and task limits per subscription tier
+ * Subscription tier limits and checks.
  */
 
 import { db, users, repos, tasks } from "@/lib/db";
 import { eq, count } from "drizzle-orm";
-import { getPlanConfig, type SubscriptionTier } from "@/lib/stripe/client";
+
+export const SUBSCRIPTION_PLANS = {
+  free: {
+    name: "Free",
+    priceId: process.env.STRIPE_PRICE_FREE || "",
+    maxRepos: 1,
+    maxTasksPerRepo: 10,
+    features: [
+      "Basic AI assistance",
+      "1 repository",
+      "Up to 10 tasks per repository",
+      "Community support",
+    ],
+  },
+  pro: {
+    name: "Pro",
+    priceId: process.env.STRIPE_PRICE_PRO || "",
+    maxRepos: 20,
+    maxTasksPerRepo: 100,
+    features: [
+      "Advanced AI models",
+      "Priority execution",
+      "Up to 20 repositories",
+      "Up to 100 tasks per repository",
+      "Email support",
+      "Custom workflows",
+    ],
+  },
+  enterprise: {
+    name: "Enterprise",
+    priceId: process.env.STRIPE_PRICE_ENTERPRISE || "",
+    maxRepos: -1, // unlimited
+    maxTasksPerRepo: -1, // unlimited
+    features: [
+      "Unlimited repositories",
+      "Unlimited tasks",
+      "Dedicated support",
+      "Custom AI models",
+      "SSO authentication",
+      "Advanced analytics",
+      "SLA guarantee",
+    ],
+  },
+} as const;
+
+export type SubscriptionTier = keyof typeof SUBSCRIPTION_PLANS;
+
+/**
+ * Get plan configuration by tier.
+ */
+export function getPlanConfig(tier: SubscriptionTier) {
+  return SUBSCRIPTION_PLANS[tier];
+}
+
+/**
+ * Check if a tier allows unlimited resources.
+ */
+export function isUnlimited(
+  tier: SubscriptionTier,
+  resource: "repos" | "tasks",
+) {
+  const plan = SUBSCRIPTION_PLANS[tier];
+  if (resource === "repos") return plan.maxRepos === -1;
+  return plan.maxTasksPerRepo === -1;
+}
+
+/**
+ * Get limit for a tier and resource type.
+ */
+export function getLimit(
+  tier: SubscriptionTier,
+  resource: "repos" | "tasks",
+): number {
+  const plan = SUBSCRIPTION_PLANS[tier];
+  if (resource === "repos") return plan.maxRepos;
+  return plan.maxTasksPerRepo;
+}
 
 export interface LimitCheckResult {
   allowed: boolean;
@@ -16,7 +91,7 @@ export interface LimitCheckResult {
 }
 
 /**
- * Check if user can create more repositories
+ * Check if user can create more repositories.
  */
 export async function checkRepoLimit(
   userId: string,
@@ -59,7 +134,7 @@ export async function checkRepoLimit(
 }
 
 /**
- * Check if user can create more tasks in a repository
+ * Check if user can create more tasks in a repository.
  */
 export async function checkTaskLimit(
   userId: string,
@@ -103,7 +178,7 @@ export async function checkTaskLimit(
 }
 
 /**
- * Get maximum repositories allowed for a subscription tier
+ * Get maximum repositories allowed for a subscription tier.
  */
 export function getMaxReposForTier(tier: SubscriptionTier): number {
   const plan = getPlanConfig(tier);
@@ -111,7 +186,7 @@ export function getMaxReposForTier(tier: SubscriptionTier): number {
 }
 
 /**
- * Get maximum tasks allowed per repository for a subscription tier
+ * Get maximum tasks allowed per repository for a subscription tier.
  */
 export function getMaxTasksForTier(tier: SubscriptionTier): number {
   const plan = getPlanConfig(tier);
@@ -119,7 +194,7 @@ export function getMaxTasksForTier(tier: SubscriptionTier): number {
 }
 
 /**
- * Format limit error message for API response
+ * Format limit error message for API response.
  */
 export function formatLimitError(
   limitCheck: LimitCheckResult,

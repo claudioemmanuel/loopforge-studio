@@ -3,7 +3,7 @@ import { withRepoLimit } from "@/lib/api/middleware";
 import { db, repos, users } from "@/lib/db";
 import { apiLogger } from "@/lib/logger";
 import { eq, count } from "drizzle-orm";
-import { getPlanConfig, type SubscriptionTier } from "@/lib/stripe/client";
+import { getPlanConfig, type SubscriptionTier } from "@/lib/billing/domain";
 
 interface GitHubRepo {
   id: number;

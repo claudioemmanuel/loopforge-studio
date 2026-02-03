@@ -9,8 +9,8 @@ import { eq, count } from "drizzle-orm";
 import type Stripe from "stripe";
 
 // Mock Stripe
-vi.mock("@/lib/stripe/client", () => ({
-  stripe: {
+vi.mock("@/lib/billing/infra", () => ({
+  getStripeClient: () => ({
     webhooks: {
       constructEvent: vi.fn(),
     },
@@ -18,7 +18,7 @@ vi.mock("@/lib/stripe/client", () => ({
       cancel: vi.fn(),
       retrieve: vi.fn(),
     },
-  },
+  }),
 }));
 
 describe("Stripe Webhook Handler", () => {

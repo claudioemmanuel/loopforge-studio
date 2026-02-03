@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getUsageSummary } from "@/lib/billing";
+import { getUsageSummary } from "@/lib/billing/domain";
 import { handleError, Errors } from "@/lib/errors";
 
 export async function GET() {

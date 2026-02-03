@@ -4,10 +4,7 @@ import { auth } from "@/lib/auth";
 import { db, repos, tasks } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
-import {
-  checkTaskLimit,
-  formatLimitError,
-} from "@/lib/api/subscription-limits";
+import { checkTaskLimit, formatLimitError } from "@/lib/billing/domain";
 import { createTaskCreatedEvent } from "@/lib/activity";
 
 export async function GET(

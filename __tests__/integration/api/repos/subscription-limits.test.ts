@@ -9,11 +9,11 @@ import { eq } from "drizzle-orm";
 import {
   checkRepoLimit,
   getMaxReposForTier,
-} from "@/lib/api/subscription-limits";
+} from "@/lib/billing/domain";
 
 // Mock Stripe to avoid requiring API key in tests
-vi.mock("@/lib/stripe/client", async () => {
-  const actual = await vi.importActual("@/lib/stripe/client");
+vi.mock("@/lib/billing/infra", async () => {
+  const actual = await vi.importActual("@/lib/billing/infra");
   return {
     ...actual,
     stripe: {

@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
-import { getStripeClient } from "@/lib/stripe/client";
+import { getStripeClient } from "@/lib/billing/infra";
 
 /**
  * POST /api/billing/create-portal-session
