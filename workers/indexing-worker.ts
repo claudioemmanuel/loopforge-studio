@@ -6,8 +6,6 @@
  */
 
 import { Job } from "bullmq";
-import { db, repos, repoIndex } from "../lib/db";
-import { eq } from "drizzle-orm";
 import {
   createIndexingWorker,
   type IndexingJobData,
@@ -15,23 +13,28 @@ import {
 } from "../lib/queue";
 import { indexRepository } from "../lib/indexing";
 import { workerLogger } from "../lib/logger";
+import {
+  getIndexingService,
+  getRepositoryService,
+} from "../lib/contexts/repository/api";
 
 async function processIndexing(
   job: Job<IndexingJobData, IndexingJobResult>,
 ): Promise<IndexingJobResult> {
   const { repoId, localPath, repoName } = job.data;
+  const repositoryService = getRepositoryService();
+  const indexingService = getIndexingService();
 
   workerLogger.info({ repoId, repoName }, "Starting repository indexing");
 
   try {
     // Update repo status to indexing
-    await db
-      .update(repos)
-      .set({
-        indexingStatus: "indexing",
-        updatedAt: new Date(),
-      })
-      .where(eq(repos.id, repoId));
+    await repositoryService.updateIndexingStatus({
+      repositoryId: repoId,
+      status: "indexing",
+    });
+
+    await indexingService.startIndexing(repoId);
 
     // Update job progress
     await job.updateProgress({
@@ -55,47 +58,17 @@ async function processIndexing(
       "Indexing complete",
     );
 
-    // Check if repo_index record exists
-    const existingIndex = await db.query.repoIndex.findFirst({
-      where: eq(repoIndex.repoId, repoId),
+    await indexingService.completeIndexingWithResult({
+      repositoryId: repoId,
+      result,
     });
 
-    if (existingIndex) {
-      // Update existing index
-      await db
-        .update(repoIndex)
-        .set({
-          fileCount: result.fileCount,
-          symbolCount: result.symbolCount,
-          techStack: result.techStack,
-          entryPoints: result.entryPoints,
-          dependencies: result.dependencies,
-          fileIndex: result.fileIndex,
-          updatedAt: new Date(),
-        })
-        .where(eq(repoIndex.repoId, repoId));
-    } else {
-      // Create new index record
-      await db.insert(repoIndex).values({
-        repoId,
-        fileCount: result.fileCount,
-        symbolCount: result.symbolCount,
-        techStack: result.techStack,
-        entryPoints: result.entryPoints,
-        dependencies: result.dependencies,
-        fileIndex: result.fileIndex,
-      });
-    }
-
     // Update repo status to indexed
-    await db
-      .update(repos)
-      .set({
-        indexingStatus: "indexed",
-        indexedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(repos.id, repoId));
+    await repositoryService.updateIndexingStatus({
+      repositoryId: repoId,
+      status: "indexed",
+      indexedAt: new Date(),
+    });
 
     return {
       success: true,
@@ -111,14 +84,15 @@ async function processIndexing(
       "Indexing failed",
     );
 
-    // Update repo status to failed
-    await db
-      .update(repos)
-      .set({
-        indexingStatus: "failed",
-        updatedAt: new Date(),
-      })
-      .where(eq(repos.id, repoId));
+    await repositoryService.updateIndexingStatus({
+      repositoryId: repoId,
+      status: "failed",
+    });
+
+    await indexingService.failIndexing({
+      repositoryId: repoId,
+      error: errorMessage,
+    });
 
     return {
       success: false,
