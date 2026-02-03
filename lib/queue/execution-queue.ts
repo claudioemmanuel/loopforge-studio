@@ -32,7 +32,7 @@ export const executionQueue = new Queue<ExecutionJobData, ExecutionJobResult>(
 export async function queueExecution(
   data: ExecutionJobData,
 ): Promise<Job<ExecutionJobData, ExecutionJobResult>> {
-  return executionQueue.add("execute", data, {
+  return executionQueue.add("execution", data, {
     removeOnComplete: {
       count: 100, // Keep last 100 completed jobs
     },

@@ -44,7 +44,7 @@ export const autonomousFlowQueue = new Queue<
 export async function queueAutonomousFlow(
   data: AutonomousFlowJobData,
 ): Promise<Job<AutonomousFlowJobData, AutonomousFlowJobResult>> {
-  return autonomousFlowQueue.add("autonomous", data, {
+  return autonomousFlowQueue.add("autonomous-flow", data, {
     removeOnComplete: {
       count: 100,
     },

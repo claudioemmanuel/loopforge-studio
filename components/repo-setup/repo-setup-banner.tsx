@@ -12,7 +12,7 @@ interface RepoSetupBannerProps {
   onCloneComplete?: () => void;
 }
 
-type CloneStatus = "idle" | "cloning" | "success" | "error";
+type CloneStatus = "pending" | "cloning" | "completed" | "failed";
 
 export function RepoSetupBanner({
   repoId,
@@ -21,7 +21,7 @@ export function RepoSetupBanner({
   onCloneComplete,
 }: RepoSetupBannerProps) {
   const [dismissed, setDismissed] = useState(false);
-  const [cloneStatus, setCloneStatus] = useState<CloneStatus>("idle");
+  const [cloneStatus, setCloneStatus] = useState<CloneStatus>("pending");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleDismiss = useCallback(() => {
@@ -38,7 +38,7 @@ export function RepoSetupBanner({
 
   // Auto-dismiss on successful clone
   useEffect(() => {
-    if (isCloned && cloneStatus === "success") {
+    if (isCloned && cloneStatus === "completed") {
       const timer = setTimeout(() => {
         handleDismiss();
       }, 2000);
@@ -60,10 +60,10 @@ export function RepoSetupBanner({
         throw new Error(data.error || "Failed to clone repository");
       }
 
-      setCloneStatus("success");
+      setCloneStatus("completed");
       onCloneComplete?.();
     } catch (error) {
-      setCloneStatus("error");
+      setCloneStatus("failed");
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to clone repository",
       );
@@ -79,36 +79,36 @@ export function RepoSetupBanner({
     <div
       className={cn(
         "relative border-l-4 rounded-lg p-4 mb-4 transition-all duration-300",
-        cloneStatus === "error"
+        cloneStatus === "failed"
           ? "bg-red-500/10 border-red-500"
-          : cloneStatus === "success"
+          : cloneStatus === "completed"
             ? "bg-emerald-500/10 border-emerald-500"
             : "bg-amber-500/10 border-amber-500",
       )}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          {cloneStatus === "success" ? (
+          {cloneStatus === "completed" ? (
             <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" />
-          ) : cloneStatus === "error" ? (
+          ) : cloneStatus === "failed" ? (
             <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
           ) : (
             <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
           )}
           <div>
             <h4 className="font-medium text-foreground">
-              {cloneStatus === "success"
+              {cloneStatus === "completed"
                 ? "Repository Cloned"
-                : cloneStatus === "error"
+                : cloneStatus === "failed"
                   ? "Clone Failed"
                   : "Repository Not Cloned"}
             </h4>
             <p className="text-sm text-muted-foreground mt-0.5">
               {cloneStatus === "cloning"
                 ? `Cloning ${repoName}...`
-                : cloneStatus === "success"
+                : cloneStatus === "completed"
                   ? "Repository is ready for AI task execution"
-                  : cloneStatus === "error"
+                  : cloneStatus === "failed"
                     ? errorMessage || "Please try again"
                     : "Clone this repository to enable AI task execution"}
             </p>
@@ -116,7 +116,7 @@ export function RepoSetupBanner({
         </div>
 
         <div className="flex items-center gap-2">
-          {cloneStatus === "idle" && (
+          {cloneStatus === "pending" && (
             <Button size="sm" onClick={handleClone} className="gap-2">
               Clone Now
             </Button>
@@ -127,7 +127,7 @@ export function RepoSetupBanner({
               Cloning...
             </Button>
           )}
-          {cloneStatus === "error" && (
+          {cloneStatus === "failed" && (
             <Button
               size="sm"
               onClick={handleClone}

@@ -51,6 +51,8 @@ PROMPT-ENGINEERING.md
 
 # Documentation (private)
 docs/
+!docs/
+!docs/ddd-glossary.md
 
 # OS
 .DS_Store
