@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, users } from "@/lib/db";
-import { eq, and, isNull } from "drizzle-orm";
 import {
   createAIClient,
   generateInitialBrainstorm,
@@ -17,6 +15,8 @@ import { handleError, Errors } from "@/lib/errors";
 import { queueAutonomousFlow } from "@/lib/queue";
 import { scanRepoViaGitHub, getTestCoverageContext } from "@/lib/github";
 import { apiLogger } from "@/lib/logger";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getUserService } from "@/lib/contexts/iam/api";
 
 /**
  * POST /api/tasks/[taskId]/brainstorm/generate
@@ -37,11 +37,8 @@ export async function POST(
     return handleError(Errors.unauthorized());
   }
 
-  // Get task with repo
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
+  const taskService = getTaskService();
+  const task = await taskService.getTaskFull(taskId);
 
   if (!task || task.repo.userId !== session.user.id) {
     return handleError(Errors.notFound("Task"));
@@ -55,25 +52,14 @@ export async function POST(
     );
 
     // ATOMIC: Claim the processing slot first to prevent race conditions
-    // This UPDATE only succeeds if processingPhase is NULL (not already processing)
-    const claimResult = await db
-      .update(tasks)
-      .set({
-        status: "brainstorming",
-        processingPhase: "brainstorming",
-        processingStatusText: "Starting autonomous flow...",
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(tasks.id, taskId),
-          isNull(tasks.processingPhase), // Only claim if not already processing
-        ),
-      )
-      .returning();
+    const claimed = await taskService.claimProcessingSlot(
+      taskId,
+      "brainstorming",
+      "Starting autonomous flow...",
+      "brainstorming",
+    );
 
-    // If no rows were updated, another request already claimed the slot
-    if (claimResult.length === 0) {
+    if (!claimed) {
       return handleError(Errors.conflict("Task is already processing"));
     }
 
@@ -85,34 +71,25 @@ export async function POST(
         repoId: task.repo.id,
       });
 
-      // Update with job ID
-      await db
-        .update(tasks)
-        .set({ processingJobId: job.id })
-        .where(eq(tasks.id, taskId));
+      // Record the job ID
+      await taskService.updateFields(taskId, { processingJobId: job.id });
 
-      return NextResponse.json(claimResult[0]);
+      return NextResponse.json(claimed);
     } catch (error) {
       // If queuing failed after claiming, reset the processing state
-      await db
-        .update(tasks)
-        .set({
-          status: task.status, // Restore original status
-          processingPhase: null,
-          processingJobId: null,
-          processingStatusText: null,
-        })
-        .where(eq(tasks.id, taskId));
+      await taskService.clearProcessingSlot(taskId, {
+        status: task.status,
+        processingJobId: null,
+      });
 
       apiLogger.error({ taskId, error }, "Failed to queue autonomous flow");
       return handleError(error);
     }
   }
 
-  // Get user
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, session.user.id),
-  });
+  // Manual brainstorm path – need full user row for AI key
+  const userService = getUserService();
+  const user = await userService.getUserFull(session.user.id);
 
   if (!user) {
     return handleError(Errors.notFound("User"));
@@ -200,30 +177,18 @@ export async function POST(
     }
 
     // ATOMIC: Claim the processing slot first to prevent concurrent brainstorms
-    // This UPDATE only succeeds if processingPhase is NULL (not already processing)
-    const claimResult = await db
-      .update(tasks)
-      .set({
-        status: "brainstorming",
-        processingPhase: "brainstorming",
-        processingStatusText: "Generating initial brainstorm...",
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(tasks.id, taskId),
-          isNull(tasks.processingPhase), // Only claim if not already processing
-        ),
-      )
-      .returning();
+    const claimed = await taskService.claimProcessingSlot(
+      taskId,
+      "brainstorming",
+      "Generating initial brainstorm...",
+      "brainstorming",
+    );
 
-    // If no rows were updated, another request already claimed the slot
-    if (claimResult.length === 0) {
+    if (!claimed) {
       return handleError(Errors.conflict("Task is already processing"));
     }
 
     // Generate the initial brainstorm
-    // Append test coverage context to description for test-related tasks
     const enrichedDescription = testCoverageContext
       ? `${task.description || ""}${testCoverageContext}`
       : task.description;
@@ -237,19 +202,13 @@ export async function POST(
     );
     apiLogger.debug({ taskId }, "Brainstorm generated successfully");
 
-    // Update task with result and clear processing state
-    const [updatedTask] = await db
-      .update(tasks)
-      .set({
-        brainstormResult: JSON.stringify(brainstormResult),
-        status: "brainstorming",
-        processingPhase: null, // Clear processing state
-        processingStatusText: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId))
-      .returning();
+    // Save result and clear processing state
+    await taskService.clearProcessingSlot(taskId, {
+      brainstormResult: JSON.stringify(brainstormResult),
+      status: "brainstorming",
+    });
 
+    const updatedTask = await taskService.getTaskFull(taskId);
     apiLogger.debug({ taskId }, "Task updated successfully");
 
     return NextResponse.json(updatedTask);
@@ -257,15 +216,7 @@ export async function POST(
     apiLogger.error({ taskId, error }, "Brainstorm generate error");
 
     // Clear processing state on error to allow retry
-    await db
-      .update(tasks)
-      .set({
-        status: task.status, // Restore original status
-        processingPhase: null,
-        processingStatusText: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await taskService.clearProcessingSlot(taskId, { status: task.status });
 
     return handleError(error);
   }

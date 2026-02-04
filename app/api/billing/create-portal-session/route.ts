@@ -1,53 +1,18 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
-import { handleError, Errors } from "@/lib/errors";
-import { getStripeClient } from "@/lib/billing/infra";
+import { withAuth } from "@/lib/api";
+import { getBillingService } from "@/lib/contexts/billing/api";
 
 /**
  * POST /api/billing/create-portal-session
- * Creates a Stripe customer portal session for subscription management
- * Phase 3.1: Stripe Integration
+ * Creates a Stripe customer portal session for subscription management.
  */
-export async function POST(request: Request) {
-  const session = await auth();
+export const POST = withAuth(async (_request, { user }) => {
+  const billingService = getBillingService();
+  const result = await billingService.createPortalSession({ userId: user.id });
 
-  if (!session?.user?.id) {
-    return handleError(Errors.unauthorized());
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  try {
-    // Check if Stripe is configured
-    const stripe = getStripeClient();
-    if (!stripe) {
-      return handleError(
-        Errors.invalidRequest(
-          "Billing is not configured. Please contact support.",
-        ),
-      );
-    }
-
-    // Get user's Stripe customer ID
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
-
-    if (!user?.stripeCustomerId) {
-      return handleError(Errors.invalidRequest("No active subscription found"));
-    }
-
-    // Create portal session
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: user.stripeCustomerId,
-      return_url: `${process.env.NEXTAUTH_URL}/settings/account`,
-    });
-
-    return NextResponse.json({
-      url: portalSession.url,
-    });
-  } catch (error) {
-    console.error("Stripe portal error:", error);
-    return handleError(error);
-  }
-}
+  return NextResponse.json({ url: result.url });
+});

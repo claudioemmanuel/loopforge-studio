@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, executions, executionEvents } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export async function GET(
   request: Request,
@@ -15,34 +14,15 @@ export async function GET(
     return handleError(Errors.unauthorized());
   }
 
-  // Get execution with task and repo to verify ownership
-  const execution = await db.query.executions.findFirst({
-    where: eq(executions.id, executionId),
-    with: {
-      task: {
-        with: {
-          repo: true,
-        },
-      },
-    },
-  });
+  const executionService = getExecutionService();
+  const execution =
+    await executionService.getExecutionWithOwnership(executionId);
 
   if (!execution || execution.task.repo.userId !== session.user.id) {
     return handleError(Errors.notFound("Execution"));
   }
 
-  // Get events
-  const events = await db.query.executionEvents.findMany({
-    where: eq(executionEvents.executionId, executionId),
-    orderBy: (events, { asc }) => [asc(events.createdAt)],
-  });
+  const events = await executionService.getExecutionEvents(executionId);
 
-  return NextResponse.json(
-    events.map((e) => ({
-      id: e.id,
-      type: e.eventType,
-      content: e.content,
-      timestamp: e.createdAt,
-    })),
-  );
+  return NextResponse.json(events);
 }

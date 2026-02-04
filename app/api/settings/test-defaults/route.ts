@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { withAuth } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { z } from "zod";
+import { getUserService } from "@/lib/contexts/iam/api";
 
 // Validation schema for test defaults
 const testDefaultsSchema = z.object({
@@ -18,56 +17,25 @@ const testDefaultsSchema = z.object({
     .optional(),
 });
 
-// GET - Fetch current test defaults configuration
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return handleError(Errors.unauthorized());
-  }
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, session.user.id),
-  });
-
-  if (!user) {
-    return handleError(Errors.notFound("User"));
-  }
-
+// GET – current test-defaults configuration
+export const GET = withAuth(async (_request, { user }) => {
   return NextResponse.json({
     defaultTestCommand: user.defaultTestCommand,
     defaultTestTimeout: user.defaultTestTimeout,
     defaultTestGatePolicy: user.defaultTestGatePolicy,
   });
-}
+});
 
-// POST - Save test defaults configuration
-export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return handleError(Errors.unauthorized());
-  }
-
+// POST – validate and persist test defaults
+export const POST = withAuth(async (request, { user }) => {
   try {
     const body = await request.json();
-
-    // Validate request body
     const validated = testDefaultsSchema.parse(body);
 
-    // Save to database
-    await db
-      .update(users)
-      .set({
-        defaultTestCommand: validated.defaultTestCommand,
-        defaultTestTimeout: validated.defaultTestTimeout,
-        defaultTestGatePolicy: validated.defaultTestGatePolicy,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, session.user.id));
+    const userService = getUserService();
+    await userService.updateUserFields(user.id, validated);
 
-    return NextResponse.json({
-      success: true,
-      ...validated,
-    });
+    return NextResponse.json({ success: true, ...validated });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return handleError(
@@ -76,4 +44,4 @@ export async function POST(request: Request) {
     }
     throw error;
   }
-}
+});

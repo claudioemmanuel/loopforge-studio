@@ -11,10 +11,7 @@ import {
 } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
-import {
-  createStatusChangeEvent,
-  createTaskUpdatedEvent,
-} from "@/lib/activity";
+import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { buildExecutionGraph } from "@/lib/execution/graph-builder";
 import type { ExecutionData } from "@/lib/execution/graph-types";
 import {
@@ -227,13 +224,13 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
   // Standard update (not moving to executing)
   const updatedTask = await taskRepository.save(taskAggregate);
 
-  // Create activity events for the update
+  // Record activity events
+  const analyticsService = getAnalyticsService();
   const activityPromises: Promise<unknown>[] = [];
 
-  // Status change event
   if (body.status !== undefined && body.status !== task.status) {
     activityPromises.push(
-      createStatusChangeEvent({
+      analyticsService.statusChanged({
         taskId,
         repoId: task.repoId,
         userId: user.id,
@@ -244,7 +241,6 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
     );
   }
 
-  // Task updated event (for other changes)
   const changes: string[] = [];
   if (body.title !== undefined && body.title !== task.title) {
     changes.push("title");
@@ -261,7 +257,7 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
 
   if (changes.length > 0) {
     activityPromises.push(
-      createTaskUpdatedEvent({
+      analyticsService.taskUpdated({
         taskId,
         repoId: task.repoId,
         userId: user.id,
@@ -271,7 +267,6 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
     );
   }
 
-  // Create all activity events in parallel
   if (activityPromises.length > 0) {
     await Promise.all(activityPromises);
   }

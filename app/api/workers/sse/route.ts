@@ -1,10 +1,9 @@
 import { auth } from "@/lib/auth";
-import { db, tasks, repos } from "@/lib/db";
-import type { TaskStatus, Execution, ProcessingPhase } from "@/lib/db/schema";
-import { eq, and, or, inArray, desc, isNotNull, sql } from "drizzle-orm";
+import type { ProcessingPhase } from "@/lib/db/schema";
 import { connectionOptions } from "@/lib/queue/connection";
 import Redis from "ioredis";
 import { apiLogger } from "@/lib/logger";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,76 +22,26 @@ function getDefaultStatusText(phase: ProcessingPhase): string {
   }
 }
 
-// Helper to get initial worker data
+// Helper to get initial worker data via TaskService
 async function getInitialWorkers(userId: string) {
-  const userRepos = await db.query.repos.findMany({
-    where: eq(repos.userId, userId),
-  });
+  const taskService = getTaskService();
+  const {
+    tasks: workerTasks,
+    repoMap,
+    executionMap,
+  } = await taskService.listActiveWorkerTasks(userId);
 
-  if (userRepos.length === 0) {
-    return [];
-  }
-
-  const repoIds = userRepos.map((r) => r.id);
-  const repoMap = new Map(userRepos.map((r) => [r.id, r]));
-
-  // Get tasks with ACTIVE workers:
-  // 1. Autonomous mode tasks (legacy)
-  // 2. Tasks currently processing (processingPhase set - background job running)
-  // 3. Tasks that failed (stuck status)
-  const workerTasks = await db.query.tasks.findMany({
-    where: and(
-      inArray(tasks.repoId, repoIds),
-      or(
-        // Autonomous mode tasks (legacy)
-        eq(tasks.autonomousMode, true),
-        // Any task currently processing (background job running)
-        isNotNull(tasks.processingPhase),
-        // Failed tasks
-        eq(tasks.status, "stuck" as TaskStatus),
-      ),
-    ),
-    orderBy: [desc(tasks.updatedAt)],
-    limit: 50,
-  });
-
-  // Alias for backwards compatibility
-  const autonomousTasks = workerTasks;
-
-  // Get latest execution per task using DISTINCT ON for efficiency
-  const taskIds = autonomousTasks.map((t) => t.id);
-  const executionMap = new Map<string, Execution>();
-
-  if (taskIds.length > 0) {
-    // Use DISTINCT ON to get only the latest execution per task
-    // Format array as PostgreSQL array literal for ANY operator
-    const taskIdsArray = sql.raw(
-      `ARRAY[${taskIds.map((id) => `'${id}'`).join(",")}]::uuid[]`,
-    );
-    const latestExecutions = await db.execute<Execution>(sql`
-      SELECT DISTINCT ON (task_id) *
-      FROM executions
-      WHERE task_id = ANY(${taskIdsArray})
-      ORDER BY task_id, created_at DESC
-    `);
-
-    for (const exec of latestExecutions.rows) {
-      executionMap.set(exec.taskId, exec);
-    }
-  }
-
-  return autonomousTasks.map((task) => {
+  return workerTasks.map((task) => {
     const repo = repoMap.get(task.repoId);
     const execution = executionMap.get(task.id);
 
     let progress = 0;
     let currentAction: string | undefined;
 
-    // If task is actively processing, use the processing status text and stored progress
+    // If task is actively processing, use the processing status text
     if (task.processingPhase) {
-      // Provide defaults for tasks that just started processing (race condition fix)
       if (!task.processingProgress || task.processingProgress === 0) {
-        progress = 5; // Show minimal progress to indicate processing started
+        progress = 5;
         currentAction =
           task.processingStatusText ||
           getDefaultStatusText(task.processingPhase);
@@ -103,7 +52,6 @@ async function getInitialWorkers(userId: string) {
           getDefaultStatusText(task.processingPhase);
       }
     } else {
-      // Use status-based progress for non-processing tasks
       switch (task.status) {
         case "brainstorming":
           progress = 20;
@@ -143,7 +91,6 @@ async function getInitialWorkers(userId: string) {
       error: execution?.errorMessage || undefined,
       completedAt: execution?.completedAt?.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
-      // Include processing state for card processing hook
       processingPhase: task.processingPhase,
       processingJobId: task.processingJobId,
       processingStartedAt: task.processingStartedAt?.toISOString(),
@@ -200,7 +147,6 @@ export async function GET() {
             try {
               controller.enqueue(encoder.encode(`data: ${message}\n\n`));
             } catch (error) {
-              // Stream may be closed
               apiLogger.error({ error }, "Error sending SSE message");
             }
           }
@@ -212,8 +158,8 @@ export async function GET() {
       } catch (error) {
         apiLogger.error({ error }, "Failed to set up Redis subscription");
         // Fall back to polling-style updates with exponential backoff
-        let pollDelay = 5000; // Start at 5s
-        const maxDelay = 30000; // Cap at 30s
+        let pollDelay = 5000;
+        const maxDelay = 30000;
         const backoffMultiplier = 1.5;
 
         const poll = async () => {
@@ -231,13 +177,11 @@ export async function GET() {
           } catch (err) {
             apiLogger.error({ err }, "Polling error");
           }
-          // Increase delay with exponential backoff, capped at maxDelay
           pollDelay = Math.min(pollDelay * backoffMultiplier, maxDelay);
           if (!closed) {
             setTimeout(poll, pollDelay);
           }
         };
-        // Start the polling chain
         setTimeout(poll, pollDelay);
       }
 
@@ -269,7 +213,7 @@ export async function GET() {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
-      "X-Accel-Buffering": "no", // Disable nginx buffering
+      "X-Accel-Buffering": "no",
     },
   });
 }

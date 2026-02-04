@@ -4,7 +4,7 @@ import { db, users, repos } from "@/lib/db";
 import { encryptApiKey } from "@/lib/crypto";
 import { eq } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
-import { checkRepoLimit } from "@/lib/billing/domain";
+import { getBillingService } from "@/lib/contexts/billing/api";
 import { Errors, handleError } from "@/lib/errors";
 
 interface GitHubRepo {
@@ -49,7 +49,8 @@ export const POST = withAuth(async (request, { user }) => {
     }
 
     // PRE-VALIDATION: Check if user can add these repos
-    const limitCheck = await checkRepoLimit(user.id);
+    const billingService = getBillingService();
+    const limitCheck = await billingService.checkRepoLimit(user.id);
 
     if (!limitCheck.allowed) {
       return handleError(

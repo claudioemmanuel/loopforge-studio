@@ -4,8 +4,6 @@
  */
 
 import { NextResponse } from "next/server";
-import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import {
   canRollback,
   getCommitsByExecution,
@@ -15,18 +13,13 @@ import {
 import { revertCommits } from "@/lib/ralph/git-operations";
 import type { StatusHistoryEntry } from "@/lib/db/schema";
 import { withTask } from "@/lib/api";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
-  // Re-fetch task with executions relation (withTask only provides { repo })
-  const taskWithExecutions = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: true,
-      executions: { limit: 1, orderBy: (e, { desc }) => [desc(e.createdAt)] },
-    },
-  });
+  const executionService = getExecutionService();
+  const latestExecution = await executionService.getLatestForTask(taskId);
 
-  const latestExecution = taskWithExecutions?.executions?.[0];
   if (!latestExecution) {
     return NextResponse.json(
       { error: "No execution found for task" },
@@ -96,6 +89,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     );
 
     // Update task status to stuck
+    const taskService = getTaskService();
     const historyEntry: StatusHistoryEntry = {
       from: task.status,
       to: "stuck",
@@ -104,19 +98,12 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       userId: user.id,
     };
 
-    await db
-      .update(tasks)
-      .set({
-        status: "stuck",
-        statusHistory: [...(task.statusHistory || []), historyEntry],
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
-
-    // Fetch updated task
-    const updatedTask = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
+    await taskService.updateFields(taskId, {
+      status: "stuck",
+      statusHistory: [...(task.statusHistory || []), historyEntry],
     });
+
+    const updatedTask = await taskService.getTaskFull(taskId);
 
     return NextResponse.json({
       success: true,

@@ -4,8 +4,11 @@ import { auth } from "@/lib/auth";
 import { db, repos, tasks } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
-import { checkTaskLimit, formatLimitError } from "@/lib/billing/domain";
-import { createTaskCreatedEvent } from "@/lib/activity";
+import {
+  getBillingService,
+  formatLimitError,
+} from "@/lib/contexts/billing/api";
+import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { TaskAggregate, TaskRepository } from "@/lib/domain";
 
 export async function GET(
@@ -82,8 +85,12 @@ export async function POST(
 
   const { title, description, autonomousMode, autoApprove } = validatedBody;
 
-  // Check subscription limits (Phase 3.2)
-  const limitCheck = await checkTaskLimit(session.user.id, repoId);
+  // Check subscription limits
+  const billingService = getBillingService();
+  const limitCheck = await billingService.checkTaskLimit(
+    session.user.id,
+    repoId,
+  );
   if (!limitCheck.allowed) {
     return NextResponse.json(formatLimitError(limitCheck, "task"), {
       status: 402,
@@ -102,8 +109,9 @@ export async function POST(
   const taskRepository = new TaskRepository();
   const newTask = await taskRepository.create(taskAggregate);
 
-  // Create activity event for task creation
-  await createTaskCreatedEvent({
+  // Record activity event
+  const analyticsService = getAnalyticsService();
+  await analyticsService.taskCreated({
     taskId,
     repoId,
     userId: session.user.id,

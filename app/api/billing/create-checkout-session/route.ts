@@ -7,7 +7,7 @@ import { getStripeClient } from "@/lib/billing/infra";
 import {
   SUBSCRIPTION_PLANS,
   type SubscriptionTier,
-} from "@/lib/billing/domain";
+} from "@/lib/contexts/billing/api";
 
 /**
  * POST /api/billing/create-checkout-session

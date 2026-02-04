@@ -1,40 +1,21 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { withAuth } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { validateCloneDirectory, expandPath } from "@/lib/utils/path-utils";
+import { getUserService } from "@/lib/contexts/iam/api";
 
-// GET - Fetch current configuration
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return handleError(Errors.unauthorized());
-  }
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, session.user.id),
-  });
-
-  if (!user) {
-    return handleError(Errors.notFound("User"));
-  }
-
+// GET – current clone-directory setting
+export const GET = withAuth(async (_request, { user }) => {
   return NextResponse.json({
     cloneDirectory: user.defaultCloneDirectory,
     expanded: user.defaultCloneDirectory
       ? expandPath(user.defaultCloneDirectory)
       : null,
   });
-}
+});
 
-// POST - Save configuration with validation
-export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return handleError(Errors.unauthorized());
-  }
-
+// POST – validate and persist new clone directory
+export const POST = withAuth(async (request, { user }) => {
   const body = await request.json();
   const { cloneDirectory } = body;
 
@@ -42,27 +23,18 @@ export async function POST(request: Request) {
     return handleError(Errors.invalidRequest("Clone directory is required"));
   }
 
-  // Validate directory
   const validation = await validateCloneDirectory(cloneDirectory);
-
   if (!validation.valid) {
     return NextResponse.json(
-      {
-        error: validation.error || "Invalid directory",
-        validation,
-      },
+      { error: validation.error || "Invalid directory", validation },
       { status: 400 },
     );
   }
 
-  // Save to database
-  await db
-    .update(users)
-    .set({
-      defaultCloneDirectory: cloneDirectory,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, session.user.id));
+  const userService = getUserService();
+  await userService.updateUserFields(user.id, {
+    defaultCloneDirectory: cloneDirectory,
+  });
 
   return NextResponse.json({
     success: true,
@@ -70,4 +42,4 @@ export async function POST(request: Request) {
     expanded: expandPath(cloneDirectory),
     validation,
   });
-}
+});

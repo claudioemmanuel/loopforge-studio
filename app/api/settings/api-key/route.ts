@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { encryptApiKey } from "@/lib/crypto/keys";
 import type { AiProvider } from "@/lib/db/schema";
+import { getUserService } from "@/lib/contexts/iam/api";
 
 // POST: Set or update an API key for a provider
 export const POST = withAuth(async (request, { user }) => {
@@ -25,7 +22,7 @@ export const POST = withAuth(async (request, { user }) => {
     );
   }
 
-  // Validate API key format
+  // Key format validation (boundary check – stays in route)
   if (provider === "anthropic" && !apiKey.startsWith("sk-ant-")) {
     return NextResponse.json(
       {
@@ -35,14 +32,12 @@ export const POST = withAuth(async (request, { user }) => {
       { status: 400 },
     );
   }
-
   if (provider === "openai" && !apiKey.startsWith("sk-")) {
     return NextResponse.json(
       { error: "Invalid OpenAI API key format. Key should start with sk-" },
       { status: 400 },
     );
   }
-
   if (provider === "gemini" && !apiKey.startsWith("AIza")) {
     return NextResponse.json(
       {
@@ -53,26 +48,11 @@ export const POST = withAuth(async (request, { user }) => {
     );
   }
 
-  // Encrypt the API key
-  const { encrypted, iv } = encryptApiKey(apiKey);
+  // Encryption is handled inside configureProvider
+  const userService = getUserService();
+  await userService.configureProvider({ userId: user.id, provider, apiKey });
 
-  // Update the appropriate columns based on provider
-  const updateData =
-    provider === "anthropic"
-      ? { encryptedApiKey: encrypted, apiKeyIv: iv }
-      : provider === "openai"
-        ? { openaiEncryptedApiKey: encrypted, openaiApiKeyIv: iv }
-        : { geminiEncryptedApiKey: encrypted, geminiApiKeyIv: iv };
-
-  await db
-    .update(users)
-    .set({
-      ...updateData,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, user.id));
-
-  // Return masked key
+  // Masked key computed from raw input before it leaves scope
   const maskedKey =
     provider === "anthropic"
       ? `sk-ant-•••••••••••••${apiKey.slice(-4)}`
@@ -80,11 +60,7 @@ export const POST = withAuth(async (request, { user }) => {
         ? `sk-•••••••••••••${apiKey.slice(-4)}`
         : `AIza•••••••••••••${apiKey.slice(-4)}`;
 
-  return NextResponse.json({
-    success: true,
-    provider,
-    maskedKey,
-  });
+  return NextResponse.json({ success: true, provider, maskedKey });
 });
 
 // DELETE: Remove an API key for a provider
@@ -106,24 +82,8 @@ export const DELETE = withAuth(async (request, { user }) => {
     );
   }
 
-  // Clear the appropriate columns based on provider
-  const updateData =
-    provider === "anthropic"
-      ? { encryptedApiKey: null, apiKeyIv: null }
-      : provider === "openai"
-        ? { openaiEncryptedApiKey: null, openaiApiKeyIv: null }
-        : { geminiEncryptedApiKey: null, geminiApiKeyIv: null };
+  const userService = getUserService();
+  await userService.removeProvider(user.id, provider);
 
-  await db
-    .update(users)
-    .set({
-      ...updateData,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, user.id));
-
-  return NextResponse.json({
-    success: true,
-    provider,
-  });
+  return NextResponse.json({ success: true, provider });
 });

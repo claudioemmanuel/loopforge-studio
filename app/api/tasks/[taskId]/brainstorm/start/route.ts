@@ -9,10 +9,7 @@ import {
 import { withTask, getProviderApiKey, findConfiguredProvider } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
-import {
-  createBrainstormStartEvent,
-  createStatusChangeEvent,
-} from "@/lib/activity";
+import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   // Find a configured provider
@@ -60,9 +57,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       );
     }
 
-    // Create activity events for status change and brainstorm start
+    // Record activity events
+    const analyticsService = getAnalyticsService();
     await Promise.all([
-      createStatusChangeEvent({
+      analyticsService.statusChanged({
         taskId,
         repoId: task.repoId,
         userId: user.id,
@@ -70,7 +68,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
         fromStatus: task.status,
         toStatus: "brainstorming",
       }),
-      createBrainstormStartEvent({
+      analyticsService.brainstormStarted({
         taskId,
         repoId: task.repoId,
         userId: user.id,

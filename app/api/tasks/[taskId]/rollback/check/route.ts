@@ -5,10 +5,10 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { canRollback, getCommitsByExecution } from "@/lib/db/execution-commits";
 import { handleError, Errors } from "@/lib/errors";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export async function GET(
   request: Request,
@@ -21,20 +21,16 @@ export async function GET(
     return handleError(Errors.unauthorized());
   }
 
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: true,
-      executions: { limit: 1, orderBy: (e, { desc }) => [desc(e.createdAt)] },
-    },
-  });
+  const taskService = getTaskService();
+  const task = await taskService.getTaskFull(taskId);
 
   if (!task || task.repo.userId !== session.user.id) {
     return handleError(Errors.notFound("Task"));
   }
 
-  const latestExecution = task.executions?.[0];
+  const executionService = getExecutionService();
+  const latestExecution = await executionService.getLatestForTask(taskId);
+
   if (!latestExecution) {
     return NextResponse.json({
       canRollback: false,

@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import {
   createAIClient,
   getConversation,
@@ -17,6 +15,7 @@ import {
   getPreferredModel,
 } from "@/lib/api";
 import { decryptApiKey } from "@/lib/crypto";
+import { getTaskService } from "@/lib/contexts/task/api";
 import { apiLogger } from "@/lib/logger";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
@@ -161,21 +160,16 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     setConversation(taskId, conversation);
 
     // Persist to database - MUST await to prevent data loss
-    // Previous fire-and-forget pattern could lose conversation on server restart
-    await db
-      .update(tasks)
-      .set({
-        brainstormConversation: JSON.stringify(conversation.messages),
-        brainstormResult: conversation.currentPreview
-          ? JSON.stringify(conversation.currentPreview, null, 2)
-          : undefined,
-        // Persist compaction metadata
-        brainstormSummary: conversation.summary,
-        brainstormMessageCount: conversation.messageCount || 0,
-        brainstormCompactedAt: conversation.compactedAt,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    const taskService = getTaskService();
+    await taskService.updateFields(taskId, {
+      brainstormConversation: JSON.stringify(conversation.messages),
+      brainstormResult: conversation.currentPreview
+        ? JSON.stringify(conversation.currentPreview, null, 2)
+        : undefined,
+      brainstormSummary: conversation.summary,
+      brainstormMessageCount: conversation.messageCount || 0,
+      brainstormCompactedAt: conversation.compactedAt,
+    });
 
     return NextResponse.json({
       message: response.message,

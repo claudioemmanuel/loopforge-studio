@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
-import { db, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
+import { getUserService } from "@/lib/contexts/iam/api";
 
 // Valid models per provider
 const VALID_MODELS = {
@@ -22,7 +21,6 @@ export const POST = withAuth(async (request, { user }) => {
     const body = await request.json();
     const { provider, model } = body as { provider: Provider; model: string };
 
-    // Validate provider
     if (!provider || !VALID_MODELS[provider]) {
       return NextResponse.json(
         {
@@ -32,7 +30,6 @@ export const POST = withAuth(async (request, { user }) => {
       );
     }
 
-    // Validate model for the provider
     if (!model || !VALID_MODELS[provider].includes(model as never)) {
       return NextResponse.json(
         {
@@ -42,17 +39,15 @@ export const POST = withAuth(async (request, { user }) => {
       );
     }
 
-    // Update the appropriate column based on provider
-    const updateData: Record<string, string> = {};
-    if (provider === "anthropic") {
-      updateData.preferredAnthropicModel = model;
-    } else if (provider === "openai") {
-      updateData.preferredOpenaiModel = model;
-    } else if (provider === "gemini") {
-      updateData.preferredGeminiModel = model;
-    }
+    const modelField =
+      provider === "anthropic"
+        ? "preferredAnthropicModel"
+        : provider === "openai"
+          ? "preferredOpenaiModel"
+          : "preferredGeminiModel";
 
-    await db.update(users).set(updateData).where(eq(users.id, user.id));
+    const userService = getUserService();
+    await userService.updateUserFields(user.id, { [modelField]: model });
 
     return NextResponse.json({ success: true, provider, model });
   } catch (error) {

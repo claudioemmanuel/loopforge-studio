@@ -15,13 +15,3 @@ export {
   type AuthContext,
   type TaskContext,
 } from "./middleware";
-
-// Cached queries (React cache for request deduplication)
-export {
-  getUser,
-  getUserWithSubscription,
-  getRepos,
-  getRepo,
-  getTask,
-  getTasksByRepo,
-} from "./cached-queries";

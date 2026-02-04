@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { db, tasks } from "@/lib/db";
-import { eq, and, isNull } from "drizzle-orm";
 import { brainstormTask, createAIClient } from "@/lib/ai";
 import { handleError, Errors } from "@/lib/errors";
 import { withTask, getAIClientConfig } from "@/lib/api";
+import { getTaskService } from "@/lib/contexts/task/api";
 import { apiLogger } from "@/lib/logger";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
@@ -11,6 +10,8 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   if (!config) {
     return handleError(Errors.noProviderConfigured());
   }
+
+  const taskService = getTaskService();
 
   try {
     const client = await createAIClient(
@@ -20,25 +21,14 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     );
 
     // ATOMIC: Claim the processing slot to prevent concurrent brainstorms
-    // This UPDATE only succeeds if processingPhase is NULL (not already processing)
-    const claimResult = await db
-      .update(tasks)
-      .set({
-        status: "brainstorming",
-        processingPhase: "brainstorming",
-        processingStatusText: "Analyzing task requirements...",
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(tasks.id, taskId),
-          isNull(tasks.processingPhase), // Only claim if not already processing
-        ),
-      )
-      .returning();
+    const claimed = await taskService.claimProcessingSlot(
+      taskId,
+      "brainstorming",
+      "Analyzing task requirements...",
+      "brainstorming",
+    );
 
-    // If no rows were updated, another request already claimed the slot
-    if (claimResult.length === 0) {
+    if (!claimed) {
       return NextResponse.json(
         {
           error: "Task is already processing",
@@ -51,25 +41,16 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     // Run brainstorm
     const result = await brainstormTask(client, task.title, task.description);
 
-    // Verify task is still in expected state before saving result
-    // This prevents overwriting user's manual changes during long AI operations
-    const updateResult = await db
-      .update(tasks)
-      .set({
-        brainstormResult: JSON.stringify(result, null, 2),
-        processingPhase: null, // Clear processing state
-        processingStatusText: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(tasks.id, taskId),
-          eq(tasks.status, "brainstorming"), // Only update if still brainstorming
-        ),
-      )
-      .returning();
+    // Save result and clear processing state (only if still brainstorming)
+    await taskService.updateFields(taskId, {
+      brainstormResult: JSON.stringify(result, null, 2),
+      processingPhase: null,
+      processingStatusText: null,
+    });
 
-    if (updateResult.length === 0) {
+    // Verify the update landed (task may have been moved by user during AI call)
+    const updated = await taskService.getTaskFull(taskId);
+    if (!updated || updated.status !== "brainstorming") {
       apiLogger.warn(
         { taskId },
         "Task state changed during processing, discarding result",
@@ -80,7 +61,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       );
     }
 
-    return NextResponse.json(updateResult[0]);
+    return NextResponse.json(updated);
   } catch (error) {
     apiLogger.error(
       {
@@ -93,15 +74,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     );
 
     // Revert status and clear processing state on error
-    await db
-      .update(tasks)
-      .set({
-        status: "todo",
-        processingPhase: null,
-        processingStatusText: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await taskService.clearProcessingSlot(taskId, { status: "todo" });
 
     return handleError(error);
   }
