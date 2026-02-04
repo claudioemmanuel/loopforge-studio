@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { getConversation } from "@/lib/ai";
 import { apiLogger } from "@/lib/logger";
 import { handleError, Errors } from "@/lib/errors";
-import { TaskAggregate, TaskRepository } from "@/lib/domain";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export async function POST(
   request: Request,
@@ -37,28 +37,25 @@ export async function POST(
   }
 
   try {
-    const taskAggregate = TaskAggregate.fromPersistence(task);
+    const taskService = getTaskService();
 
-    // Save brainstorm result if we have a preview
+    const params: {
+      brainstormResult?: string | null;
+      brainstormConversation?: string | null;
+    } = {};
+
     if (conversation.currentPreview) {
-      taskAggregate.recordBrainstorm({
-        brainstormResult: JSON.stringify(
-          conversation.currentPreview,
-          null,
-          2,
-        ),
-      });
+      params.brainstormResult = JSON.stringify(
+        conversation.currentPreview,
+        null,
+        2,
+      );
     }
-
-    // Save conversation messages
     if (conversation.messages.length > 0) {
-      taskAggregate.recordBrainstorm({
-        brainstormConversation: JSON.stringify(conversation.messages),
-      });
+      params.brainstormConversation = JSON.stringify(conversation.messages);
     }
 
-    const taskRepository = new TaskRepository();
-    const updatedTask = await taskRepository.save(taskAggregate);
+    await taskService.saveBrainstormResult(taskId, params);
 
     // Keep conversation in memory (don't delete)
     // This allows continuing the conversation if user reopens
@@ -66,7 +63,6 @@ export async function POST(
     return NextResponse.json({
       success: true,
       saved: true,
-      task: updatedTask,
     });
   } catch (error) {
     apiLogger.error({ taskId, error }, "Brainstorm save error");
