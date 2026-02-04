@@ -9,7 +9,7 @@ import {
   formatLimitError,
 } from "@/lib/contexts/billing/api";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
-import { TaskAggregate, TaskRepository } from "@/lib/domain";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export async function GET(
   request: Request,
@@ -97,17 +97,15 @@ export async function POST(
     });
   }
 
-  const taskId = crypto.randomUUID();
-  const taskAggregate = TaskAggregate.createNew({
-    id: taskId,
+  const taskService = getTaskService();
+  const newTask = await taskService.createTask({
     repoId,
     title,
     description: description || null,
     autonomousMode,
     autoApprove,
   });
-  const taskRepository = new TaskRepository();
-  const newTask = await taskRepository.create(taskAggregate);
+  const taskId = newTask.id;
 
   // Record activity event
   const analyticsService = getAnalyticsService();

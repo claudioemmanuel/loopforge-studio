@@ -14,12 +14,8 @@ import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { buildExecutionGraph } from "@/lib/execution/graph-builder";
 import type { ExecutionData } from "@/lib/execution/graph-types";
-import {
-  ExecutionAggregate,
-  ExecutionRepository,
-  TaskAggregate,
-  TaskRepository,
-} from "@/lib/domain";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export const GET = withTask(async (request, { task }) => {
   // Check if graph data is requested via query param
@@ -81,10 +77,8 @@ export const GET = withTask(async (request, { task }) => {
     const executionGraph = await buildExecutionGraph(executionData);
 
     // Cache the graph in the task record
-    const taskAggregate = TaskAggregate.fromPersistence(task);
-    taskAggregate.updateExecutionGraph(executionGraph);
-    const taskRepository = new TaskRepository();
-    await taskRepository.save(taskAggregate);
+    const taskService = getTaskService();
+    await taskService.updateFields(task.id, { executionGraph });
 
     return NextResponse.json({
       ...task,
@@ -102,11 +96,9 @@ export const GET = withTask(async (request, { task }) => {
 
 export const PATCH = withTask(async (request, { user, task, taskId }) => {
   const body = await request.json();
-  const taskAggregate = TaskAggregate.fromPersistence(task);
-  const taskRepository = new TaskRepository();
+  const taskService = getTaskService();
 
   // Handle backward movement with resetPhases option
-  // When moving backward and resetPhases is true, clear data based on target status
   const resetPhases = body.resetPhases === true;
 
   // Check if status is changing to "executing" - auto-queue execution
@@ -137,40 +129,32 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
 
     try {
       const branch = `loopforge/${task.id.slice(0, 8)}`;
-      taskAggregate.updateDetails({
-        title: body.title,
-        description: body.description ?? undefined,
-        priority: body.priority,
-        autonomousMode: body.autonomousMode,
-        branch,
-        status: "executing",
-        resetPhases,
-        statusTriggeredBy: "user",
-        statusTriggeredByUserId: user.id,
-      });
 
-      // ATOMIC: Claim the execution slot first to prevent race conditions
-      // This UPDATE only succeeds if status is NOT 'executing' (not already running)
-      const claimedTask = await taskRepository.saveWithStatusGuard(
-        taskAggregate,
-        { ne: "executing" },
-      );
+      // Apply any metadata changes before claiming
+      const metaFields: Record<string, unknown> = {};
+      if (body.title !== undefined) metaFields.title = body.title;
+      if (body.description !== undefined)
+        metaFields.description = body.description;
+      if (body.priority !== undefined) metaFields.priority = body.priority;
+      if (body.autonomousMode !== undefined)
+        metaFields.autonomousMode = body.autonomousMode;
+      if (Object.keys(metaFields).length > 0) {
+        await taskService.updateFields(taskId, metaFields);
+      }
+
+      // ATOMIC: Claim the execution slot – only succeeds if not already executing
+      const claimedTask = await taskService.claimExecutionSlot(taskId, branch);
 
       if (!claimedTask) {
         return handleError(Errors.conflict("Task is already executing"));
       }
 
-      // Now create execution record (we have exclusive execution rights)
+      // Create execution record
+      const executionService = getExecutionService();
       const executionId = crypto.randomUUID();
-      const executionAggregate = ExecutionAggregate.createQueued({
-        id: executionId,
-        taskId: task.id,
-      });
-      const executionRepository = new ExecutionRepository();
-      await executionRepository.create(executionAggregate);
+      await executionService.createQueued({ id: executionId, taskId });
 
-      // Queue the execution job
-      // Worker will decrypt API key on demand using userId
+      // Queue the execution job – worker decrypts API key on demand
       const job = await queueExecution({
         executionId,
         taskId: task.id,
@@ -191,38 +175,47 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
       });
     } catch (error) {
       apiLogger.error({ taskId, error }, "Execution error");
-
-      // Revert status on error (only if we set it to executing)
-      const revertAggregate = TaskAggregate.fromPersistence(task);
-      revertAggregate.revertExecution(task.status);
-      await taskRepository.saveWithStatusGuard(revertAggregate, {
-        eq: "executing",
-      });
-
+      await taskService.revertExecutionSlot(taskId, task.status);
       return handleError(error);
     }
   }
 
-  taskAggregate.updateDetails({
-    title: body.title,
-    description: body.description ?? undefined,
-    status: (body.status ?? undefined) as TaskStatus | undefined,
-    priority: body.priority,
-    branch: body.branch,
-    autonomousMode: body.autonomousMode,
-    planContent: body.planContent,
-    resetPhases,
-    statusTriggeredBy: "user",
-    statusTriggeredByUserId: user.id,
-  });
+  // Standard update (not moving to executing)
+  const fields: Record<string, unknown> = { updatedAt: new Date() };
+  if (body.title !== undefined) fields.title = body.title;
+  if (body.description !== undefined) fields.description = body.description;
+  if (body.status !== undefined) fields.status = body.status;
+  if (body.priority !== undefined) fields.priority = body.priority;
+  if (body.branch !== undefined) fields.branch = body.branch;
+  if (body.autonomousMode !== undefined)
+    fields.autonomousMode = body.autonomousMode;
+  if (body.planContent !== undefined) fields.planContent = body.planContent;
+
+  // When moving backward with resetPhases, clear phase-dependent data
+  if (resetPhases && body.status) {
+    const targetStatus = body.status as TaskStatus;
+    if (targetStatus === "todo" || targetStatus === "brainstorming") {
+      fields.planContent = null;
+      fields.branch = null;
+      fields.processingPhase = null;
+      fields.processingStatusText = null;
+    }
+    if (targetStatus === "todo") {
+      fields.brainstormSummary = null;
+      fields.brainstormConversation = null;
+    }
+  }
+
+  await taskService.updateFields(taskId, fields);
+
   if (body.brainstormResult !== undefined) {
-    taskAggregate.recordBrainstorm({
+    await taskService.saveBrainstormResult(taskId, {
       brainstormResult: body.brainstormResult,
     });
   }
 
-  // Standard update (not moving to executing)
-  const updatedTask = await taskRepository.save(taskAggregate);
+  // Re-fetch the updated task to return fresh data
+  const updatedTask = await taskService.getTaskFull(taskId);
 
   // Record activity events
   const analyticsService = getAnalyticsService();
