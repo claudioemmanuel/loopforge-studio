@@ -5,13 +5,13 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, executions } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { deletePendingChangesByTask } from "@/lib/db/pending-changes";
 import { deleteTestRunsByExecution } from "@/lib/db/test-runs";
 import { discardBranchChanges } from "@/lib/ralph/git-operations";
 import type { StatusHistoryEntry, TaskStatus } from "@/lib/db/schema";
 import { handleError, Errors } from "@/lib/errors";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export async function POST(
   request: Request,
@@ -24,14 +24,8 @@ export async function POST(
     return handleError(Errors.unauthorized());
   }
 
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: true,
-      executions: { limit: 1, orderBy: (e, { desc }) => [desc(e.createdAt)] },
-    },
-  });
+  const taskService = getTaskService();
+  const task = await taskService.getTaskFull(taskId);
 
   if (!task || task.repo.userId !== session.user.id) {
     return handleError(Errors.notFound("Task"));
@@ -52,7 +46,8 @@ export async function POST(
   const targetStatus: TaskStatus =
     body.targetStatus === "planning" ? "planning" : "stuck";
 
-  const latestExecution = task.executions?.[0];
+  const executionService = getExecutionService();
+  const latestExecution = await executionService.getLatestForTask(taskId);
 
   try {
     // Discard uncommitted changes in the repo
@@ -66,19 +61,10 @@ export async function POST(
     // Clean up pending changes
     await deletePendingChangesByTask(taskId);
 
-    // Clean up test runs for this execution
+    // Clean up test runs and mark execution as failed
     if (latestExecution) {
       await deleteTestRunsByExecution(latestExecution.id);
-
-      // Mark execution as failed
-      await db
-        .update(executions)
-        .set({
-          status: "failed",
-          errorMessage: reason,
-          completedAt: new Date(),
-        })
-        .where(eq(executions.id, latestExecution.id));
+      await executionService.markFailed(latestExecution.id, reason);
     }
 
     // Update task status
@@ -90,19 +76,12 @@ export async function POST(
       userId: session.user.id,
     };
 
-    await db
-      .update(tasks)
-      .set({
-        status: targetStatus,
-        statusHistory: [...(task.statusHistory || []), historyEntry],
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
-
-    // Fetch updated task
-    const updatedTask = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
+    await taskService.updateFields(taskId, {
+      status: targetStatus,
+      statusHistory: [...(task.statusHistory || []), historyEntry],
     });
+
+    const updatedTask = await taskService.getTaskFull(taskId);
 
     return NextResponse.json({
       success: true,

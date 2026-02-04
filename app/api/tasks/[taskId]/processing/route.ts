@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import {
   getBrainstormJobStatus,
   getPlanJobStatus,
   getJobStatus,
 } from "@/lib/queue";
 import { handleError, Errors } from "@/lib/errors";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export async function GET(
   request: Request,
@@ -20,11 +19,8 @@ export async function GET(
     return handleError(Errors.unauthorized());
   }
 
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
+  const taskService = getTaskService();
+  const task = await taskService.getTaskFull(taskId);
 
   if (!task || task.repo.userId !== session.user.id) {
     return handleError(Errors.notFound("Task"));

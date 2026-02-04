@@ -9,7 +9,7 @@
 import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema/tables";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 
 export class TaskService {
   // Kept for future event publishing.
@@ -97,6 +97,45 @@ export class TaskService {
     await db
       .update(tasks)
       .set({ ...fields, updatedAt: new Date() } as Record<string, unknown>)
+      .where(eq(tasks.id, taskId));
+  }
+
+  /**
+   * Atomically claim the processing slot on a task.
+   * Returns the updated row if the slot was free, or null if already claimed.
+   */
+  async claimProcessingSlot(
+    taskId: string,
+    phase: string,
+    statusText: string,
+    newStatus: string,
+  ) {
+    const rows = await db
+      .update(tasks)
+      .set({
+        status: newStatus as typeof tasks.$inferInsert.status,
+        processingPhase: phase as typeof tasks.$inferInsert.processingPhase,
+        processingStatusText: statusText,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(tasks.id, taskId), isNull(tasks.processingPhase)))
+      .returning();
+    return rows[0] ?? null;
+  }
+
+  /** Clear the processing slot and optionally set result fields. */
+  async clearProcessingSlot(
+    taskId: string,
+    fields?: Record<string, unknown>,
+  ): Promise<void> {
+    await db
+      .update(tasks)
+      .set({
+        processingPhase: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+        ...fields,
+      } as Record<string, unknown>)
       .where(eq(tasks.id, taskId));
   }
 
