@@ -125,9 +125,17 @@ Worker health/heartbeat endpoints added. Stuck-tasks dashboard widget, recovery 
 
 ---
 
-### 🚧 Next: Wire Aggregates into Services (IN PROGRESS)
+### ✅ Phase 9: Wire Task & Execution Aggregates + Delete lib/domain/ (COMPLETED)
 
-The domain aggregates and infrastructure repositories exist in each context but are not yet called by the services. See [DDD-MIGRATION-STATUS.md](./DDD-MIGRATION-STATUS.md) "What Remains" section for the full breakdown.
+- `TaskRepository.saveWithStatusGuard` – atomic status-guarded UPDATE for race-condition-safe execution claiming
+- `TaskService` extended with 7 aggregate-backed methods: `claimExecutionSlot`, `revertExecutionSlot`, `saveBrainstormResult`, `addDependency`, `removeDependency`, `updateDependencySettings`, `enableAutonomousMode`
+- `ExecutionService` extended: `createQueued`
+- 6 routes migrated off legacy aggregates: `execute`, `brainstorm/save`, `dependencies`, `autonomous/resume`, `tasks/[taskId]` PATCH+GET, `repos/[repoId]/tasks` POST
+- `lib/domain/` deleted (13 files – legacy aggregates, repositories, value objects)
+
+### 🚧 Next: Wire Remaining Contexts (IAM, Repository, Billing, Analytics)
+
+Same pattern: extend services with aggregate-backed methods, retire direct DB calls. See [DDD-MIGRATION-STATUS.md](./DDD-MIGRATION-STATUS.md) for the full breakdown.
 
 ---
 
@@ -151,11 +159,12 @@ The domain aggregates and infrastructure repositories exist in each context but 
 - [x] **Phase 7: Worker Integration** – health endpoints, stuck-tasks widget, recovery UI
 - [x] **Phase 8: Event Initialization** – cross-context subscriber boot, domain_events migration
 - [x] **Service-layer route migrations** – 25+ routes using bounded-context services
+- [x] **Phase 9: Task & Execution aggregate wiring** – services delegate to aggregates + repositories; `lib/domain/` deleted
 
 ### In Progress 🚧
 
-- [ ] **Wire aggregates into services** – replace direct DB calls in services with aggregate + repository calls
-- [ ] **Retire `lib/domain/`** – move 4 routes off legacy aggregates once context aggregates are wired
+- [ ] **Wire remaining context aggregates** – IAM, Repository, Billing, Analytics services → aggregate + repository calls
+- [ ] **Enable domain event publishing** – aggregates publish events once fully wired
 
 ### Deferred ⬜
 
@@ -163,7 +172,7 @@ The domain aggregates and infrastructure repositories exist in each context but 
 
 ### Overall Progress
 
-**Phases 0-8 complete. Service-layer migrations complete. Aggregate wiring is the remaining milestone before full DDD is live.**
+**Phases 0-9 complete. Task & Execution aggregates wired. `lib/domain/` retired. Next: wire IAM, Repository, Billing, and Analytics aggregates.**
 
 ---
 

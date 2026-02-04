@@ -2,7 +2,7 @@
 
 > **Last updated:** 2026-02-04
 > **Branch:** `main` (single branch – all work consolidated)
-> **Migration state:** Service layer + route migrations complete; domain/infrastructure layer staged; aggregate wiring pending
+> **Migration state:** Service layer + route migrations complete ✅ | Task & Execution aggregates wired ✅ | `lib/domain/` deleted ✅ | Remaining contexts (IAM, Repository, Billing, Analytics) staged
 
 ---
 
@@ -10,12 +10,12 @@
 
 Loopforge Studio is migrating to Domain-Driven Design across **6 bounded contexts**. The migration has two layers that were developed in parallel and are now merged into `main`:
 
-| Layer             | What it is                                                                                                                                             | Status                                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| **Service layer** | Application-level services (`*Service`) called directly by API routes. Each context exposes a factory (`get*Service()`) via its `api/index.ts` barrel. | Complete – 25+ routes migrated                    |
-| **Domain layer**  | Aggregates, repositories, domain events, adapters inside each context. Proper DDD objects that enforce invariants and publish events.                  | Staged – files exist, not yet wired into services |
+| Layer             | What it is                                                                                                                                             | Status                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| **Service layer** | Application-level services (`*Service`) called directly by API routes. Each context exposes a factory (`get*Service()`) via its `api/index.ts` barrel. | Complete – 25+ routes migrated                                     |
+| **Domain layer**  | Aggregates, repositories, domain events, adapters inside each context. Proper DDD objects that enforce invariants and publish events.                  | Task + Execution: **wired**. IAM, Repo, Billing, Analytics: staged |
 
-The next milestone is **wiring the domain layer into the services** so the aggregates drive behaviour instead of sitting unused.
+`lib/domain/` (the legacy cross-context aggregate layer) has been **deleted**. All routes now go through bounded-context services.
 
 ---
 
@@ -45,9 +45,9 @@ lib/
 │   ├── execution/                   # AI Execution context
 │   │   ├── api/index.ts             # getExecutionService() factory
 │   │   ├── api/adapters.ts          # (STAGED)
-│   │   ├── application/execution-service.ts
-│   │   ├── domain/                  # execution-aggregate, events, types (STAGED)
-│   │   └── infrastructure/          # execution-repository (STAGED)
+│   │   ├── application/execution-service.ts  # createQueued wired ✅
+│   │   ├── domain/                  # execution-aggregate, events, types (WIRED)
+│   │   └── infrastructure/          # execution-repository (WIRED)
 │   ├── iam/                         # Identity & Access context
 │   │   ├── api/index.ts             # getUserService() factory
 │   │   ├── api/adapters.ts          # (STAGED)
@@ -65,14 +65,9 @@ lib/
 │   └── task/                        # Task Orchestration context
 │       ├── api/index.ts             # getTaskService() factory
 │       ├── api/adapters.ts          # (STAGED)
-│       ├── application/task-service.ts
-│       ├── domain/                  # task-aggregate, dependency-graph, events, types (STAGED)
-│       └── infrastructure/          # task-repository, event-handlers, autonomous-flow-manager (STAGED)
-│
-└── domain/                          # Legacy cross-context aggregates (used by 4 routes; retire after wiring)
-    ├── aggregates/                  # TaskAggregate, ExecutionAggregate, RepoAggregate, SubscriptionAggregate
-    ├── repositories/                # TaskRepository, ExecutionRepository, RepoRepository, SubscriptionRepository
-    └── value-objects/               # Identifiers, TaskLifecycle, TaskStatusTransition
+│       ├── application/task-service.ts  # aggregate-backed methods wired ✅
+│       ├── domain/                  # task-aggregate, dependency-graph, events, types (WIRED)
+│       └── infrastructure/          # task-repository (+ saveWithStatusGuard), event-handlers (WIRED)
 ```
 
 ---
@@ -129,26 +124,26 @@ Every API route that does simple CRUD or single-context reads/writes now goes th
 | **AnalyticsService**  | `recordActivityEvent`, `taskCreated`, `statusChanged`, `brainstormStarted`, `brainstormCompleted`, `planningStarted`, `planningCompleted`, `taskUpdated`, `executionStarted`, `executionCompleted`, `getTaskMetrics`, `getTasksByStatus`, `getDailyCompletions`, `getRepoActivity`, `getTokenUsage`, `getCostBreakdown`, `getActivityFeed`, `getActivityHistory`, `getActivityChanges`, `getActivitySummary`, `deleteUserActivities` |
 | **BillingService**    | `checkRepoLimit`, `checkTaskLimit`, `recordUsage`, `getUsageSummary`, `createCheckoutSession`, `createPortalSession`                                                                                                                                                                                                                                                                                                                 |
 | **RepositoryService** | `getRepositoryFull`, `listUserRepositories`, `connectRepository`, `findByOwner`, `updateRepository`, `deleteRepository`, `deleteAllByUser`                                                                                                                                                                                                                                                                                           |
-| **TaskService**       | `getTaskFull`, `listByRepo`, `listActiveWorkerTasks`, `createTask`, `updateFields`, `claimProcessingSlot`, `clearProcessingSlot`, `deleteTask`, `verifyOwnership`, `getIdsByRepoIds`, `deleteByRepoIds`                                                                                                                                                                                                                              |
-| **ExecutionService**  | `getLatestForTask`, `listByTask`, `getById`, `getExecutionWithOwnership`, `getExecutionEvents`, `create`, `markRunning`, `markCompleted`, `markFailed`, `markStuck`, `deleteByTaskIds`                                                                                                                                                                                                                                               |
+| **TaskService**       | `getTaskFull`, `listByRepo`, `listByUserId`, `listActiveWorkerTasks`, `createTask`, `updateFields`, `claimProcessingSlot`, `clearProcessingSlot`, `deleteTask`, `verifyOwnership`, `getIdsByRepoIds`, `deleteByRepoIds`, **`claimExecutionSlot`**, **`revertExecutionSlot`**, **`saveBrainstormResult`**, **`addDependency`**, **`removeDependency`**, **`updateDependencySettings`**, **`enableAutonomousMode`**                    |
+| **ExecutionService**  | `getLatestForTask`, `listByTask`, `getById`, `getExecutionWithOwnership`, `getExecutionEvents`, `create`, `markRunning`, `markCompleted`, `markFailed`, `markStuck`, `deleteByTaskIds`, **`createQueued`**                                                                                                                                                                                                                           |
 | **UserService**       | `registerUser`, `configureProvider`, `removeProvider`, `updatePreferences`, `updateLocale`, `completeOnboarding`, `updateSubscription`, `getUserFull`, `deleteUser`, `updateUserFields`                                                                                                                                                                                                                                              |
 
 ---
 
 ## What Remains
 
-### Priority 1 – Wire aggregates into services
+### ✅ Completed – Wire Task & Execution aggregates + delete lib/domain/
 
-The domain aggregates in `lib/contexts/*/domain/` and the infrastructure repositories in `lib/contexts/*/infrastructure/` are **not yet called by anything**. The services still query the database directly. The next step is to replace the direct DB calls inside each service with aggregate + repository calls.
+- `TaskRepository.saveWithStatusGuard` added (atomic execution claiming)
+- `TaskService` extended: `claimExecutionSlot`, `revertExecutionSlot`, `saveBrainstormResult`, `addDependency`, `removeDependency`, `updateDependencySettings`, `enableAutonomousMode`
+- `ExecutionService` extended: `createQueued`
+- All 6 routes that used `lib/domain` aggregates migrated to services:
+  `execute/route`, `brainstorm/save/route`, `dependencies/route`, `autonomous/resume/route`, `tasks/[taskId]/route` (PATCH executing + GET graph-cache), `repos/[repoId]/tasks/route` (POST create)
+- `lib/domain/` deleted (13 files)
 
-Four routes already use aggregates from the **legacy** `lib/domain/` layer. Once the context-local aggregates are wired in, these routes move to the services and `lib/domain/` is deleted:
+### Priority 1 – Wire remaining context aggregates (IAM, Repository, Billing, Analytics)
 
-| Route                                   | Current aggregate usage                                                                  |
-| --------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `tasks/[taskId]` PATCH (executing path) | `TaskAggregate.claimExecution` + `ExecutionAggregate.createQueued` + atomic status guard |
-| `tasks/[taskId]/dependencies`           | `TaskAggregate.addDependency` / `removeDependency` + circular-dependency detection       |
-| `tasks/[taskId]/autonomous/resume`      | `TaskAggregate.claimExecution` + `queueTaskExecution`                                    |
-| `tasks/[taskId]/brainstorm/save`        | `TaskAggregate.recordBrainstorm` + `TaskRepository.save`                                 |
+Same pattern as Task + Execution: add service methods that delegate to context-local aggregates + repositories. Services in these contexts still query the DB directly.
 
 ### Priority 2 – Routes with heavy in-route infrastructure (keep as-is for now)
 
@@ -186,9 +181,7 @@ These routes have not been touched by the migration. They still import from `@/l
 
 ### Priority 5 – Clean up staged artifacts
 
-Once the domain layer is wired in:
-
-- Delete `lib/domain/` (legacy aggregates/repositories)
+- ~~Delete `lib/domain/`~~ **Done** ✅
 - Remove `DDD_MIGRATION_DESIGN.md` and `PHASE8_VERIFICATION.md` from repo root (move relevant content to docs/)
 - Verify and remove any unused imports from the staged infrastructure files
 
@@ -203,7 +196,6 @@ These errors existed before the DDD migration and are **not caused by it**:
 | `lib/contexts/*/api/index.ts` (4 files)              | `getRedis` not exported from `@/lib/queue` — the barrel files reference it but the queue module doesn't export it |
 | `lib/contexts/iam/infrastructure/user-repository.ts` | Column name mismatches: DB has `username`/`avatarUrl`, repository maps to `name`/`image`                          |
 | `app/api/webhooks/stripe/route.ts`                   | `stripe` variable used outside its initialising `try` block                                                       |
-| `lib/domain/repositories/task-repository.ts`         | `SQL<unknown> \| undefined` not assignable to `SQL<unknown>`                                                      |
 | `lib/graph/layout.ts`                                | `GraphEdge` missing `.from` / `.to` properties                                                                    |
 | `lib/ralph/loop.ts`                                  | `SkillResult[]` missing `message` / `timestamp` fields                                                            |
 | `lib/skills/enforcement.ts`                          | `Record<string, unknown>` not assignable to expected union                                                        |
