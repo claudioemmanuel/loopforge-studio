@@ -3,7 +3,6 @@ import { auth } from "@/lib/auth";
 import { db, tasks, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
-import type { AiProvider, Task } from "@/lib/db/schema";
 import {
   getProviderApiKey,
   getPreferredModel,
@@ -11,75 +10,8 @@ import {
 } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
-import {
-  ExecutionAggregate,
-  ExecutionRepository,
-  TaskAggregate,
-  TaskRepository,
-} from "@/lib/domain";
-
-// Helper to queue execution for a task with atomic claim
-async function queueTaskExecution(
-  task: Task & { repo: { cloneUrl: string; defaultBranch: string } },
-  userId: string,
-  provider: AiProvider,
-  model: string,
-) {
-  if (!task.planContent) {
-    throw new Error("Task must have a plan to execute");
-  }
-
-  const branch = `loopforge/${task.id.slice(0, 8)}`;
-  const taskAggregate = TaskAggregate.fromPersistence(task);
-  taskAggregate.claimExecution(branch);
-  const taskRepository = new TaskRepository();
-
-  // ATOMIC: Claim the execution slot first to prevent race conditions
-  // This UPDATE only succeeds if status is NOT 'executing'
-  const claimedTask = await taskRepository.saveWithStatusGuard(taskAggregate, {
-    ne: "executing",
-  });
-
-  if (!claimedTask) {
-    throw new Error("Task is already executing");
-  }
-
-  try {
-    // Now create execution record (we have exclusive execution rights)
-    const executionId = crypto.randomUUID();
-    const executionAggregate = ExecutionAggregate.createQueued({
-      id: executionId,
-      taskId: task.id,
-    });
-    const executionRepository = new ExecutionRepository();
-    await executionRepository.create(executionAggregate);
-
-    // Queue the execution job
-    // Worker will decrypt API key on demand using userId
-    const job = await queueExecution({
-      executionId,
-      taskId: task.id,
-      repoId: task.repoId,
-      userId,
-      aiProvider: provider,
-      preferredModel: model,
-      planContent: task.planContent,
-      branch,
-      defaultBranch: task.repo.defaultBranch || "main",
-      cloneUrl: task.repo.cloneUrl,
-    });
-
-    return { executionId, jobId: job.id, claimedTask };
-  } catch (error) {
-    // If queuing failed after claiming, reset the status
-    const revertAggregate = TaskAggregate.fromPersistence(task);
-    revertAggregate.revertExecution(task.status as "ready");
-    await taskRepository.saveWithStatusGuard(revertAggregate, {
-      eq: "executing",
-    });
-    throw error;
-  }
-}
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 /**
  * POST /api/tasks/[taskId]/autonomous/resume
@@ -125,13 +57,12 @@ export async function POST(
     );
   }
 
-  // If task is "ready", enable autonomous mode AND queue execution atomically
+  const taskService = getTaskService();
+
+  // If task is "ready", enable autonomous mode AND queue execution
   if (task.status === "ready") {
-    // First enable autonomous mode (will be committed with execution claim)
-    const taskRepository = new TaskRepository();
-    const taskAggregate = TaskAggregate.fromPersistence(task);
-    taskAggregate.updateDetails({ autonomousMode: true });
-    const updatedTask = await taskRepository.save(taskAggregate);
+    await taskService.enableAutonomousMode(taskId);
+
     if (!task.planContent) {
       return handleError(
         Errors.invalidRequest("Task must have a plan to execute"),
@@ -162,39 +93,48 @@ export async function POST(
     const finalModel = getPreferredModel(user, configuredProvider);
 
     try {
-      const { executionId, jobId, claimedTask } = await queueTaskExecution(
-        updatedTask,
-        session.user.id,
-        finalProvider,
-        finalModel,
-      );
+      const branch = `loopforge/${task.id.slice(0, 8)}`;
+
+      // ATOMIC: Claim the execution slot
+      const claimedTask = await taskService.claimExecutionSlot(taskId, branch);
+      if (!claimedTask) {
+        throw new Error("Task is already executing");
+      }
+
+      // Create execution record
+      const executionService = getExecutionService();
+      const executionId = crypto.randomUUID();
+      await executionService.createQueued({ id: executionId, taskId });
+
+      // Queue the execution job – worker decrypts API key on demand
+      const job = await queueExecution({
+        executionId,
+        taskId,
+        repoId: task.repoId,
+        userId: session.user.id,
+        aiProvider: finalProvider,
+        preferredModel: finalModel,
+        planContent: task.planContent,
+        branch,
+        defaultBranch: task.repo.defaultBranch || "main",
+        cloneUrl: task.repo.cloneUrl,
+      });
 
       return NextResponse.json({
         ...claimedTask,
         executionId,
-        jobId,
+        jobId: job.id,
         autoStarted: true,
       });
     } catch (error) {
       apiLogger.error({ taskId, error }, "Execution error");
-
-      // Revert status on error
-      const taskRepository = new TaskRepository();
-      const revertAggregate = TaskAggregate.fromPersistence(task);
-      revertAggregate.revertExecution("ready");
-      await taskRepository.saveWithStatusGuard(revertAggregate, {
-        eq: "executing",
-      });
-
+      await taskService.revertExecutionSlot(taskId, "ready");
       return handleError(error);
     }
   }
 
   // For other statuses, just enable autonomous mode and return
-  const taskRepository = new TaskRepository();
-  const taskAggregate = TaskAggregate.fromPersistence(task);
-  taskAggregate.updateDetails({ autonomousMode: true });
-  const updatedTask = await taskRepository.save(taskAggregate);
+  const updatedTask = await taskService.enableAutonomousMode(taskId);
 
   return NextResponse.json({
     ...updatedTask,
