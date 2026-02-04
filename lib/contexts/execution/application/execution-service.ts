@@ -7,7 +7,7 @@
 import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
 import { executions } from "@/lib/db/schema/tables";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 export class ExecutionService {
   private _redis: Redis;
@@ -117,5 +117,11 @@ export class ExecutionService {
       .update(executions)
       .set(updates as typeof executions.$inferInsert)
       .where(eq(executions.id, executionId));
+  }
+
+  /** Delete all executions for the given tasks (account cleanup). */
+  async deleteByTaskIds(taskIds: string[]): Promise<void> {
+    if (taskIds.length === 0) return;
+    await db.delete(executions).where(inArray(executions.taskId, taskIds));
   }
 }

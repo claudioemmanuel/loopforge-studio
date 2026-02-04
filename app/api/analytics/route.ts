@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
 import { subDays, startOfDay, endOfDay } from "date-fns";
-import {
-  getTaskMetrics,
-  getTasksByStatus,
-  getDailyCompletions,
-  getRepoActivity,
-  getTokenUsage,
-  getCostBreakdown,
-} from "@/lib/api/analytics";
+import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 
 export const GET = withAuth(async (request, { user }) => {
   const searchParams = new URL(request.url).searchParams;
@@ -35,6 +28,7 @@ export const GET = withAuth(async (request, { user }) => {
   }
 
   const dateRange = { start, end };
+  const analyticsService = getAnalyticsService();
 
   const [
     taskMetrics,
@@ -44,12 +38,12 @@ export const GET = withAuth(async (request, { user }) => {
     tokenUsage,
     costBreakdown,
   ] = await Promise.all([
-    getTaskMetrics(user.id, dateRange),
-    getTasksByStatus(user.id, dateRange),
-    getDailyCompletions(user.id, dateRange),
-    getRepoActivity(user.id, dateRange),
-    getTokenUsage(user.id, dateRange),
-    getCostBreakdown(user.id, dateRange),
+    analyticsService.getTaskMetrics(user.id, dateRange),
+    analyticsService.getTasksByStatus(user.id, dateRange),
+    analyticsService.getDailyCompletions(user.id, dateRange),
+    analyticsService.getRepoActivity(user.id, dateRange),
+    analyticsService.getTokenUsage(user.id, dateRange),
+    analyticsService.getCostBreakdown(user.id, dateRange),
   ]);
 
   return NextResponse.json({

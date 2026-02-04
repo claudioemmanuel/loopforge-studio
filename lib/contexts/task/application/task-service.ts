@@ -9,7 +9,7 @@
 import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema/tables";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 export class TaskService {
   // Kept for future event publishing.
@@ -111,5 +111,21 @@ export class TaskService {
       where: and(eq(tasks.id, taskId), eq(tasks.repoId, repoId)),
     });
     return !!row;
+  }
+
+  /** Return task IDs belonging to the given repos (used in cascade deletion). */
+  async getIdsByRepoIds(repoIds: string[]): Promise<string[]> {
+    if (repoIds.length === 0) return [];
+    const rows = await db
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(inArray(tasks.repoId, repoIds));
+    return rows.map((r) => r.id);
+  }
+
+  /** Delete all tasks for the given repos (account cleanup). */
+  async deleteByRepoIds(repoIds: string[]): Promise<void> {
+    if (repoIds.length === 0) return;
+    await db.delete(tasks).where(inArray(tasks.repoId, repoIds));
   }
 }

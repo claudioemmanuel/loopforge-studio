@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, repos } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ repoId: string }> },
 ) {
   const session = await auth();
@@ -15,10 +14,8 @@ export async function GET(
     return handleError(Errors.unauthorized());
   }
 
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
-  });
-
+  const repositoryService = getRepositoryService();
+  const repo = await repositoryService.findByOwner(repoId, session.user.id);
   if (!repo) {
     return handleError(Errors.notFound("Repository"));
   }
@@ -37,10 +34,8 @@ export async function PATCH(
     return handleError(Errors.unauthorized());
   }
 
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
-  });
-
+  const repositoryService = getRepositoryService();
+  const repo = await repositoryService.findByOwner(repoId, session.user.id);
   if (!repo) {
     return handleError(Errors.notFound("Repository"));
   }
@@ -56,19 +51,14 @@ export async function PATCH(
     return handleError(Errors.invalidRequest("No valid fields to update"));
   }
 
-  updates.updatedAt = new Date();
+  await repositoryService.updateRepository(repoId, updates);
 
-  await db.update(repos).set(updates).where(eq(repos.id, repoId));
-
-  const updatedRepo = await db.query.repos.findFirst({
-    where: eq(repos.id, repoId),
-  });
-
+  const updatedRepo = await repositoryService.getRepositoryFull(repoId);
   return NextResponse.json(updatedRepo);
 }
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ repoId: string }> },
 ) {
   const session = await auth();
@@ -78,15 +68,12 @@ export async function DELETE(
     return handleError(Errors.unauthorized());
   }
 
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
-  });
-
+  const repositoryService = getRepositoryService();
+  const repo = await repositoryService.findByOwner(repoId, session.user.id);
   if (!repo) {
     return handleError(Errors.notFound("Repository"));
   }
 
-  await db.delete(repos).where(eq(repos.id, repoId));
-
+  await repositoryService.deleteRepository(repoId);
   return NextResponse.json({ success: true });
 }

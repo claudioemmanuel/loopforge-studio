@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
-import { db, repos } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
 
 export const GET = withAuth(async (_request, { user }) => {
-  const userRepos = await db.query.repos.findMany({
-    where: eq(repos.userId, user.id),
-  });
-
+  const repositoryService = getRepositoryService();
+  const userRepos = await repositoryService.listUserRepositories(user.id);
   return NextResponse.json(userRepos);
 });
 
 export const DELETE = withAuth(async (_request, { user }) => {
-  await db.delete(repos).where(eq(repos.userId, user.id));
-
+  const repositoryService = getRepositoryService();
+  await repositoryService.deleteAllByUser(user.id);
   return NextResponse.json({ success: true });
 });

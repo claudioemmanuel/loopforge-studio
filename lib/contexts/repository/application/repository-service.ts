@@ -90,4 +90,27 @@ export class RepositoryService {
   async deleteRepository(repoId: string): Promise<void> {
     await db.delete(repos).where(eq(repos.id, repoId));
   }
+
+  /** Delete all repos for a user (account cleanup). */
+  async deleteAllByUser(userId: string): Promise<void> {
+    await db.delete(repos).where(eq(repos.userId, userId));
+  }
+
+  /** Find a repo only if it belongs to the given user (ownership gate). */
+  async findByOwner(repoId: string, userId: string) {
+    return db.query.repos.findFirst({
+      where: and(eq(repos.id, repoId), eq(repos.userId, userId)),
+    });
+  }
+
+  /** Partial update on a repository row. */
+  async updateRepository(
+    repoId: string,
+    fields: Record<string, unknown>,
+  ): Promise<void> {
+    await db
+      .update(repos)
+      .set({ ...fields, updatedAt: new Date() } as Record<string, unknown>)
+      .where(eq(repos.id, repoId));
+  }
 }
