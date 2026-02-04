@@ -152,4 +152,19 @@ export class ExecutionService {
     if (taskIds.length === 0) return;
     await db.delete(executions).where(inArray(executions.taskId, taskIds));
   }
+
+  /**
+   * Create an execution in queued status (replaces legacy ExecutionAggregate.createQueued).
+   * Inserts a minimal row – the worker will update it when it starts running.
+   */
+  async createQueued(params: { id: string; taskId: string }): Promise<string> {
+    await db.insert(executions).values({
+      id: params.id,
+      taskId: params.taskId,
+      status: "queued" as typeof executions.$inferInsert.status,
+      iteration: 0,
+      createdAt: new Date(),
+    });
+    return params.id;
+  }
 }

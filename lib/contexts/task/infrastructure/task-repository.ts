@@ -7,7 +7,7 @@
 
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/db/schema/tables";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import type { Redis } from "ioredis";
 import { TaskAggregate, type TaskState } from "../domain/task-aggregate";
 import type {
@@ -121,6 +121,41 @@ export class TaskRepository {
       // Update existing task
       await db.update(tasks).set(row).where(eq(tasks.id, state.id));
     }
+  }
+
+  /**
+   * Atomic status-guarded save.  The UPDATE only applies when the current
+   * DB status matches the guard – used to prevent race conditions when
+   * claiming or reverting execution slots.
+   *
+   * @param guard.eq  – succeed only if current status equals this value
+   * @param guard.ne  – succeed only if current status does NOT equal this value
+   * @returns the persisted row on success, or null if the guard failed
+   */
+  async saveWithStatusGuard(
+    task: TaskAggregate,
+    guard: { eq?: string; ne?: string },
+  ): Promise<Record<string, unknown> | null> {
+    const state = task.getState();
+    const row = this.mapStateToRow(state);
+
+    const conditions = [eq(tasks.id, state.id)];
+    if (guard.eq)
+      conditions.push(
+        eq(tasks.status, guard.eq as typeof tasks.$inferSelect.status),
+      );
+    if (guard.ne)
+      conditions.push(
+        ne(tasks.status, guard.ne as typeof tasks.$inferSelect.status),
+      );
+
+    const rows = await db
+      .update(tasks)
+      .set(row as Record<string, unknown>)
+      .where(and(...conditions))
+      .returning();
+
+    return rows[0] ?? null;
   }
 
   /**

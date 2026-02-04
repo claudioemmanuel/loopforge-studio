@@ -8,8 +8,14 @@
 
 import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
-import { tasks, repos, executions } from "@/lib/db/schema/tables";
+import {
+  tasks,
+  repos,
+  executions,
+  taskDependencies,
+} from "@/lib/db/schema/tables";
 import { eq, and, or, isNull, isNotNull, inArray, desc } from "drizzle-orm";
+import { TaskRepository } from "../infrastructure/task-repository";
 
 export class TaskService {
   // Kept for future event publishing.
@@ -237,5 +243,182 @@ export class TaskService {
   async deleteByRepoIds(repoIds: string[]): Promise<void> {
     if (repoIds.length === 0) return;
     await db.delete(tasks).where(inArray(tasks.repoId, repoIds));
+  }
+
+  // =========================================================================
+  // Aggregate-backed mutations (wired through TaskAggregate + TaskRepository)
+  // =========================================================================
+
+  private get repository(): TaskRepository {
+    return new TaskRepository(this._redis);
+  }
+
+  /**
+   * Atomically claim the execution slot via the aggregate.
+   * Returns the persisted row if the guard matched (status === 'ready'),
+   * or null if another request already claimed it (409 territory).
+   */
+  async claimExecutionSlot(
+    taskId: string,
+    branch: string,
+  ): Promise<Record<string, unknown> | null> {
+    const aggregate = await this.repository.findById(taskId);
+    if (!aggregate) throw new Error(`Task ${taskId} not found`);
+
+    await aggregate.startExecution({ executionId: "", branchName: branch });
+
+    return this.repository.saveWithStatusGuard(aggregate, { eq: "ready" });
+  }
+
+  /**
+   * Revert an execution claim back to the given status.
+   * Only succeeds if the task is currently in 'executing' status.
+   */
+  async revertExecutionSlot(taskId: string, revertTo: string): Promise<void> {
+    const aggregate = await this.repository.findById(taskId);
+    if (!aggregate) return;
+
+    // Force the state back – the aggregate enforces transitions so we
+    // directly update via the guarded path using updateFields.
+    await db
+      .update(tasks)
+      .set({
+        status: revertTo as typeof tasks.$inferInsert.status,
+        processingPhase: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(tasks.id, taskId), eq(tasks.status, "executing")));
+  }
+
+  /**
+   * Save brainstorm conversation/result for a task.
+   */
+  async saveBrainstormResult(
+    taskId: string,
+    params: {
+      brainstormResult?: string | null;
+      brainstormConversation?: string | null;
+    },
+  ): Promise<void> {
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (params.brainstormResult !== undefined) {
+      updates.brainstormSummary = params.brainstormResult;
+    }
+    if (params.brainstormConversation !== undefined) {
+      updates.brainstormConversation = params.brainstormConversation;
+    }
+    await db
+      .update(tasks)
+      .set(updates as Record<string, unknown>)
+      .where(eq(tasks.id, taskId));
+  }
+
+  /**
+   * Add a dependency: insert into taskDependencies join table and
+   * append blockedById to the task's blockedByIds array.
+   */
+  async addDependency(
+    taskId: string,
+    blockedById: string,
+  ): Promise<{
+    id: string;
+    taskId: string;
+    blockedById: string;
+    createdAt: Date;
+  }> {
+    const dependencyId = crypto.randomUUID();
+    const record = {
+      id: dependencyId,
+      taskId,
+      blockedById,
+      createdAt: new Date(),
+    };
+    await db.insert(taskDependencies).values(record);
+
+    // Update the denormalized blockedByIds column
+    const task = await db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+    });
+    if (task) {
+      const current: string[] = task.blockedByIds || [];
+      if (!current.includes(blockedById)) {
+        current.push(blockedById);
+        await db
+          .update(tasks)
+          .set({ blockedByIds: current, updatedAt: new Date() })
+          .where(eq(tasks.id, taskId));
+      }
+    }
+
+    return record;
+  }
+
+  /**
+   * Remove a dependency: delete from taskDependencies join table and
+   * remove blockedById from the task's blockedByIds array.
+   */
+  async removeDependency(taskId: string, blockedById: string): Promise<void> {
+    await db
+      .delete(taskDependencies)
+      .where(
+        and(
+          eq(taskDependencies.taskId, taskId),
+          eq(taskDependencies.blockedById, blockedById),
+        ),
+      );
+
+    const task = await db.query.tasks.findFirst({
+      where: eq(tasks.id, taskId),
+    });
+    if (task) {
+      const current: string[] = (task.blockedByIds || []).filter(
+        (id: string) => id !== blockedById,
+      );
+      await db
+        .update(tasks)
+        .set({ blockedByIds: current, updatedAt: new Date() })
+        .where(eq(tasks.id, taskId));
+    }
+  }
+
+  /**
+   * Update dependency-related settings on a task.
+   */
+  async updateDependencySettings(
+    taskId: string,
+    settings: {
+      autoExecuteWhenUnblocked?: boolean;
+      dependencyPriority?: number;
+    },
+  ): Promise<Record<string, unknown>> {
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (settings.autoExecuteWhenUnblocked !== undefined) {
+      updates.autoExecuteWhenUnblocked = settings.autoExecuteWhenUnblocked;
+    }
+    if (settings.dependencyPriority !== undefined) {
+      updates.dependencyPriority = settings.dependencyPriority;
+    }
+
+    const rows = await db
+      .update(tasks)
+      .set(updates as Record<string, unknown>)
+      .where(eq(tasks.id, taskId))
+      .returning();
+
+    return rows[0] ?? {};
+  }
+
+  /**
+   * Enable autonomous mode on a task.
+   */
+  async enableAutonomousMode(taskId: string): Promise<Record<string, unknown>> {
+    const rows = await db
+      .update(tasks)
+      .set({ autonomousMode: true, updatedAt: new Date() })
+      .where(eq(tasks.id, taskId))
+      .returning();
+
+    return rows[0] ?? {};
   }
 }
