@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, repos, workerJobs, workerEvents } from "@/lib/db";
+import { db, workerJobs, workerEvents } from "@/lib/db";
 import type { WorkerJobPhase, WorkerJobStatus } from "@/lib/db/schema";
 import { eq, and, inArray, desc, asc, sql } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
 import { handleError, Errors } from "@/lib/errors";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export const runtime = "nodejs";
 
@@ -68,10 +70,9 @@ export async function GET(request: Request) {
   const offset = (page - 1) * limit;
 
   try {
-    // Get user's repos
-    const userRepos = await db.query.repos.findMany({
-      where: eq(repos.userId, userId),
-    });
+    // Get user's repos via service
+    const repositoryService = getRepositoryService();
+    const userRepos = await repositoryService.listUserRepositories(userId);
 
     if (userRepos.length === 0) {
       return NextResponse.json({
@@ -92,11 +93,11 @@ export async function GET(request: Request) {
     const repoIds = userRepos.map((r) => r.id);
     const repoMap = new Map(userRepos.map((r) => [r.id, r]));
 
-    // Get task IDs for user's repos
-    const userTasks = await db.query.tasks.findMany({
-      where: inArray(tasks.repoId, repoIds),
-      columns: { id: true, title: true, repoId: true },
-    });
+    // Get tasks for user's repos via service
+    const taskService = getTaskService();
+    const userTasks = (
+      await Promise.all(repoIds.map((id) => taskService.listByRepo(id)))
+    ).flat();
 
     if (userTasks.length === 0) {
       return NextResponse.json({
