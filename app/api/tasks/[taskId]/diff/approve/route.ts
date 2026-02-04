@@ -5,8 +5,6 @@
 
 import { NextResponse } from "next/server";
 import { getUserGithubToken } from "@/lib/auth";
-import { db, tasks, executions } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import {
   getPendingChangesByTask,
   deletePendingChangesByTask,
@@ -22,6 +20,8 @@ import {
 import { createPullRequest } from "@/lib/github/client";
 import type { StatusHistoryEntry } from "@/lib/db/schema";
 import { withTask } from "@/lib/api";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 import path from "path";
 
 const REPOS_DIR = process.env.REPOS_DIR || "/app/repos";
@@ -45,16 +45,9 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     );
   }
 
-  // Re-fetch task with executions relation to get latest execution
-  const taskWithExecutions = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: { with: { user: true } },
-      executions: { limit: 1, orderBy: (e, { desc }) => [desc(e.createdAt)] },
-    },
-  });
+  const executionService = getExecutionService();
+  const latestExecution = await executionService.getLatestForTask(taskId);
 
-  const latestExecution = taskWithExecutions?.executions?.[0];
   if (!latestExecution) {
     return NextResponse.json(
       { error: "No execution found for task" },
@@ -109,15 +102,11 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       filesChanged,
     });
 
-    // Update execution with commit info
-    await db
-      .update(executions)
-      .set({
-        commits: [...(latestExecution.commits || []), commitResult.sha],
-        completedAt: new Date(),
-        status: "completed",
-      })
-      .where(eq(executions.id, latestExecution.id));
+    // Mark execution as completed with commit info
+    await executionService.markCompleted({
+      executionId: latestExecution.id,
+      commits: [...(latestExecution.commits || []), commitResult.sha],
+    });
 
     // Create PR if requested
     let prUrl: string | null = null;
@@ -137,7 +126,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
         commitMessages: [commitMessage],
       });
 
-      // Create the PR (githubToken already retrieved above)
+      // Create the PR
       const pr = await createPullRequest(githubToken, {
         owner: task.repo.fullName.split("/")[0],
         repo: task.repo.fullName.split("/")[1],
@@ -152,13 +141,15 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       prNumber = pr.number;
 
       // Update execution with PR info
-      await db
-        .update(executions)
-        .set({ prUrl, prNumber })
-        .where(eq(executions.id, latestExecution.id));
+      await executionService.markCompleted({
+        executionId: latestExecution.id,
+        prUrl,
+        prNumber,
+      });
     }
 
     // Update task status to done
+    const taskService = getTaskService();
     const historyEntry: StatusHistoryEntry = {
       from: task.status,
       to: "done",
@@ -167,24 +158,17 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       userId: user.id,
     };
 
-    await db
-      .update(tasks)
-      .set({
-        status: "done",
-        prUrl,
-        prNumber,
-        statusHistory: [...(task.statusHistory || []), historyEntry],
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await taskService.updateFields(taskId, {
+      status: "done",
+      prUrl,
+      prNumber,
+      statusHistory: [...(task.statusHistory || []), historyEntry],
+    });
 
     // Clean up pending changes
     await deletePendingChangesByTask(taskId);
 
-    // Fetch updated task
-    const updatedTask = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-    });
+    const updatedTask = await taskService.getTaskFull(taskId);
 
     return NextResponse.json({
       success: true,
