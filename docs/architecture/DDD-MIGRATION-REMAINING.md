@@ -19,17 +19,20 @@
 | `7fa4aba` | brainstorm/generate – both autonomous + manual paths migrated                                                                                                       |
 | `5386d90` | diff/approve – markCompleted + updateFields + getTaskFull                                                                                                           |
 | `ec02b7d` | diff/route GET – getLatestForTask replaces raw executions relation join                                                                                             |
+| `a98e134` | workers/route – Added TaskService.listActiveWorkerTasks; route retains only progress-calculation presentation logic                                                 |
+| `f42aeb1` | workers/sse – initial-data query replaced with listActiveWorkerTasks; SSE infra (stream, pub/sub, heartbeat, polling fallback) stays in route                       |
+| `b7edb5d` | workers/history – repo + task lookups migrated to RepositoryService / TaskService; pagination + aggregate-stats queries remain in route                             |
 
 ### Services that are fully extended and ready to use
 
-| Service           | Key methods available                                                                                                                                               |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AnalyticsService  | recordActivityEvent, 9 named helpers, 6 dashboard queries, 4 activity-feed queries, deleteUserActivities                                                            |
-| BillingService    | checkRepoLimit, checkTaskLimit, recordUsage, getUsageSummary, createCheckoutSession, createPortalSession                                                            |
-| RepositoryService | getRepositoryFull, listUserRepositories, connectRepository, findByOwner, updateRepository, deleteRepository, deleteAllByUser                                        |
-| TaskService       | getTaskFull, listByRepo, createTask, updateFields, claimProcessingSlot, clearProcessingSlot, deleteTask, verifyOwnership, getIdsByRepoIds, deleteByRepoIds          |
-| ExecutionService  | getLatestForTask, listByTask, getById, getExecutionWithOwnership, getExecutionEvents, create, markRunning/Completed/Failed/Stuck, deleteByTaskIds                   |
-| UserService       | registerUser, configureProvider, removeProvider, updatePreferences, updateLocale, completeOnboarding, updateSubscription, getUserFull, deleteUser, updateUserFields |
+| Service           | Key methods available                                                                                                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AnalyticsService  | recordActivityEvent, 9 named helpers, 6 dashboard queries, 4 activity-feed queries, deleteUserActivities                                                                          |
+| BillingService    | checkRepoLimit, checkTaskLimit, recordUsage, getUsageSummary, createCheckoutSession, createPortalSession                                                                          |
+| RepositoryService | getRepositoryFull, listUserRepositories, connectRepository, findByOwner, updateRepository, deleteRepository, deleteAllByUser                                                      |
+| TaskService       | getTaskFull, listByRepo, listActiveWorkerTasks, createTask, updateFields, claimProcessingSlot, clearProcessingSlot, deleteTask, verifyOwnership, getIdsByRepoIds, deleteByRepoIds |
+| ExecutionService  | getLatestForTask, listByTask, getById, getExecutionWithOwnership, getExecutionEvents, create, markRunning/Completed/Failed/Stuck, deleteByTaskIds                                 |
+| UserService       | registerUser, configureProvider, removeProvider, updatePreferences, updateLocale, completeOnboarding, updateSubscription, getUserFull, deleteUser, updateUserFields               |
 
 ---
 
@@ -48,17 +51,11 @@ These routes already use `TaskAggregate`, `ExecutionAggregate`, `TaskRepository`
 
 ### Routes with heavy infra that stay in-route
 
-| Route             | Why kept                                                           |
-| ----------------- | ------------------------------------------------------------------ |
-| `brainstorm/init` | Deep AI client + GitHub repo scan + in-memory conversation restore |
-
-### Complex worker routes (deferred – need significant new service methods)
-
-| Route             | Notes                                                                                    |
-| ----------------- | ---------------------------------------------------------------------------------------- |
-| `workers/route`   | Complex OR query (autonomousMode / processingPhase / stuck); needs listActiveWorkerTasks |
-| `workers/sse`     | SSE infrastructure stays in route; only getInitialWorkers query moves to service         |
-| `workers/history` | workerJobs + workerEvents pagination with aggregate stats; heavy service extension       |
+| Route             | What stays in route                                                                                  |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `brainstorm/init` | Deep AI client + GitHub repo scan + in-memory conversation restore                                   |
+| `workers/sse`     | SSE infrastructure (ReadableStream, Redis pub/sub, heartbeat, polling fallback)                      |
+| `workers/history` | workerJobs + workerEvents pagination and aggregate-stats queries (tightly coupled to response shape) |
 
 ### Later / low priority
 
@@ -82,6 +79,5 @@ These routes already use `TaskAggregate`, `ExecutionAggregate`, `TaskRepository`
 ## Next steps
 
 1. **Wire aggregates into services** – Connect TaskAggregate / ExecutionAggregate into TaskService / ExecutionService so `execute`, `dependencies`, `autonomous/resume`, `brainstorm/save` can route through services
-2. **Complex worker routes** – Add listActiveWorkerTasks to TaskService, migrate workers/route; keep SSE shell
-3. **Later** – billing/webhook, user/subscription, repos graph
-4. **Final** – update `docs/architecture/IMPLEMENTATION_STATUS.md`, delete this file
+2. **Later / low priority** – billing/webhook (Stripe event handling), user/subscription (complex relation query), repos/[repoId]/graph (dependency-graph domain logic)
+3. **Final** – update `docs/architecture/IMPLEMENTATION_STATUS.md`, delete this file
