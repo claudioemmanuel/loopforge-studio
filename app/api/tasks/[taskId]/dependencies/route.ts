@@ -3,7 +3,7 @@ import { db, tasks, taskDependencies } from "@/lib/db";
 import { eq, and, notInArray } from "drizzle-orm";
 import { withTask } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
-import { TaskAggregate, TaskRepository } from "@/lib/domain";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 // GET - Get task dependencies
 export const GET = withTask(async (request, { task, taskId }) => {
@@ -133,22 +133,9 @@ export const POST = withTask(async (request, { task, taskId }) => {
     return handleError(Errors.conflict("Dependency already exists"));
   }
 
-  // Create the dependency
-  const dependencyId = crypto.randomUUID();
-  const newDependency = {
-    id: dependencyId,
-    taskId,
-    blockedById,
-    createdAt: new Date(),
-  };
-
-  await db.insert(taskDependencies).values(newDependency);
-
-  // Update the blockedByIds array on the task
-  const taskAggregate = TaskAggregate.fromPersistence(task);
-  taskAggregate.addDependency(blockedById);
-  const taskRepository = new TaskRepository();
-  await taskRepository.save(taskAggregate);
+  // Create the dependency (join table + denormalized blockedByIds)
+  const taskService = getTaskService();
+  const newDependency = await taskService.addDependency(taskId, blockedById);
 
   return NextResponse.json(newDependency);
 });
@@ -162,21 +149,9 @@ export const DELETE = withTask(async (request, { task, taskId }) => {
     return handleError(Errors.invalidRequest("blockedById is required"));
   }
 
-  // Delete the dependency
-  await db
-    .delete(taskDependencies)
-    .where(
-      and(
-        eq(taskDependencies.taskId, taskId),
-        eq(taskDependencies.blockedById, blockedById),
-      ),
-    );
-
-  // Update the blockedByIds array on the task
-  const taskAggregate = TaskAggregate.fromPersistence(task);
-  taskAggregate.removeDependency(blockedById);
-  const taskRepository = new TaskRepository();
-  await taskRepository.save(taskAggregate);
+  // Delete the dependency (join table + denormalized blockedByIds)
+  const taskService = getTaskService();
+  await taskService.removeDependency(taskId, blockedById);
 
   return NextResponse.json({ success: true });
 });
@@ -186,13 +161,11 @@ export const PATCH = withTask(async (request, { task, taskId }) => {
   const body = await request.json();
   const { autoExecuteWhenUnblocked, dependencyPriority } = body;
 
-  const taskAggregate = TaskAggregate.fromPersistence(task);
-  taskAggregate.updateDependencySettings({
+  const taskService = getTaskService();
+  const updatedTask = await taskService.updateDependencySettings(taskId, {
     autoExecuteWhenUnblocked,
     dependencyPriority,
   });
-  const taskRepository = new TaskRepository();
-  const updatedTask = await taskRepository.save(taskAggregate);
 
   return NextResponse.json({
     success: true,
