@@ -4,14 +4,13 @@
  */
 
 import { NextResponse } from "next/server";
-import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import {
   getPendingChangesByTask,
   countPendingChanges,
 } from "@/lib/db/pending-changes";
 import { getLatestTestRun, getTestRunSummary } from "@/lib/db/test-runs";
 import { withTask } from "@/lib/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export const GET = withTask(async (request, { task, taskId }) => {
   // Task should be in review status to have pending changes
@@ -27,15 +26,9 @@ export const GET = withTask(async (request, { task, taskId }) => {
   // Get pending changes
   const changes = await getPendingChangesByTask(taskId);
 
-  // Re-fetch task with executions relation to get latest execution
-  const taskWithExecutions = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      executions: { limit: 1, orderBy: (e, { desc }) => [desc(e.createdAt)] },
-    },
-  });
+  const executionService = getExecutionService();
+  const latestExecution = await executionService.getLatestForTask(taskId);
 
-  const latestExecution = taskWithExecutions?.executions?.[0];
   let testRunData = null;
 
   if (latestExecution) {
@@ -56,7 +49,7 @@ export const GET = withTask(async (request, { task, taskId }) => {
       changes,
       summary: counts,
       testRun: testRunData,
-      canApprove: counts.pending === 0 || counts.total > 0, // Can approve if there are changes
+      canApprove: counts.pending === 0 || counts.total > 0,
       canReject: counts.total > 0,
     });
   }
