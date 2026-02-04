@@ -1,7 +1,9 @@
 # DDD Architecture Implementation Status
 
-**Last Updated:** 2026-02-02
-**Overall Progress:** Phase 0 Complete (Infrastructure) ✅
+**Last Updated:** 2026-02-04
+**Overall Progress:** Phases 0-8 Complete ✅ | Service-layer route migrations complete ✅ | Aggregate wiring pending 🚧
+
+> For the full migration status — what is done, what remains, known errors, and next steps — see **[DDD-MIGRATION-STATUS.md](./DDD-MIGRATION-STATUS.md)**.
 
 ---
 
@@ -75,238 +77,63 @@ docs/architecture/
 
 ---
 
-### ⬜ Phase 1: IAM Context Isolation (PENDING)
+### ✅ Phase 1: IAM Context Isolation (COMPLETED)
 
-**Estimated Duration:** 2 weeks
-**Status:** Not Started
-
-#### Goals
-
-- Extract IAM as independent module
-- Refactor API helpers (backward-compatible)
-- Publish IAM events (`UserRegistered`, `ProviderConfigured`)
-
-#### Files to Create
-
-```
-lib/contexts/iam/
-├── domain/
-│   ├── user-aggregate.ts
-│   ├── provider-config.ts
-│   └── events.ts
-├── application/
-│   ├── user-service.ts
-│   └── queries.ts
-├── infrastructure/
-│   ├── user-repository.ts
-│   └── crypto.ts
-└── api/
-    └── index.ts
-```
-
-#### Verification Criteria
-
-- [ ] Create user via OAuth, verify `UserRegistered` event published
-- [ ] Configure provider, verify `ProviderConfigured` event
-- [ ] All existing authentication tests pass
+All files created: `user-aggregate.ts`, `provider-config.ts`, `events.ts`, `user-service.ts`, `user-repository.ts`, `crypto.ts`, `adapters.ts`. UserService wired into settings and account routes.
 
 ---
 
-### ⬜ Phase 2: Repository Management Context (PENDING)
+### ✅ Phase 2: Repository Management Context (COMPLETED)
 
-**Estimated Duration:** 2 weeks
-**Status:** Not Started
-
-#### Goals
-
-- Extract Repository as independent module
-- Refactor clone/index logic
-- Publish Repository events (`CloneCompleted`, `IndexingCompleted`)
-
-#### Files to Create
-
-```
-lib/contexts/repository/
-├── domain/
-│   ├── repository-aggregate.ts
-│   ├── repo-index-aggregate.ts
-│   └── events.ts
-├── application/
-│   ├── repository-service.ts
-│   └── indexing-service.ts
-└── infrastructure/
-    ├── repository-repository.ts
-    └── github-client.ts
-```
-
-#### Verification Criteria
-
-- [ ] Connect repository, verify `RepositoryConnected` event
-- [ ] Clone repository, verify `CloneStarted` → `CloneCompleted` events
-- [ ] Task context subscribes to `CloneCompleted`
+All files created: `repository-aggregate.ts`, `repo-index-aggregate.ts`, `events.ts`, `repository-service.ts`, `indexing-service.ts`, `repository-repository.ts`, `repo-index-repository.ts`, `adapters.ts`. RepositoryService wired into repos and settings routes.
 
 ---
 
-### ⬜ Phase 3: Task Orchestration Context (PENDING)
+### ✅ Phase 3: Task Orchestration Context (COMPLETED)
 
-**Estimated Duration:** 3 weeks (MOST COMPLEX)
-**Status:** Not Started
-
-#### Goals
-
-- Extract Task Orchestration as independent module
-- Refactor task lifecycle (state machine)
-- Decouple from AI Execution (via events)
-
-#### Files to Create
-
-```
-lib/contexts/task/
-├── domain/
-│   ├── task-aggregate.ts          # State machine (NEW)
-│   ├── dependency-graph.ts        # DAG logic (NEW)
-│   └── events.ts
-├── application/
-│   ├── task-service.ts
-│   └── workflow-orchestrator.ts
-└── infrastructure/
-    └── task-repository.ts
-```
-
-#### Database Changes
-
-- Rename `tasks` → `task_tasks`
-- Rename `task_dependencies` → `task_task_dependencies`
-
-#### Verification Criteria
-
-- [ ] Create task, verify `TaskCreated` event
-- [ ] Full lifecycle (todo → done), verify 8+ events
-- [ ] Add dependency, verify blocking logic works
-- [ ] Queue brainstorm, verify AI context consumes
+All files created: `task-aggregate.ts`, `dependency-graph.ts`, `events.ts`, `task-service.ts`, `task-repository.ts`, `event-handlers.ts`, `autonomous-flow-manager.ts`, `adapters.ts`. TaskService wired into 15+ task-related routes. Note: the `tasks` table was **not** renamed (pragmatic decision to avoid migration churn).
 
 ---
 
-### ⬜ Phase 4: AI Execution Context (PENDING)
+### ✅ Phase 4: AI Execution Context (COMPLETED)
 
-**Estimated Duration:** 4 weeks (2nd MOST COMPLEX)
-**Status:** Not Started
-
-#### Goals
-
-- Extract AI Execution as independent module
-- Migrate Ralph loop (684 lines)
-- Migrate extraction (754 lines), recovery (473 lines)
-- Move skills framework
-
-#### Files to Create
-
-```
-lib/contexts/execution/
-├── domain/
-│   ├── execution-aggregate.ts      # Ralph loop (684 lines)
-│   ├── recovery-state.ts
-│   ├── validation-report.ts
-│   └── events.ts
-├── application/
-│   ├── extraction-service.ts       # 754 lines
-│   ├── recovery-service.ts         # 473 lines
-│   ├── validation-service.ts
-│   └── skills-service.ts
-└── infrastructure/
-    ├── execution-repository.ts
-    └── github-operations.ts
-```
-
-#### Verification Criteria
-
-- [ ] Execute task, verify 20+ events (iteration → completion)
-- [ ] Trigger stuck detection, verify `StuckSignalDetected`
-- [ ] Activate recovery, verify `RecoveryStarted` → `RecoverySucceeded`
-- [ ] Validate completion, verify score
+All files created: `execution-aggregate.ts`, `events.ts`, `types.ts` (5-signal stuck detection, 4-tier recovery, 6-check completion validation, 6 extraction strategies), `execution-service.ts`, `execution-repository.ts`, `adapters.ts`. ExecutionService wired into execution, diff, rollback, and worker routes.
 
 ---
 
-### ⬜ Phase 5: Billing Context (PENDING)
+### ✅ Phase 5: Billing Context (COMPLETED)
 
-**Estimated Duration:** 2 weeks
-**Status:** Not Started
-
-#### Goals
-
-- Extract Billing as independent module
-- Implement Anti-Corruption Layer (middleware)
-- Subscribe to `ExecutionCompleted` events
-
-#### Files to Create
-
-```
-lib/contexts/billing/
-├── domain/
-│   ├── subscription-aggregate.ts
-│   ├── usage-tracking-aggregate.ts
-│   └── events.ts
-├── application/
-│   ├── subscription-service.ts
-│   └── usage-service.ts
-└── infrastructure/
-    ├── middleware.ts               # ACL
-    ├── stripe-client.ts
-    └── subscription-repository.ts
-```
-
-#### Verification Criteria
-
-- [ ] Execute task, verify `UsageRecorded` event
-- [ ] Exceed limit, verify execution blocked
-- [ ] Billing subscribes to `ExecutionCompleted`
+All files created: `subscription-aggregate.ts`, `usage-aggregate.ts`, `events.ts`, `types.ts`, `billing-service.ts`, `usage-service.ts`, `subscription-repository.ts`, `usage-repository.ts`, `event-handlers.ts`, `adapters.ts`. BillingService wired into billing, onboarding, and usage routes.
 
 ---
 
-### ⬜ Phase 6: Analytics Context (PENDING)
+### ✅ Phase 6: Analytics Context (COMPLETED)
 
-**Estimated Duration:** 2 weeks
-**Status:** Not Started
-
-#### Goals
-
-- Extract Analytics as event consumer
-- Subscribe to all 50+ domain event types
-- Refactor SSE streaming
-
-#### Files to Create
-
-```
-lib/contexts/analytics/
-├── domain/
-│   ├── activity-stream.ts
-│   └── events.ts
-├── application/
-│   └── event-aggregator.ts
-└── infrastructure/
-    ├── event-subscribers.ts
-    ├── sse-stream.ts
-    └── activity-repository.ts
-```
-
-#### Verification Criteria
-
-- [ ] Analytics subscribes to all event types
-- [ ] Generate daily summary
-- [ ] SSE stream delivers events <100ms
+All files created: `activity-stream.ts`, `events.ts`, `types.ts`, `analytics-service.ts`, `activity-repository.ts`, `event-subscribers.ts`, `sse-stream.ts`. AnalyticsService wired into analytics, activity, and account-delete routes.
 
 ---
 
-### ⬜ Phase 7: Database Isolation (OPTIONAL)
+### ✅ Phase 7: Worker Integration (COMPLETED)
 
-**Estimated Duration:** 3 weeks
-**Status:** Deferred
+Worker health/heartbeat endpoints added. Stuck-tasks dashboard widget, recovery popover, system-status banner. New migrations: `0041` (worker_heartbeats), `0042` (recovering phase).
 
-**Only proceed if:**
+---
 
-- Team grows to 4+ developers
-- Execution context becomes bottleneck
-- Scaling challenges emerge
+### ✅ Phase 8: Cross-Context Event Handler Initialization (COMPLETED)
+
+`lib/contexts/event-initialization.ts` boots all event subscribers. Health endpoint wires initialization. Domain events table migration (`0043`).
+
+---
+
+### 🚧 Next: Wire Aggregates into Services (IN PROGRESS)
+
+The domain aggregates and infrastructure repositories exist in each context but are not yet called by the services. See [DDD-MIGRATION-STATUS.md](./DDD-MIGRATION-STATUS.md) "What Remains" section for the full breakdown.
+
+---
+
+### ⬜ Phase DB Isolation (OPTIONAL – DEFERRED)
+
+**Only proceed if:** team grows to 4+ developers, execution context becomes bottleneck, or scaling challenges emerge.
 
 ---
 
@@ -314,27 +141,29 @@ lib/contexts/analytics/
 
 ### Completed ✅
 
-- [x] **Phase 0: Infrastructure Setup** (100%)
-  - [x] Domain event infrastructure
-  - [x] Context boundaries documentation
-  - [x] Architecture Decision Record
+- [x] **Phase 0: Infrastructure Setup** – event bus, docs, ADR
+- [x] **Phase 1: IAM Context** – user aggregate, service, 6 settings routes
+- [x] **Phase 2: Repository Management** – repo aggregate, indexing service, repos routes
+- [x] **Phase 3: Task Orchestration** – task aggregate, dependency graph, 15+ routes
+- [x] **Phase 4: AI Execution** – execution aggregate, reliability types, execution routes
+- [x] **Phase 5: Billing** – subscription/usage aggregates, billing routes
+- [x] **Phase 6: Analytics** – activity stream, event subscribers, analytics routes
+- [x] **Phase 7: Worker Integration** – health endpoints, stuck-tasks widget, recovery UI
+- [x] **Phase 8: Event Initialization** – cross-context subscriber boot, domain_events migration
+- [x] **Service-layer route migrations** – 25+ routes using bounded-context services
 
 ### In Progress 🚧
 
-- None currently
+- [ ] **Wire aggregates into services** – replace direct DB calls in services with aggregate + repository calls
+- [ ] **Retire `lib/domain/`** – move 4 routes off legacy aggregates once context aggregates are wired
 
-### Pending ⬜
+### Deferred ⬜
 
-- [ ] **Phase 1: IAM Context** (0%)
-- [ ] **Phase 2: Repository Management Context** (0%)
-- [ ] **Phase 3: Task Orchestration Context** (0%)
-- [ ] **Phase 4: AI Execution Context** (0%)
-- [ ] **Phase 5: Billing Context** (0%)
-- [ ] **Phase 6: Analytics Context** (0%)
+- [ ] Database isolation per context (only if scaling requires it)
 
 ### Overall Progress
 
-**1 / 7 phases complete (14%)**
+**Phases 0-8 complete. Service-layer migrations complete. Aggregate wiring is the remaining milestone before full DDD is live.**
 
 ---
 
@@ -365,39 +194,25 @@ Test Files  1 passed (1)
 
 ## Next Actions
 
-### Immediate (Next Week)
+### Immediate
 
-1. **Review Documentation**
-   - [ ] Stakeholder review of ADR-001
-   - [ ] Team review of bounded contexts
-   - [ ] Approval to proceed with Phase 1
-
-2. **Set Up Project Board**
-   - [ ] Create GitHub project board
-   - [ ] Add Phase 1-6 tasks
-   - [ ] Assign owners (if team > 1 developer)
-
-3. **Start Phase 1: IAM Context**
-   - [ ] Create module structure
-   - [ ] Implement User aggregate
-   - [ ] Refactor API helpers
-   - [ ] Write tests
-   - [ ] Verify events published
+1. **Wire TaskAggregate into TaskService** – Replace direct `db.update(tasks)` calls in TaskService with `TaskAggregate` + `TaskRepository` from `lib/contexts/task/`
+2. **Wire ExecutionAggregate into ExecutionService** – Same pattern for executions
+3. **Migrate the 4 legacy-aggregate routes** – `execute`, `dependencies`, `autonomous/resume`, `brainstorm/save` move to services once their aggregates are wired
+4. **Delete `lib/domain/`** – Once step 3 is complete, the legacy aggregates and repositories are dead code
 
 ### This Month (February 2026)
 
-- Complete Phase 1 (IAM Context)
-- Start Phase 2 (Repository Management Context)
+- Complete aggregate wiring for Task and Execution contexts
+- Migrate the 4 legacy-aggregate routes
+- Delete `lib/domain/`
+- Fix the 4 `getRedis` barrel-file errors
 
 ### This Quarter (Q1 2026)
 
-- Complete Phases 1-3 (IAM, Repository, Task Orchestration)
-- Start Phase 4 (AI Execution Context)
-
-### Next Quarter (Q2 2026)
-
-- Complete Phases 4-6 (AI Execution, Billing, Analytics)
-- Production deployment of DDD architecture
+- Wire remaining context aggregates (IAM, Repository, Billing, Analytics)
+- Enable domain event publishing from aggregates
+- Production validation of full DDD stack
 
 ---
 
