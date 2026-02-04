@@ -8,8 +8,8 @@
 
 import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
-import { tasks } from "@/lib/db/schema/tables";
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { tasks, repos, executions } from "@/lib/db/schema/tables";
+import { eq, and, or, isNull, isNotNull, inArray, desc } from "drizzle-orm";
 
 export class TaskService {
   // Kept for future event publishing.
@@ -48,6 +48,77 @@ export class TaskService {
         },
       })
       .then((allTasks) => allTasks.filter((t) => t.repo?.userId === userId));
+  }
+
+  /**
+   * List tasks with active workers for a user, grouped with their latest
+   * execution and repo info. Used by the Workers dashboard.
+   *
+   * @param filter  "all" | "active" | "completed" | "stuck"
+   */
+  async listActiveWorkerTasks(userId: string, filter: string = "all") {
+    // 1. Get user's repos
+    const userRepos = await db.query.repos.findMany({
+      where: eq(repos.userId, userId),
+    });
+    if (userRepos.length === 0)
+      return { tasks: [], repoMap: new Map(), executionMap: new Map() };
+
+    const repoIds = userRepos.map((r) => r.id);
+    const repoMap = new Map(userRepos.map((r) => [r.id, r]));
+
+    // 2. Status filter
+    const statusFilter: string[] =
+      filter === "active"
+        ? ["brainstorming", "planning", "ready", "executing"]
+        : filter === "completed"
+          ? ["done"]
+          : filter === "stuck"
+            ? ["stuck"]
+            : [
+                "brainstorming",
+                "planning",
+                "ready",
+                "executing",
+                "done",
+                "stuck",
+              ];
+
+    // 3. Worker tasks: autonomous OR processing OR stuck
+    const workerTasks = await db.query.tasks.findMany({
+      where: and(
+        inArray(tasks.repoId, repoIds),
+        inArray(
+          tasks.status,
+          statusFilter as (typeof tasks.$inferSelect.status)[],
+        ),
+        or(
+          eq(tasks.autonomousMode, true),
+          isNotNull(tasks.processingPhase),
+          eq(tasks.status, "stuck" as typeof tasks.$inferSelect.status),
+        ),
+      ),
+      orderBy: [desc(tasks.updatedAt)],
+      limit: 50,
+    });
+
+    // 4. Latest execution per task (in-JS dedup – safe, simple)
+    const taskIds = workerTasks.map((t) => t.id);
+    const executionMap = new Map<string, typeof executions.$inferSelect>();
+
+    if (taskIds.length > 0) {
+      const allExecutions = await db.query.executions.findMany({
+        where: inArray(executions.taskId, taskIds),
+        orderBy: [desc(executions.createdAt)],
+      });
+      for (const exec of allExecutions) {
+        if (!executionMap.has(exec.taskId)) {
+          executionMap.set(exec.taskId, exec);
+        }
+      }
+    }
+
+    return { tasks: workerTasks, repoMap, executionMap };
   }
 
   // =========================================================================
