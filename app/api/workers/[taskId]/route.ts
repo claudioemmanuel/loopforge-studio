@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, tasks, executions, executionEvents } from "@/lib/db";
-import { eq, desc, asc } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,37 +20,23 @@ export async function GET(request: Request, { params }: RouteParams) {
 
   const { taskId } = await params;
 
-  // Get task with repo relation
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: true,
-    },
-  });
+  const taskService = getTaskService();
+  const task = await taskService.getTaskFull(taskId);
 
   if (!task) {
     return handleError(Errors.notFound("Task"));
   }
 
-  // Verify the user owns the repo
   if (task.repo.userId !== session.user.id) {
     return handleError(Errors.forbidden());
   }
 
-  // Get the latest execution for this task
-  const execution = await db.query.executions.findFirst({
-    where: eq(executions.taskId, taskId),
-    orderBy: [desc(executions.createdAt)],
-  });
+  const executionService = getExecutionService();
+  const execution = await executionService.getLatestForTask(taskId);
 
-  // Get execution events if there's an execution
-  let events: (typeof executionEvents.$inferSelect)[] = [];
-  if (execution) {
-    events = await db.query.executionEvents.findMany({
-      where: eq(executionEvents.executionId, execution.id),
-      orderBy: [asc(executionEvents.createdAt)],
-    });
-  }
+  const events = execution
+    ? await executionService.getExecutionEvents(execution.id)
+    : [];
 
   return NextResponse.json({
     task,

@@ -13,6 +13,8 @@
 | `968156c` | Context scaffolding: 6 services, 6 api barrels, domain re-exports                                                                                                 |
 | `f39f475` | Batch 1 – tasks/[id] PATCH/DELETE, brainstorm/start, plan/start, user/usage, onboarding, billing checkout import swap. **Deleted** `lib/activity/*`               |
 | `3397dd3` | Batch 2 – analytics, activity/\*, repos/\*, account/delete, user/locale. Extended all 5 services. **Deleted** `lib/api/analytics.ts`, `lib/api/cached-queries.ts` |
+| `bed4033` | Batch 3 – settings/\*, billing/portal-session. Added UserService.updateUserFields, updateLocale                                                                   |
+| (pending) | Batch 4a – workers/[taskId], executions/[id]/events. Added ExecutionService.getExecutionWithOwnership, getExecutionEvents                                         |
 
 ### Services that are fully extended and ready to use
 
@@ -22,7 +24,7 @@
 | BillingService    | checkRepoLimit, checkTaskLimit, recordUsage, getUsageSummary, createCheckoutSession, createPortalSession                                          |
 | RepositoryService | getRepositoryFull, listUserRepositories, connectRepository, findByOwner, updateRepository, deleteRepository, deleteAllByUser                      |
 | TaskService       | getTaskFull, listByRepo, createTask, updateFields, deleteTask, verifyOwnership, getIdsByRepoIds, deleteByRepoIds                                  |
-| ExecutionService  | getLatestForTask, listByTask, getById, create, markRunning/Completed/Failed/Stuck, deleteByTaskIds                                                |
+| ExecutionService  | getLatestForTask, listByTask, getById, getExecutionWithOwnership, getExecutionEvents, create, markRunning/Completed/Failed/Stuck, deleteByTaskIds |
 | UserService       | registerUser, configureProvider, removeProvider, updatePreferences, updateLocale, completeOnboarding, updateSubscription, getUserFull, deleteUser |
 
 ---
@@ -42,14 +44,13 @@
 | `settings/test-defaults`        | UserService.updatePreferences                                    | testRunCommand + testGatePolicy |
 | `settings/route` (GET)          | UserService.getUserFull + RepositoryService.listUserRepositories | mask keys client-side           |
 
-### Batch 4 – Worker & execution routes (need new ExecutionService methods)
+### Batch 4b – Complex worker routes (deferred – significant new service methods needed)
 
-| Route                    | New method needed                         | ~lines |
-| ------------------------ | ----------------------------------------- | ------ |
-| `workers/health`         | `getWorkerHealth()`                       | 20     |
-| `workers/heartbeat`      | `recordWorkerHeartbeat(workerId, status)` | 15     |
-| `workers/sse`            | keep SSE shell, swap inner queries only   | –      |
-| `executions/[id]/events` | `getExecutionEvents(executionId)`         | 15     |
+| Route             | Notes                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `workers/route`   | Complex OR query (autonomousMode / processingPhase / stuck); needs listActiveWorkerTasks |
+| `workers/sse`     | SSE infrastructure stays in route; only getInitialWorkers query moves to service         |
+| `workers/history` | workerJobs + workerEvents pagination with aggregate stats; heavy service extension       |
 
 ### Batch 5 – Task orchestration (need new TaskService methods)
 

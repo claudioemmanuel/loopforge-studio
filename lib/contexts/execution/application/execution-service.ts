@@ -6,7 +6,7 @@
 
 import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
-import { executions } from "@/lib/db/schema/tables";
+import { executions, executionEvents } from "@/lib/db/schema/tables";
 import { eq, inArray } from "drizzle-orm";
 
 export class ExecutionService {
@@ -41,6 +41,34 @@ export class ExecutionService {
     return db.query.executions.findFirst({
       where: eq(executions.id, executionId),
     });
+  }
+
+  /** Get execution with task→repo chain (for ownership verification). */
+  async getExecutionWithOwnership(executionId: string) {
+    return db.query.executions.findFirst({
+      where: eq(executions.id, executionId),
+      with: {
+        task: {
+          with: {
+            repo: true,
+          },
+        },
+      },
+    });
+  }
+
+  /** Get all events for an execution, ordered chronologically. */
+  async getExecutionEvents(executionId: string) {
+    const rows = await db.query.executionEvents.findMany({
+      where: eq(executionEvents.executionId, executionId),
+      orderBy: (e, { asc }) => [asc(e.createdAt)],
+    });
+    return rows.map((e) => ({
+      id: e.id,
+      type: e.eventType,
+      content: e.content,
+      timestamp: e.createdAt,
+    }));
   }
 
   // =========================================================================
