@@ -10,12 +10,8 @@ import {
 } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
-import {
-  ExecutionAggregate,
-  ExecutionRepository,
-  TaskAggregate,
-  TaskRepository,
-} from "@/lib/domain";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   if (task.status !== "ready") {
@@ -75,17 +71,11 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
 
   try {
     const branch = `loopforge/${task.id.slice(0, 8)}`;
+    const taskService = getTaskService();
+    const executionService = getExecutionService();
 
-    const taskAggregate = TaskAggregate.fromPersistence(task);
-    taskAggregate.claimExecution(branch);
-    const taskRepository = new TaskRepository();
-
-    // ATOMIC: Claim the execution slot first to prevent race conditions
-    // This UPDATE only succeeds if status = 'ready' (not already executing)
-    const claimedTask = await taskRepository.saveWithStatusGuard(
-      taskAggregate,
-      { eq: "ready" },
-    );
+    // ATOMIC: Claim the execution slot – only succeeds if status is still 'ready'
+    const claimedTask = await taskService.claimExecutionSlot(taskId, branch);
 
     if (!claimedTask) {
       return NextResponse.json(
@@ -94,17 +84,11 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       );
     }
 
-    // Now create execution record (we have exclusive execution rights)
+    // Create execution record (we hold exclusive execution rights)
     const executionId = crypto.randomUUID();
-    const executionAggregate = ExecutionAggregate.createQueued({
-      id: executionId,
-      taskId: task.id,
-    });
-    const executionRepository = new ExecutionRepository();
-    await executionRepository.create(executionAggregate);
+    await executionService.createQueued({ id: executionId, taskId: task.id });
 
-    // Queue the execution job
-    // Worker will decrypt API key on demand using userId
+    // Queue the execution job – worker decrypts API key on demand
     const job = await queueExecution({
       executionId,
       taskId: task.id,
@@ -127,12 +111,8 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     apiLogger.error({ taskId, error }, "Execution error");
 
     // Revert status on error (only if we claimed it)
-    const taskRepository = new TaskRepository();
-    const revertAggregate = TaskAggregate.fromPersistence(task);
-    revertAggregate.revertExecution("ready");
-    await taskRepository.saveWithStatusGuard(revertAggregate, {
-      eq: "executing",
-    });
+    const taskService = getTaskService();
+    await taskService.revertExecutionSlot(taskId, "ready");
 
     return handleError(error);
   }
