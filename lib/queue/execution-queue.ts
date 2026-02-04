@@ -25,7 +25,17 @@ export interface ExecutionJobResult {
 // Queue for execution jobs
 export const executionQueue = new Queue<ExecutionJobData, ExecutionJobResult>(
   "execution",
-  { connection: connectionOptions },
+  {
+    connection: connectionOptions,
+    defaultJobOptions: {
+      attempts: 2,
+      backoff: {
+        type: "exponential",
+        delay: 2000,
+      },
+      timeout: 30 * 60 * 1000, // 30 minute timeout for execution (longer than brainstorm/plan)
+    },
+  },
 );
 
 // Add a job to the queue

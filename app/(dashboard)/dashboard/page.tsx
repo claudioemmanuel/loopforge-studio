@@ -11,6 +11,7 @@ import {
   RepoCardExpandable,
   AddRepoButton,
 } from "@/components/dashboard";
+import { StuckTasksWidget } from "@/components/dashboard/stuck-tasks-widget";
 import {
   ListTodo,
   CheckCircle2,
@@ -127,6 +128,9 @@ export default async function DashboardPage({
           task.
         </p>
       </div>
+
+      {/* Stuck Tasks Widget */}
+      <StuckTasksWidget />
 
       {userRepos.length > 0 && <WelcomeBanner repoCount={userRepos.length} />}
 

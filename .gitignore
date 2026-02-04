@@ -84,3 +84,6 @@ docker-compose.override.yml
 *.tmp
 *.temp
 *.bak
+
+# Git worktrees
+.worktrees/

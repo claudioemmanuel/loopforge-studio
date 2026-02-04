@@ -1,16 +1,41 @@
 import { Pool } from "pg";
 
-export default async function globalSetup() {
-  // Set DATABASE_URL for modules that require it at import time
-  const testDatabaseUrl =
-    process.env.TEST_DATABASE_URL ||
-    "postgresql://postgres:postgres@localhost:5432/loopforge_test";
-  process.env.DATABASE_URL = testDatabaseUrl;
+type EnvLike = Record<string, string | undefined>;
 
-  const adminUrl =
-    process.env.DATABASE_URL ||
-    "postgresql://postgres:postgres@localhost:5432/postgres";
-  const testDbName = "loopforge_test";
+const DEFAULT_TEST_DATABASE_URL =
+  "postgresql://postgres:postgres@localhost:5432/loopforge_test";
+const DEFAULT_ADMIN_DATABASE_URL =
+  "postgresql://postgres:postgres@localhost:5432/postgres";
+const TEST_DATABASE_NAME = "loopforge_test";
+
+export function resolveTestDatabaseConfig(env: EnvLike) {
+  const testDatabaseUrl =
+    env.TEST_DATABASE_URL || env.DATABASE_URL || DEFAULT_TEST_DATABASE_URL;
+
+  const candidateAdminUrl =
+    env.ADMIN_DATABASE_URL ||
+    env.TEST_DATABASE_ADMIN_URL ||
+    env.DATABASE_URL ||
+    DEFAULT_ADMIN_DATABASE_URL;
+
+  const adminUrl = candidateAdminUrl.includes(`/${TEST_DATABASE_NAME}`)
+    ? DEFAULT_ADMIN_DATABASE_URL
+    : candidateAdminUrl;
+
+  return {
+    testDatabaseUrl,
+    adminUrl,
+    testDbName: TEST_DATABASE_NAME,
+  };
+}
+
+export default async function globalSetup() {
+  const envSnapshot = { ...process.env };
+  const { testDatabaseUrl, adminUrl, testDbName } =
+    resolveTestDatabaseConfig(envSnapshot);
+
+  // Set DATABASE_URL for modules that require it at import time
+  process.env.DATABASE_URL = testDatabaseUrl;
 
   const pool = new Pool({ connectionString: adminUrl });
 

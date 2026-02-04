@@ -29,6 +29,10 @@ import {
   getFeatureFlag,
   areReliabilityFeaturesEnabled,
 } from "@/lib/config/feature-flags";
+import {
+  createRecoveryEvent,
+  publishRecoveryEvent,
+} from "@/lib/workers/events";
 
 export type ExecutionMode = "classic" | "multi-agent";
 
@@ -43,6 +47,14 @@ export interface LoopOptions {
   parallelOptions?: Partial<ParallelExecutionOptions>;
   /** Callback for progress updates (multi-agent mode) */
   onProgress?: (progress: ExecutionProgress) => void | Promise<void>;
+  /** User ID for recovery event publishing */
+  userId?: string;
+  /** Task ID for recovery event publishing */
+  taskId?: string;
+  /** Task title for recovery event publishing */
+  taskTitle?: string;
+  /** Repository name for recovery event publishing */
+  repoName?: string;
 }
 
 export interface LoopContext {
@@ -335,6 +347,27 @@ async function runClassicLoop(
               timestamp: new Date(),
             });
 
+            // Publish recovery started event
+            if (
+              options.userId &&
+              options.taskId &&
+              options.taskTitle &&
+              options.repoName
+            ) {
+              const recoveryStartedEvent = createRecoveryEvent(
+                "recovery_started",
+                options.taskId,
+                options.taskTitle,
+                options.repoName,
+                "format_guidance",
+                1,
+                4,
+                new Date(),
+                { statusText: "Starting recovery process..." },
+              );
+              await publishRecoveryEvent(options.userId, recoveryStartedEvent);
+            }
+
             const recoveryResult = await recoveryOrchestrator.attemptRecovery(
               {
                 tier: "format_guidance",
@@ -370,6 +403,30 @@ async function runClassicLoop(
                 timestamp: new Date(),
               });
 
+              // Publish recovery success event
+              if (
+                options.userId &&
+                options.taskId &&
+                options.taskTitle &&
+                options.repoName
+              ) {
+                const recoverySuccessEvent = createRecoveryEvent(
+                  "recovery_success",
+                  options.taskId,
+                  options.taskTitle,
+                  options.repoName,
+                  recoveryResult.tier,
+                  1,
+                  4,
+                  new Date(),
+                  { statusText: "Recovery successful" },
+                );
+                await publishRecoveryEvent(
+                  options.userId,
+                  recoverySuccessEvent,
+                );
+              }
+
               // Reset counter and continue loop
               consecutiveNoFileIterations = 0;
               continue;
@@ -383,6 +440,30 @@ async function runClassicLoop(
                 },
                 timestamp: new Date(),
               });
+
+              // Publish recovery failed event
+              if (
+                options.userId &&
+                options.taskId &&
+                options.taskTitle &&
+                options.repoName
+              ) {
+                const recoveryFailedEvent = createRecoveryEvent(
+                  "recovery_failed",
+                  options.taskId,
+                  options.taskTitle,
+                  options.repoName,
+                  recoveryResult.tier,
+                  1,
+                  4,
+                  new Date(),
+                  {
+                    statusText: "Recovery failed",
+                    error: recoveryResult.message,
+                  },
+                );
+                await publishRecoveryEvent(options.userId, recoveryFailedEvent);
+              }
 
               return {
                 status: "stuck",

@@ -6,6 +6,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { KanbanCard } from "./kanban-card";
 import {
@@ -42,8 +43,8 @@ interface KanbanColumnProps {
   slidingCards?: Set<string>;
 }
 
-// Column-specific visual configuration (Tailwind classes, empty state text).
-// The column icon is derived from STATUS_CONFIG; everything else is local.
+// Column-specific visual configuration (Tailwind classes).
+// The column icon is derived from STATUS_CONFIG; empty state text comes from translations.
 interface ColumnStyle {
   color: string;
   bgColor: string;
@@ -51,8 +52,6 @@ interface ColumnStyle {
   borderColor: string;
   dropTargetBg: string;
   emptyIcon: LucideIcon;
-  emptyMessage: string;
-  emptyHint: string;
 }
 
 const columnStyles: Record<TaskStatus, ColumnStyle> = {
@@ -63,8 +62,6 @@ const columnStyles: Record<TaskStatus, ColumnStyle> = {
     borderColor: "border-slate-200/60 dark:border-slate-700/40",
     dropTargetBg: "bg-slate-100 dark:bg-slate-800",
     emptyIcon: CircleDashed,
-    emptyMessage: "No tasks yet",
-    emptyHint: "Create a task to get started",
   },
   brainstorming: {
     color: "text-violet-600 dark:text-violet-400",
@@ -73,8 +70,6 @@ const columnStyles: Record<TaskStatus, ColumnStyle> = {
     borderColor: "border-violet-200/60 dark:border-violet-800/40",
     dropTargetBg: "bg-violet-100 dark:bg-violet-900/40",
     emptyIcon: Sparkles,
-    emptyMessage: "Nothing to brainstorm",
-    emptyHint: "AI will help generate ideas",
   },
   planning: {
     color: "text-blue-600 dark:text-blue-400",
@@ -83,8 +78,6 @@ const columnStyles: Record<TaskStatus, ColumnStyle> = {
     borderColor: "border-blue-200/60 dark:border-blue-800/40",
     dropTargetBg: "bg-blue-100 dark:bg-blue-900/40",
     emptyIcon: FileText,
-    emptyMessage: "Nothing in planning",
-    emptyHint: "Tasks will be planned here",
   },
   ready: {
     color: "text-amber-600 dark:text-amber-400",
@@ -93,8 +86,6 @@ const columnStyles: Record<TaskStatus, ColumnStyle> = {
     borderColor: "border-amber-200/60 dark:border-amber-800/40",
     dropTargetBg: "bg-amber-100 dark:bg-amber-900/40",
     emptyIcon: Zap,
-    emptyMessage: "Nothing ready",
-    emptyHint: "Planned tasks appear here",
   },
   executing: {
     color: "text-primary",
@@ -103,8 +94,6 @@ const columnStyles: Record<TaskStatus, ColumnStyle> = {
     borderColor: "border-primary/20 dark:border-primary/30",
     dropTargetBg: "bg-primary/10 dark:bg-primary/20",
     emptyIcon: Play,
-    emptyMessage: "Nothing executing",
-    emptyHint: "Start a task to see it here",
   },
   review: {
     color: "text-cyan-600 dark:text-cyan-400",
@@ -113,8 +102,6 @@ const columnStyles: Record<TaskStatus, ColumnStyle> = {
     borderColor: "border-cyan-200/60 dark:border-cyan-800/40",
     dropTargetBg: "bg-cyan-100 dark:bg-cyan-900/40",
     emptyIcon: Eye,
-    emptyMessage: "Nothing to review",
-    emptyHint: "Changes will appear here for approval",
   },
   done: {
     color: "text-emerald-600 dark:text-emerald-400",
@@ -123,8 +110,6 @@ const columnStyles: Record<TaskStatus, ColumnStyle> = {
     borderColor: "border-emerald-200/60 dark:border-emerald-800/40",
     dropTargetBg: "bg-emerald-100 dark:bg-emerald-900/40",
     emptyIcon: CheckCircle2,
-    emptyMessage: "Nothing completed",
-    emptyHint: "Finished tasks will appear here",
   },
   stuck: {
     color: "text-red-600 dark:text-red-400",
@@ -133,8 +118,6 @@ const columnStyles: Record<TaskStatus, ColumnStyle> = {
     borderColor: "border-red-200/60 dark:border-red-800/40",
     dropTargetBg: "bg-red-100 dark:bg-red-900/40",
     emptyIcon: AlertTriangle,
-    emptyMessage: "No stuck tasks",
-    emptyHint: "Tasks needing attention appear here",
   },
 };
 
@@ -163,6 +146,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   const config = getColumnConfig(id);
   const Icon = config.icon;
   const EmptyIcon = config.emptyIcon;
+  const t = useTranslations("kanban");
 
   const isDropTarget = isOver && active?.id !== id;
   const taskCount = tasks.length;
@@ -274,10 +258,10 @@ export const KanbanColumn = React.memo(function KanbanColumn({
                 />
               </div>
               <p className="text-sm font-medium text-muted-foreground mb-1">
-                {config.emptyMessage}
+                {t(`emptyStates.${id}.message`)}
               </p>
               <p className="text-xs text-muted-foreground/70 max-w-[180px]">
-                {config.emptyHint}
+                {t(`emptyStates.${id}.hint`)}
               </p>
 
               {/* Drop zone indicator when empty and dragging */}
@@ -291,7 +275,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
                   )}
                 >
                   <span className="text-xs text-primary/60 font-medium">
-                    Drop here
+                    {t("dropHere")}
                   </span>
                 </div>
               )}
@@ -325,7 +309,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
                   )}
                 >
                   <span className="text-xs text-primary/60 font-medium">
-                    Drop here
+                    {t("dropHere")}
                   </span>
                 </div>
               )}
@@ -349,7 +333,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
             )}
           >
             <Plus className="w-4 h-4" />
-            <span>Add Task</span>
+            <span>{t("addTask")}</span>
           </button>
         </div>
       )}

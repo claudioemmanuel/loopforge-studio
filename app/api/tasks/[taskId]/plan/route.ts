@@ -1,3 +1,13 @@
+/**
+ * POST /api/tasks/[taskId]/plan
+ *
+ * TODO (DDD Migration): Atomic claim pattern - same as brainstorm route.
+ * Future migration:
+ * 1. Create TaskService.startPlanning(taskId, userId) method
+ * 2. Move AI plan generation to Application Service
+ * 3. Use taskService.updatePlanContent() for saving results
+ * 4. Preserve atomic processing slot claiming
+ */
 import { NextResponse } from "next/server";
 import { generatePlan, createAIClient } from "@/lib/ai";
 import { handleError, Errors } from "@/lib/errors";

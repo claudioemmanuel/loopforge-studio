@@ -1,0 +1,127 @@
+/**
+ * Cryptography Infrastructure for IAM
+ *
+ * Handles encryption/decryption of API keys and GitHub tokens using AES-256-GCM.
+ */
+
+import crypto from "crypto";
+
+const ALGORITHM = "aes-256-gcm";
+const IV_LENGTH = 12;
+const AUTH_TAG_LENGTH = 16;
+
+/**
+ * Get encryption key from environment
+ */
+function getEncryptionKey(): Buffer {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error(
+      "ENCRYPTION_KEY environment variable is not set. " +
+        "Generate a secure 32-byte hex key with: openssl rand -hex 32",
+    );
+  }
+  // Expect a hex-encoded 32-byte key
+  return Buffer.from(key, "hex");
+}
+
+/**
+ * Encrypted data with initialization vector
+ */
+export interface EncryptedData {
+  encrypted: string; // hex encoded
+  iv: string; // hex encoded
+}
+
+/**
+ * Encrypt an API key
+ */
+export function encryptApiKey(apiKey: string): EncryptedData {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+
+  let encrypted = cipher.update(apiKey, "utf8", "hex");
+  encrypted += cipher.final("hex");
+
+  const authTag = cipher.getAuthTag();
+  // Append auth tag to encrypted data
+  encrypted += authTag.toString("hex");
+
+  return {
+    encrypted,
+    iv: iv.toString("hex"),
+  };
+}
+
+/**
+ * Decrypt an API key
+ */
+export function decryptApiKey(encryptedData: EncryptedData): string {
+  const key = getEncryptionKey();
+  const iv = Buffer.from(encryptedData.iv, "hex");
+
+  // Extract auth tag from end of encrypted data
+  const encrypted = encryptedData.encrypted.slice(0, -AUTH_TAG_LENGTH * 2);
+  const authTag = Buffer.from(
+    encryptedData.encrypted.slice(-AUTH_TAG_LENGTH * 2),
+    "hex",
+  );
+
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+
+  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+
+  return decrypted;
+}
+
+/**
+ * Encrypt a GitHub token
+ */
+export function encryptGithubToken(token: string): EncryptedData {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+
+  let encrypted = cipher.update(token, "utf8", "hex");
+  encrypted += cipher.final("hex");
+
+  const authTag = cipher.getAuthTag();
+  encrypted += authTag.toString("hex");
+
+  return {
+    encrypted,
+    iv: iv.toString("hex"),
+  };
+}
+
+/**
+ * Decrypt a GitHub token
+ */
+export function decryptGithubToken(encryptedData: EncryptedData): string {
+  const key = getEncryptionKey();
+  const iv = Buffer.from(encryptedData.iv, "hex");
+
+  const encrypted = encryptedData.encrypted.slice(0, -AUTH_TAG_LENGTH * 2);
+  const authTag = Buffer.from(
+    encryptedData.encrypted.slice(-AUTH_TAG_LENGTH * 2),
+    "hex",
+  );
+
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+
+  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+
+  return decrypted;
+}
+
+/**
+ * Generate a new encryption key (for setup)
+ */
+export function generateEncryptionKey(): string {
+  return crypto.randomBytes(32).toString("hex");
+}

@@ -69,6 +69,12 @@ export const phaseStatusMessages: Record<ProcessingPhase, string[]> = {
     "Verifying changes...",
     "Completing execution...",
   ],
+  recovering: [
+    "Attempting recovery...",
+    "Applying recovery strategy...",
+    "Retrying with simplified approach...",
+    "Finalizing recovery...",
+  ],
 };
 
 let publisherClient: Redis | null = null;
@@ -209,6 +215,128 @@ export async function closePublisher(): Promise<void> {
   if (publisherClient) {
     await publisherClient.quit();
     publisherClient = null;
+  }
+}
+
+// Recovery event types
+export interface RecoveryEventData {
+  taskId: string;
+  taskTitle: string;
+  repoName: string;
+  tier: string; // format_guidance, simplified_prompt, context_reset, manual_fallback
+  attemptNumber: number;
+  maxAttempts: number;
+  progress: number; // 0-100
+  statusText: string;
+  startedAt: string;
+  updatedAt: string;
+  error?: string;
+}
+
+export interface RecoveryEvent {
+  type:
+    | "recovery_started"
+    | "recovery_progress"
+    | "recovery_success"
+    | "recovery_failed";
+  data: RecoveryEventData;
+  timestamp: string;
+}
+
+/**
+ * Create a recovery event
+ */
+export function createRecoveryEvent(
+  type: RecoveryEvent["type"],
+  taskId: string,
+  taskTitle: string,
+  repoName: string,
+  tier: string,
+  attemptNumber: number,
+  maxAttempts: number,
+  startedAt: Date,
+  options: {
+    statusText?: string;
+    progress?: number;
+    error?: string;
+  } = {},
+): RecoveryEvent {
+  // Determine progress based on type if not provided
+  let progress = options.progress ?? (attemptNumber / maxAttempts) * 100;
+  if (type === "recovery_success") {
+    progress = 100;
+  } else if (type === "recovery_failed") {
+    progress = progress; // Keep current progress
+  }
+
+  // Default status text
+  const tierNames: Record<string, string> = {
+    format_guidance: "Providing format guidance",
+    simplified_prompt: "Simplifying task",
+    context_reset: "Resetting context",
+    manual_fallback: "Generating manual instructions",
+  };
+  const statusText =
+    options.statusText ??
+    tierNames[tier] ??
+    `Recovery attempt ${attemptNumber}`;
+
+  return {
+    type,
+    data: {
+      taskId,
+      taskTitle,
+      repoName,
+      tier,
+      attemptNumber,
+      maxAttempts,
+      progress,
+      statusText,
+      startedAt: startedAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+      error: options.error,
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
+ * Publish a recovery event to Redis for SSE streaming
+ */
+export async function publishRecoveryEvent(
+  userId: string,
+  event: RecoveryEvent,
+): Promise<void> {
+  try {
+    // Update task with recovery progress
+    if (
+      event.type === "recovery_started" ||
+      event.type === "recovery_progress"
+    ) {
+      await db
+        .update(tasks)
+        .set({
+          processingPhase: "recovering",
+          processingProgress: event.data.progress,
+          processingStatusText: event.data.statusText,
+        })
+        .where(eq(tasks.id, event.data.taskId));
+    }
+
+    // Publish to Redis for real-time updates
+    const redis = getPublisher();
+    const channel = `worker-events:${userId}`;
+    await redis.publish(channel, JSON.stringify(event));
+    workerLogger.debug(
+      {
+        eventType: event.type,
+        taskId: event.data.taskId,
+        tier: event.data.tier,
+      },
+      "Published recovery event",
+    );
+  } catch (error) {
+    workerLogger.error({ error }, "Failed to publish recovery event");
   }
 }
 

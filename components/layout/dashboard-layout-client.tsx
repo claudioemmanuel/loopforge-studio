@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { PageTransition } from "@/components/layout/page-transition";
 import { WelcomeTutorialWrapper } from "@/components/onboarding";
+import { SystemStatusBanner } from "@/components/layout/system-status-banner";
 import {
   SidebarProvider,
   MobileHeader,
@@ -63,6 +64,7 @@ export function DashboardLayoutClient({
 
         {/* Main content with top padding on mobile for fixed header */}
         <main className="flex-1 overflow-auto pt-14 md:pt-0">
+          <SystemStatusBanner />
           <PageTransition className="h-full">{children}</PageTransition>
         </main>
 

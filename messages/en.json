@@ -772,20 +772,59 @@
       "inProgress": "In Progress"
     }
   },
-  "workers": {
-    "stats": {
-      "active": "Active",
-      "failed": "Failed"
-    },
-    "refreshTitle": "Refresh workers"
-  },
   "kanban": {
     "start": "Start",
     "plan": "Plan",
     "setting": "Setting...",
     "ready": "Ready",
     "execute": "Execute",
-    "processingInBackground": "Processing in background"
+    "processingInBackground": "Processing in background",
+    "addTask": "Add Task",
+    "dropHere": "Drop here",
+    "columnDescriptions": {
+      "todo": "Tasks waiting to start",
+      "brainstorming": "AI generating ideas",
+      "planning": "Creating execution plans",
+      "ready": "Ready to execute",
+      "executing": "AI working on code",
+      "review": "Changes ready for approval",
+      "done": "Completed tasks",
+      "stuck": "Tasks that encountered errors"
+    },
+    "emptyStates": {
+      "todo": {
+        "message": "No tasks yet",
+        "hint": "Create a task to get started"
+      },
+      "brainstorming": {
+        "message": "Nothing to brainstorm",
+        "hint": "AI will help generate ideas"
+      },
+      "planning": {
+        "message": "Nothing in planning",
+        "hint": "Tasks will be planned here"
+      },
+      "ready": {
+        "message": "Nothing ready",
+        "hint": "Planned tasks appear here"
+      },
+      "executing": {
+        "message": "Nothing executing",
+        "hint": "Start a task to see it here"
+      },
+      "review": {
+        "message": "Nothing to review",
+        "hint": "Changes will appear here for approval"
+      },
+      "done": {
+        "message": "Nothing completed",
+        "hint": "Finished tasks will appear here"
+      },
+      "stuck": {
+        "message": "No stuck tasks",
+        "hint": "Tasks needing attention appear here"
+      }
+    }
   },
   "experiments": {
     "title": "Experiments",
@@ -883,6 +922,64 @@
       "type": "Type",
       "weight": "{percent}%",
       "controlLabel": "{name} (Control)"
+    }
+  },
+  "system": {
+    "banner": {
+      "dismiss": "Dismiss"
+    }
+  },
+  "workers": {
+    "stats": {
+      "active": "Active",
+      "failed": "Failed"
+    },
+    "refreshTitle": "Refresh workers",
+    "health": {
+      "pageTitle": "Worker Health",
+      "pageDescription": "Monitor worker status, queue metrics, and system health",
+      "lastUpdated": "Last updated",
+      "refresh": "Refresh",
+      "status": {
+        "running": "Running",
+        "stopped": "Stopped",
+        "error": "Error"
+      },
+      "cards": {
+        "worker": {
+          "title": "Worker Status",
+          "statusLabel": "Status",
+          "uptime": "Uptime",
+          "lastHeartbeat": "Last Heartbeat",
+          "restarts": "Restarts"
+        },
+        "queues": {
+          "title": "Queue Metrics",
+          "brainstorm": "Brainstorm",
+          "plan": "Plan",
+          "execution": "Execution",
+          "totalActive": "Total Active",
+          "totalWaiting": "Total Waiting",
+          "backlogWarning": "Queue backlog detected - tasks may be delayed"
+        },
+        "redis": {
+          "title": "Redis Status",
+          "statusLabel": "Connection",
+          "connected": "Connected",
+          "disconnected": "Disconnected",
+          "memory": "Memory",
+          "uptime": "Uptime",
+          "disconnectedWarning": "Redis connection lost - real-time updates unavailable"
+        },
+        "failures": {
+          "title": "Issues & Failures",
+          "recentFailures": "Recent Failures",
+          "stuckTasks": "Stuck Tasks",
+          "noIssues": "No issues detected",
+          "stuckTasksLabel": "Stuck Tasks",
+          "recentFailuresLabel": "Recent Failures"
+        }
+      }
     }
   }
 }

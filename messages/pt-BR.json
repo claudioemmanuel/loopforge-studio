@@ -772,20 +772,59 @@
       "inProgress": "Em Andamento"
     }
   },
-  "workers": {
-    "stats": {
-      "active": "Ativos",
-      "failed": "Falhados"
-    },
-    "refreshTitle": "Atualizar workers"
-  },
   "kanban": {
     "start": "Iniciar",
     "plan": "Planejar",
     "setting": "Configurando...",
     "ready": "Pronto",
     "execute": "Executar",
-    "processingInBackground": "Processando em segundo plano"
+    "processingInBackground": "Processando em segundo plano",
+    "addTask": "Adicionar Tarefa",
+    "dropHere": "Solte aqui",
+    "columnDescriptions": {
+      "todo": "Tarefas aguardando início",
+      "brainstorming": "IA gerando ideias",
+      "planning": "Criando planos de execução",
+      "ready": "Pronto para executar",
+      "executing": "IA trabalhando no código",
+      "review": "Mudanças prontas para aprovação",
+      "done": "Tarefas concluídas",
+      "stuck": "Tarefas que encontraram erros"
+    },
+    "emptyStates": {
+      "todo": {
+        "message": "Nenhuma tarefa ainda",
+        "hint": "Crie uma tarefa para começar"
+      },
+      "brainstorming": {
+        "message": "Nada para brainstorming",
+        "hint": "A IA ajudará a gerar ideias"
+      },
+      "planning": {
+        "message": "Nada em planejamento",
+        "hint": "Tarefas serão planejadas aqui"
+      },
+      "ready": {
+        "message": "Nada pronto",
+        "hint": "Tarefas planejadas aparecem aqui"
+      },
+      "executing": {
+        "message": "Nada executando",
+        "hint": "Inicie uma tarefa para vê-la aqui"
+      },
+      "review": {
+        "message": "Nada para revisar",
+        "hint": "Mudanças aparecerão aqui para aprovação"
+      },
+      "done": {
+        "message": "Nada concluído",
+        "hint": "Tarefas finalizadas aparecerão aqui"
+      },
+      "stuck": {
+        "message": "Nenhuma tarefa travada",
+        "hint": "Tarefas que precisam de atenção aparecem aqui"
+      }
+    }
   },
   "experiments": {
     "title": "Experimentos",
@@ -883,6 +922,64 @@
       "type": "Tipo",
       "weight": "{percent}%",
       "controlLabel": "{name} (Controle)"
+    }
+  },
+  "system": {
+    "banner": {
+      "dismiss": "Dispensar"
+    }
+  },
+  "workers": {
+    "stats": {
+      "active": "Ativos",
+      "failed": "Falhados"
+    },
+    "refreshTitle": "Atualizar workers",
+    "health": {
+      "pageTitle": "Saúde do Worker",
+      "pageDescription": "Monitore o status do worker, métricas de fila e saúde do sistema",
+      "lastUpdated": "Última atualização",
+      "refresh": "Atualizar",
+      "status": {
+        "running": "Em Execução",
+        "stopped": "Parado",
+        "error": "Erro"
+      },
+      "cards": {
+        "worker": {
+          "title": "Status do Worker",
+          "statusLabel": "Status",
+          "uptime": "Tempo Ativo",
+          "lastHeartbeat": "Último Heartbeat",
+          "restarts": "Reinícios"
+        },
+        "queues": {
+          "title": "Métricas de Fila",
+          "brainstorm": "Brainstorm",
+          "plan": "Planejamento",
+          "execution": "Execução",
+          "totalActive": "Total Ativo",
+          "totalWaiting": "Total Aguardando",
+          "backlogWarning": "Fila com atraso detectada - tarefas podem estar atrasadas"
+        },
+        "redis": {
+          "title": "Status do Redis",
+          "statusLabel": "Conexão",
+          "connected": "Conectado",
+          "disconnected": "Desconectado",
+          "memory": "Memória",
+          "uptime": "Tempo Ativo",
+          "disconnectedWarning": "Conexão Redis perdida - atualizações em tempo real indisponíveis"
+        },
+        "failures": {
+          "title": "Problemas & Falhas",
+          "recentFailures": "Falhas Recentes",
+          "stuckTasks": "Tarefas Travadas",
+          "noIssues": "Nenhum problema detectado",
+          "stuckTasksLabel": "Tarefas Travadas",
+          "recentFailuresLabel": "Falhas Recentes"
+        }
+      }
     }
   }
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   X,
@@ -13,7 +12,6 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { Task } from "@/lib/db/schema";
-import { getStatusConfigForModal } from "./task-config";
 
 interface TaskHeaderProps {
   task: Task;
@@ -32,10 +30,6 @@ export function TaskHeader({
   onClose,
   onTitleSave,
 }: TaskHeaderProps) {
-  const t = useTranslations();
-  const statusConfig = getStatusConfigForModal(t);
-  const config = statusConfig[task.status];
-  const StatusIcon = config.icon;
   const isEditable = task.status === "todo" || task.status === "stuck";
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(task.title);
@@ -141,18 +135,6 @@ export function TaskHeader({
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Status badge */}
-            <div
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
-                config.bgColor,
-                config.color,
-              )}
-            >
-              <StatusIcon className="w-3.5 h-3.5" />
-              <span>{config.label}</span>
-            </div>
-
             {/* Branch */}
             {task.branch && (
               <div className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded-full text-xs font-mono text-muted-foreground">

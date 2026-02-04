@@ -34,6 +34,7 @@ export async function truncateAllTables() {
   const p = getTestPool();
   await p.query(`
     TRUNCATE
+      domain_events,
       task_dependencies,
       activity_events,
       activity_summaries,

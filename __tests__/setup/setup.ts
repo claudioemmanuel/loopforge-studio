@@ -78,6 +78,9 @@ beforeAll(async () => {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS locale TEXT DEFAULT 'en';
     -- Add workflow settings columns if they don't exist
     ALTER TABLE users ADD COLUMN IF NOT EXISTS default_clone_directory TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS default_test_command TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS default_test_timeout INTEGER DEFAULT 300000;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS default_test_gate_policy TEXT DEFAULT 'warn';
 
     DO $$ BEGIN
       CREATE TYPE indexing_status AS ENUM ('pending', 'indexing', 'indexed', 'failed');
@@ -231,6 +234,11 @@ beforeAll(async () => {
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS auto_approve BOOLEAN NOT NULL DEFAULT false;
     -- Brainstorm summary column
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS brainstorm_summary TEXT;
+    -- Context compaction columns (Prompt Engineering Framework 2026-01-29)
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS brainstorm_message_count INTEGER DEFAULT 0;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS brainstorm_compacted_at TIMESTAMP;
+    -- Execution graph for DAG visualization (Task Detail Visualization 2026-02-01)
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS execution_graph JSONB;
 
     CREATE TABLE IF NOT EXISTS executions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -252,10 +260,19 @@ beforeAll(async () => {
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS branch TEXT;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS pr_url TEXT;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS pr_number INTEGER;
+    -- P0: Rollback tracking
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS reverted BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS revert_commit_sha TEXT;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS reverted_at TIMESTAMP;
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS revert_reason TEXT;
     -- Ralph Loop Reliability Features (2026-01-29)
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS stuck_signals JSONB;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS recovery_attempts JSONB;
     ALTER TABLE executions ADD COLUMN IF NOT EXISTS validation_report JSONB;
+    -- Token tracking (Prompt Engineering Framework 2026-01-29)
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS token_metrics JSONB DEFAULT '{}'::jsonb;
+    -- Skills tracking (Skills Framework Integration 2026-01-29)
+    ALTER TABLE executions ADD COLUMN IF NOT EXISTS skill_executions JSONB DEFAULT '[]'::jsonb;
 
     CREATE TABLE IF NOT EXISTS execution_events (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -356,6 +373,51 @@ beforeAll(async () => {
 
     CREATE INDEX IF NOT EXISTS task_dependencies_task_id_idx ON task_dependencies(task_id);
     CREATE INDEX IF NOT EXISTS task_dependencies_blocked_by_id_idx ON task_dependencies(blocked_by_id);
+
+    -- =========================================
+    -- Domain Events (DDD Architecture)
+    -- =========================================
+
+    CREATE TABLE IF NOT EXISTS domain_events (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_type TEXT NOT NULL,
+      aggregate_id TEXT NOT NULL,
+      aggregate_type TEXT NOT NULL,
+      occurred_at TIMESTAMP DEFAULT now() NOT NULL,
+      persisted_at TIMESTAMP DEFAULT now() NOT NULL,
+      data JSONB DEFAULT '{}'::jsonb NOT NULL,
+      metadata JSONB DEFAULT '{}'::jsonb NOT NULL,
+      version INTEGER DEFAULT 1 NOT NULL
+    );
+
+    -- Create indexes for domain_events
+    CREATE INDEX IF NOT EXISTS idx_domain_events_event_type ON domain_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_domain_events_aggregate ON domain_events(aggregate_type, aggregate_id);
+    CREATE INDEX IF NOT EXISTS idx_domain_events_occurred_at ON domain_events(occurred_at DESC);
+
+    -- =========================================
+    -- Usage Records (Billing Context)
+    -- =========================================
+
+    CREATE TABLE IF NOT EXISTS usage_records (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
+      execution_id UUID REFERENCES executions(id) ON DELETE SET NULL,
+      period_start TIMESTAMP NOT NULL,
+      period_end TIMESTAMP NOT NULL,
+      model TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      estimated_cost INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    -- Create indexes for usage_records
+    CREATE INDEX IF NOT EXISTS idx_usage_records_user_id ON usage_records(user_id);
+    CREATE INDEX IF NOT EXISTS idx_usage_records_created_at ON usage_records(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_usage_records_period ON usage_records(period_start, period_end);
 
   `);
 });
