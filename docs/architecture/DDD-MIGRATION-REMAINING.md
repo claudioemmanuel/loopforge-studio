@@ -8,43 +8,51 @@
 
 ## What is done (committed)
 
-| Commit    | What                                                                                                                                                              |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `968156c` | Context scaffolding: 6 services, 6 api barrels, domain re-exports                                                                                                 |
-| `f39f475` | Batch 1 – tasks/[id] PATCH/DELETE, brainstorm/start, plan/start, user/usage, onboarding, billing checkout import swap. **Deleted** `lib/activity/*`               |
-| `3397dd3` | Batch 2 – analytics, activity/\*, repos/\*, account/delete, user/locale. Extended all 5 services. **Deleted** `lib/api/analytics.ts`, `lib/api/cached-queries.ts` |
-| `bed4033` | Batch 3 – settings/\*, billing/portal-session. Added UserService.updateUserFields, updateLocale                                                                   |
-| (pending) | Batch 4a – workers/[taskId], executions/[id]/events. Added ExecutionService.getExecutionWithOwnership, getExecutionEvents                                         |
+| Commit    | What                                                                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `968156c` | Context scaffolding: 6 services, 6 api barrels, domain re-exports                                                                                                   |
+| `f39f475` | Batch 1 – tasks/[id] PATCH/DELETE, brainstorm/start, plan/start, user/usage, onboarding, billing checkout import swap. **Deleted** `lib/activity/*`                 |
+| `3397dd3` | Batch 2 – analytics, activity/\*, repos/\*, account/delete, user/locale. Extended all 5 services. **Deleted** `lib/api/analytics.ts`, `lib/api/cached-queries.ts`   |
+| `bed4033` | Batch 3 – settings/\*, billing/portal-session. Added UserService.updateUserFields, updateLocale                                                                     |
+| `7099796` | Batch 4a – workers/[taskId], executions/[id]/events. Added ExecutionService.getExecutionWithOwnership, getExecutionEvents                                           |
+| `3169a20` | Batch 5 – brainstorm/route, plan/route, chat, finalize, execution, processing, rollback/\*, diff/reject. Added TaskService.claimProcessingSlot, clearProcessingSlot |
+| `7fa4aba` | brainstorm/generate – both autonomous + manual paths migrated                                                                                                       |
+| `5386d90` | diff/approve – markCompleted + updateFields + getTaskFull                                                                                                           |
+| `ec02b7d` | diff/route GET – getLatestForTask replaces raw executions relation join                                                                                             |
 
 ### Services that are fully extended and ready to use
 
-| Service           | Key methods available                                                                                                                             |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AnalyticsService  | recordActivityEvent, 9 named helpers, 6 dashboard queries, 4 activity-feed queries, deleteUserActivities                                          |
-| BillingService    | checkRepoLimit, checkTaskLimit, recordUsage, getUsageSummary, createCheckoutSession, createPortalSession                                          |
-| RepositoryService | getRepositoryFull, listUserRepositories, connectRepository, findByOwner, updateRepository, deleteRepository, deleteAllByUser                      |
-| TaskService       | getTaskFull, listByRepo, createTask, updateFields, deleteTask, verifyOwnership, getIdsByRepoIds, deleteByRepoIds                                  |
-| ExecutionService  | getLatestForTask, listByTask, getById, getExecutionWithOwnership, getExecutionEvents, create, markRunning/Completed/Failed/Stuck, deleteByTaskIds |
-| UserService       | registerUser, configureProvider, removeProvider, updatePreferences, updateLocale, completeOnboarding, updateSubscription, getUserFull, deleteUser |
+| Service           | Key methods available                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AnalyticsService  | recordActivityEvent, 9 named helpers, 6 dashboard queries, 4 activity-feed queries, deleteUserActivities                                                            |
+| BillingService    | checkRepoLimit, checkTaskLimit, recordUsage, getUsageSummary, createCheckoutSession, createPortalSession                                                            |
+| RepositoryService | getRepositoryFull, listUserRepositories, connectRepository, findByOwner, updateRepository, deleteRepository, deleteAllByUser                                        |
+| TaskService       | getTaskFull, listByRepo, createTask, updateFields, claimProcessingSlot, clearProcessingSlot, deleteTask, verifyOwnership, getIdsByRepoIds, deleteByRepoIds          |
+| ExecutionService  | getLatestForTask, listByTask, getById, getExecutionWithOwnership, getExecutionEvents, create, markRunning/Completed/Failed/Stuck, deleteByTaskIds                   |
+| UserService       | registerUser, configureProvider, removeProvider, updatePreferences, updateLocale, completeOnboarding, updateSubscription, getUserFull, deleteUser, updateUserFields |
 
 ---
 
-## Remaining routes (38 routes)
+## Remaining – intentionally kept as-is
 
-### Batch 3 – Quick wins (no new service methods needed)
+### Routes using lib/domain aggregates (proper DDD – do not regress)
 
-| Route                           | Target service / method                                          | Notes                           |
-| ------------------------------- | ---------------------------------------------------------------- | ------------------------------- |
-| `dashboard/stuck-tasks`         | AnalyticsService                                                 | already has all queries         |
-| `billing/create-portal-session` | BillingService.createPortalSession                               | method exists                   |
-| `settings/provider`             | UserService.configureProvider / removeProvider                   | GET needs getUserProviderConfig |
-| `settings/model`                | UserService.configureProvider                                    | update preferredModel only      |
-| `settings/api-key`              | UserService.configureProvider / removeProvider                   | key rotation                    |
-| `settings/clone-directory`      | UserService.updatePreferences                                    | cloneDirectory field            |
-| `settings/test-defaults`        | UserService.updatePreferences                                    | testRunCommand + testGatePolicy |
-| `settings/route` (GET)          | UserService.getUserFull + RepositoryService.listUserRepositories | mask keys client-side           |
+These routes already use `TaskAggregate`, `ExecutionAggregate`, `TaskRepository`, `ExecutionRepository` from `lib/domain`. They are _ahead_ of the service layer and should stay as-is until the aggregates are wired into the services.
 
-### Batch 4b – Complex worker routes (deferred – significant new service methods needed)
+| Route               | Why kept                                                                           |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `execute`           | Uses TaskAggregate.claimExecution + ExecutionAggregate.createQueued + atomic guard |
+| `dependencies`      | Uses TaskAggregate.addDependency / removeDependency + circular-dep detection       |
+| `autonomous/resume` | Uses TaskAggregate.claimExecution + queueTaskExecution helper                      |
+| `brainstorm/save`   | Uses TaskAggregate.recordBrainstorm + TaskRepository.save                          |
+
+### Routes with heavy infra that stay in-route
+
+| Route             | Why kept                                                           |
+| ----------------- | ------------------------------------------------------------------ |
+| `brainstorm/init` | Deep AI client + GitHub repo scan + in-memory conversation restore |
+
+### Complex worker routes (deferred – need significant new service methods)
 
 | Route             | Notes                                                                                    |
 | ----------------- | ---------------------------------------------------------------------------------------- |
@@ -52,36 +60,13 @@
 | `workers/sse`     | SSE infrastructure stays in route; only getInitialWorkers query moves to service         |
 | `workers/history` | workerJobs + workerEvents pagination with aggregate stats; heavy service extension       |
 
-### Batch 5 – Task orchestration (need new TaskService methods)
-
-| Route                           | New method needed                          | ~lines |
-| ------------------------------- | ------------------------------------------ | ------ |
-| `brainstorm/route` (POST start) | `claimBrainstormSlot(taskId, jobId)`       | 25     |
-| `brainstorm/chat`               | `appendChatMessage(taskId, msg)`           | 15     |
-| `brainstorm/init`               | reuse appendChatMessage                    | –      |
-| `brainstorm/generate`           | `queueAutonomousFlow(taskId, cfg)`         | 20     |
-| `brainstorm/finalize`           | updateFields (exists)                      | –      |
-| `brainstorm/save`               | updateFields (exists)                      | –      |
-| `plan/route` (POST start)       | `claimPlanningSlot(taskId, jobId)`         | 25     |
-| `execute`                       | updateFields + Redis push                  | –      |
-| `execution`                     | ExecutionService.getLatestForTask (exists) | –      |
-| `processing`                    | TaskService.getTaskFull (exists)           | –      |
-| `dependencies`                  | updateFields (exists)                      | –      |
-| `diff/route`                    | TaskService.getTaskFull (exists)           | –      |
-| `diff/approve`                  | updateFields (exists)                      | –      |
-| `diff/reject`                   | updateFields (exists)                      | –      |
-| `rollback/route`                | updateFields (exists)                      | –      |
-| `rollback/check`                | TaskService.getTaskFull (exists)           | –      |
-| `recovery-status`               | ExecutionService.getLatestForTask (exists) | –      |
-| `autonomous/resume`             | TaskService.getTaskFull + updateFields     | –      |
-
 ### Later / low priority
 
-| Route                  | Notes                                                                                   |
-| ---------------------- | --------------------------------------------------------------------------------------- |
-| `billing/webhook`      | currently import-path swap only; full Stripe event handling is complex – leave for last |
-| `user/subscription`    | complex Drizzle relation query; low-traffic endpoint                                    |
-| `repos/[repoId]/graph` | depends on dependency-graph domain logic                                                |
+| Route                  | Notes                                                  |
+| ---------------------- | ------------------------------------------------------ |
+| `billing/webhook`      | Full Stripe event handling is complex – leave for last |
+| `user/subscription`    | Complex Drizzle relation query; low-traffic endpoint   |
+| `repos/[repoId]/graph` | Depends on dependency-graph domain logic               |
 
 ---
 
@@ -94,10 +79,9 @@
 
 ---
 
-## Suggested execution order for next session
+## Next steps
 
-1. **Batch 3** – settings + stuck-tasks + portal-session (all methods already exist, pure route rewrites)
-2. **Batch 4** – extend ExecutionService with 3 methods, then migrate worker routes
-3. **Batch 5** – extend TaskService with 4 methods, then migrate orchestration routes
-4. **Later** – billing/webhook, user/subscription, repos graph
-5. **Final** – update `docs/architecture/IMPLEMENTATION_STATUS.md`, delete this file
+1. **Wire aggregates into services** – Connect TaskAggregate / ExecutionAggregate into TaskService / ExecutionService so `execute`, `dependencies`, `autonomous/resume`, `brainstorm/save` can route through services
+2. **Complex worker routes** – Add listActiveWorkerTasks to TaskService, migrate workers/route; keep SSE shell
+3. **Later** – billing/webhook, user/subscription, repos graph
+4. **Final** – update `docs/architecture/IMPLEMENTATION_STATUS.md`, delete this file
