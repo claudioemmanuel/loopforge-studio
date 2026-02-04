@@ -1,45 +1,19 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, users, repos } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { withAuth } from "@/lib/api";
 import { format } from "date-fns";
-import { handleError, Errors } from "@/lib/errors";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
 
-export async function GET() {
-  const session = await auth();
+export const GET = withAuth(async (_request, { user, session }) => {
+  const repositoryService = getRepositoryService();
+  const allRepos = await repositoryService.listUserRepositories(user.id);
 
-  if (!session?.user?.id) {
-    return handleError(Errors.unauthorized());
-  }
-
-  // Fetch user data
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, session.user.id),
-  });
-
-  if (!user) {
-    return handleError(Errors.notFound("User"));
-  }
-
-  // Fetch user repos
-  const userRepos = await db
-    .select({
-      id: repos.id,
-      fullName: repos.fullName,
-      isPrivate: repos.isPrivate,
-    })
-    .from(repos)
-    .where(eq(repos.userId, session.user.id));
-
-  // Mask API keys if present
+  // Mask API keys – presentation concern, stays in the route
   const anthropicKeyMasked = user.encryptedApiKey
     ? `sk-ant-•••••••••••••${user.encryptedApiKey.slice(-4)}`
     : null;
-
   const openaiKeyMasked = user.openaiEncryptedApiKey
     ? `sk-•••••••••••••${user.openaiEncryptedApiKey.slice(-4)}`
     : null;
-
   const geminiKeyMasked = user.geminiEncryptedApiKey
     ? `AIza•••••••••••••${user.geminiEncryptedApiKey.slice(-4)}`
     : null;
@@ -50,7 +24,7 @@ export async function GET() {
       email: session.user.email,
       image: session.user.image,
     },
-    apiKeyMasked: anthropicKeyMasked, // Keep for backwards compatibility
+    apiKeyMasked: anthropicKeyMasked, // backwards compat
     apiKeys: {
       anthropic: anthropicKeyMasked,
       openai: openaiKeyMasked,
@@ -65,6 +39,10 @@ export async function GET() {
       username: user.username,
       connectedAt: format(user.createdAt, "MMMM yyyy"),
     },
-    repos: userRepos,
+    repos: allRepos.map((r) => ({
+      id: r.id,
+      fullName: r.fullName,
+      isPrivate: r.isPrivate,
+    })),
   });
-}
+});

@@ -257,6 +257,20 @@ export class UserService {
   }
 
   /**
+   * Generic field update on the user row.
+   * Caller is responsible for validation; mirrors TaskService.updateFields.
+   */
+  async updateUserFields(
+    userId: string,
+    fields: Record<string, unknown>,
+  ): Promise<void> {
+    await db
+      .update(users)
+      .set({ ...fields, updatedAt: new Date() } as Record<string, unknown>)
+      .where(eq(users.id, userId));
+  }
+
+  /**
    * Delete user account
    */
   async deleteUser(userId: string): Promise<void> {

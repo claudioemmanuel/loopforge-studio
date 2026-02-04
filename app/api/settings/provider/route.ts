@@ -1,29 +1,23 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
-import { db, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { aiProviders, type AiProvider } from "@/lib/db/schema";
 import { apiLogger } from "@/lib/logger";
 import { handleError, Errors } from "@/lib/errors";
+import { getUserService } from "@/lib/contexts/iam/api";
 
 export const POST = withAuth(async (request, { user }) => {
   try {
     const body = await request.json();
     const { provider } = body;
 
-    // Validate provider
     if (!provider || !aiProviders.includes(provider)) {
       return handleError(Errors.invalidRequest("Invalid provider"));
     }
 
-    // Update user's preferred provider
-    await db
-      .update(users)
-      .set({
-        preferredProvider: provider as AiProvider,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, user.id));
+    const userService = getUserService();
+    await userService.updateUserFields(user.id, {
+      preferredProvider: provider as AiProvider,
+    });
 
     return NextResponse.json({ success: true, provider });
   } catch (error) {
