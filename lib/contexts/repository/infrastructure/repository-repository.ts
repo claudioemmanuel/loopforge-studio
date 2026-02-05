@@ -154,6 +154,96 @@ export class RepositoryRepository {
   }
 
   /**
+   * Find all repositories for a user
+   */
+  async findByUser(userId: string): Promise<RepositoryAggregate[]> {
+    const rows = await db
+      .select({
+        id: repos.id,
+        userId: repos.userId,
+        githubRepoId: repos.githubRepoId,
+        name: repos.name,
+        fullName: repos.fullName,
+        defaultBranch: repos.defaultBranch,
+        cloneUrl: repos.cloneUrl,
+        isPrivate: repos.isPrivate,
+        cloneStatus: repos.cloneStatus,
+        clonePath: repos.clonePath,
+        cloneStartedAt: repos.cloneStartedAt,
+        cloneCompletedAt: repos.cloneCompletedAt,
+        indexingStatus: repos.indexingStatus,
+        indexedAt: repos.indexedAt,
+        testCommand: repos.testCommand,
+        testTimeout: repos.testTimeout,
+        testGatePolicy: repos.testGatePolicy,
+        criticalTestPatterns: repos.criticalTestPatterns,
+        prTitleTemplate: repos.prTitleTemplate,
+        prTargetBranch: repos.prTargetBranch,
+        prDraftDefault: repos.prDraftDefault,
+        prReviewers: repos.prReviewers,
+        prLabels: repos.prLabels,
+        autoApprove: repos.autoApprove,
+        createdAt: repos.createdAt,
+        updatedAt: repos.updatedAt,
+      })
+      .from(repos)
+      .where(eq(repos.userId, userId))
+      .orderBy(repos.createdAt);
+
+    return rows.map((row) => {
+      const state = this.mapRowToState(row);
+      return new RepositoryAggregate(state, this.redis);
+    });
+  }
+
+  /**
+   * Find repository by owner (checks user ownership)
+   */
+  async findByOwner(
+    repoId: string,
+    userId: string,
+  ): Promise<RepositoryAggregate | null> {
+    const rows = await db
+      .select({
+        id: repos.id,
+        userId: repos.userId,
+        githubRepoId: repos.githubRepoId,
+        name: repos.name,
+        fullName: repos.fullName,
+        defaultBranch: repos.defaultBranch,
+        cloneUrl: repos.cloneUrl,
+        isPrivate: repos.isPrivate,
+        cloneStatus: repos.cloneStatus,
+        clonePath: repos.clonePath,
+        cloneStartedAt: repos.cloneStartedAt,
+        cloneCompletedAt: repos.cloneCompletedAt,
+        indexingStatus: repos.indexingStatus,
+        indexedAt: repos.indexedAt,
+        testCommand: repos.testCommand,
+        testTimeout: repos.testTimeout,
+        testGatePolicy: repos.testGatePolicy,
+        criticalTestPatterns: repos.criticalTestPatterns,
+        prTitleTemplate: repos.prTitleTemplate,
+        prTargetBranch: repos.prTargetBranch,
+        prDraftDefault: repos.prDraftDefault,
+        prReviewers: repos.prReviewers,
+        prLabels: repos.prLabels,
+        autoApprove: repos.autoApprove,
+        createdAt: repos.createdAt,
+        updatedAt: repos.updatedAt,
+      })
+      .from(repos)
+      .where(and(eq(repos.id, repoId), eq(repos.userId, userId)));
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const state = this.mapRowToState(rows[0]);
+    return new RepositoryAggregate(state, this.redis);
+  }
+
+  /**
    * Save repository aggregate to database
    */
   async save(repository: RepositoryAggregate): Promise<void> {
@@ -173,6 +263,20 @@ export class RepositoryRepository {
       // Update existing repository
       await db.update(repos).set(row).where(eq(repos.id, state.id));
     }
+  }
+
+  /**
+   * Delete a repository by ID
+   */
+  async delete(repoId: string): Promise<void> {
+    await db.delete(repos).where(eq(repos.id, repoId));
+  }
+
+  /**
+   * Delete all repositories for a user
+   */
+  async deleteByUser(userId: string): Promise<void> {
+    await db.delete(repos).where(eq(repos.userId, userId));
   }
 
   /**
