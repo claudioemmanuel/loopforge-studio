@@ -20,9 +20,7 @@
     "history": "Histórico",
     "failed": "Falhas",
     "settings": "Configurações",
-    "billing": "Faturamento",
     "dangerZone": "Zona de Perigo",
-    "experiments": "Experimentos",
     "signOut": "Sair"
   },
   "tasks": {
@@ -155,9 +153,6 @@
     "accountPage": {
       "title": "Conta",
       "profile": "Perfil",
-      "billing": {
-        "title": "Cobrança e Assinatura"
-      },
       "dangerZone": {
         "title": "Zona de Perigo",
         "subtitle": "Ações irreversíveis. Prossiga com cautela.",
@@ -198,9 +193,13 @@
         "allExecutions": "Todos os logs e resultados de execução",
         "allSettings": "Todas as configurações e preferências",
         "apiKeys": "Todas as chaves de API armazenadas (criptografadas)",
-        "subscription": "Sua assinatura será cancelada",
+        "subscription": "Sua conta será excluída",
         "noUndo": "Esta ação não pode ser desfeita",
-        "dataLoss": "Todos os dados serão permanentemente perdidos"
+        "dataLoss": "Todos os dados serão permanentemente perdidos",
+        "preserveBilling": "Configurações da conta e preferências"
+      },
+      "usage": {
+        "title": "Uso"
       }
     },
     "integrationsPage": {
@@ -295,70 +294,6 @@
         "noDefaults": "Nenhum padrão configurado",
         "noDefaultsMessage": "Configure padrões de teste para aplicá-los automaticamente a novos repositórios."
       }
-    },
-    "billingPage": {
-      "title": "Assinatura",
-      "subtitle": "Gerencie seu plano e faturamento",
-      "billingMode": {
-        "byok": "Traga Sua Própria Chave",
-        "managed": "IA Gerenciada"
-      },
-      "billingCycle": {
-        "monthly": "Mensal",
-        "yearly": "Anual",
-        "save": "(Economize 20%)"
-      },
-      "plans": {
-        "popular": "Popular",
-        "perMonth": "/mês",
-        "billedYearly": "Cobrado {price}/ano",
-        "managePlan": "Gerenciar Plano",
-        "currentPlan": "Plano Atual",
-        "freeForever": "Grátis Para Sempre",
-        "upgrade": "Fazer Upgrade",
-        "switch": "Mudar",
-        "to": "para"
-      },
-      "features": {
-        "free": {
-          "repos": "1 repositório",
-          "tasks": "5 tarefas por mês",
-          "tokens": "50K tokens por mês",
-          "support": "Suporte da comunidade"
-        },
-        "pro": {
-          "repos": "5 repositórios",
-          "tasks": "100 tarefas por mês",
-          "tokens": "2M tokens por mês",
-          "support": "Suporte prioritário",
-          "analytics": "Análises avançadas"
-        },
-        "team": {
-          "repos": "Repositórios ilimitados",
-          "tasks": "Tarefas ilimitadas",
-          "tokens": "10M tokens por mês",
-          "support": "Suporte dedicado",
-          "collaboration": "Colaboração em equipe",
-          "integrations": "Integrações personalizadas"
-        }
-      },
-      "billingDetails": {
-        "title": "Detalhes de Faturamento",
-        "status": "Status",
-        "cycle": "Ciclo de Faturamento",
-        "nextDate": "Próxima Data de Faturamento",
-        "cancelNotice": "Sua assinatura será cancelada no final do período de faturamento",
-        "manageBilling": "Gerenciar Faturamento"
-      },
-      "errors": {
-        "checkoutTitle": "Erro no checkout",
-        "checkoutMessage": "Falha ao iniciar checkout",
-        "billingTitle": "Erro de faturamento",
-        "billingMessage": "Falha ao abrir portal de faturamento"
-      },
-      "notices": {
-        "stripeNotConfigured": "O Stripe não está configurado. Upgrades de plano não estão disponíveis."
-      }
     }
   },
   "landing": {
@@ -408,7 +343,7 @@
       "headline": "Pronto para enviar código no piloto automático?",
       "subheading": "Junte-se aos desenvolvedores que estão entregando mais rápido com codificação autônoma alimentada por IA.",
       "primary": "Comece a Construir Grátis",
-      "secondary": "Ver Preços",
+      "secondary": "Ver no GitHub",
       "disclaimer": "Nível gratuito disponível. Não é necessário cartão de crédito."
     },
     "footer": {
@@ -671,7 +606,6 @@
     "rateLimit": "Limite de Taxa Atingido",
     "rateLimitMessage": "Você atingiu o limite de taxa. Por favor, tente novamente mais tarde.",
     "configureApiKey": "Configurar Chave de API",
-    "billingError": "Erro de faturamento",
     "noExecutionData": "Nenhum dado de execução disponível",
     "loading": "Carregando...",
     "retry": "Tentar Novamente",
@@ -824,104 +758,6 @@
         "message": "Nenhuma tarefa travada",
         "hint": "Tarefas que precisam de atenção aparecem aqui"
       }
-    }
-  },
-  "experiments": {
-    "title": "Experimentos",
-    "subtitle": "Visualize e gerencie experimentos de teste A/B",
-    "generateWithAI": "Gerar com IA",
-    "noExperiments": "Nenhum Experimento Ainda",
-    "noExperimentsMessage": "Crie experimentos de teste A/B com IA para otimizar seu fluxo de trabalho. Teste diferentes prompts, modelos e parâmetros.",
-    "viewDetails": "Ver Detalhes",
-    "wizard": {
-      "title": "Gerar Experimento com IA",
-      "step": "Passo {current} de {total}",
-      "back": "Voltar",
-      "next": "Próximo",
-      "generating": "Gerando...",
-      "creating": "Criando...",
-      "createExperiment": "Criar Experimento",
-      "step1": {
-        "title": "Escolha a Área de Teste",
-        "subtitle": "Selecione qual aspecto do fluxo de trabalho da IA você deseja experimentar",
-        "selectArea": "Por favor, selecione uma área de teste"
-      },
-      "step2": {
-        "title": "Responda Algumas Perguntas",
-        "subtitle": "Ajude a IA a entender suas preferências para este experimento",
-        "answerAll": "Por favor, responda todas as perguntas"
-      },
-      "step3": {
-        "title": "Revise as Variantes Geradas",
-        "subtitle": "Revise a configuração do experimento gerada pela IA"
-      },
-      "step4": {
-        "title": "Confirme e Crie",
-        "subtitle": "Revise as configurações finais e crie seu experimento",
-        "experimentName": "Nome do Experimento",
-        "experimentNamePlaceholder": "Digite o nome do experimento...",
-        "trafficAllocation": "Alocação de Tráfego ({percent}%)",
-        "trafficDescription": "Porcentagem de novas tarefas que serão atribuídas a este experimento",
-        "whatWillHappen": "O que acontecerá:",
-        "trafficAssignment": "{percent}% das novas tarefas serão atribuídas aleatoriamente a uma das 3 variantes",
-        "metricsCollection": "As métricas serão coletadas automaticamente durante a execução",
-        "statisticalAnalysis": "A análise estatística determinará a variante vencedora"
-      }
-    },
-    "testAreas": {
-      "brainstorming": {
-        "title": "Brainstorming",
-        "description": "Teste diferentes estilos e abordagens de conversação de brainstorming",
-        "examples": "Velocidade vs. minuciosidade, Foco técnico vs. contexto de negócios"
-      },
-      "planning": {
-        "title": "Planejamento",
-        "description": "Experimente com granularidade e estrutura de geração de planos",
-        "examples": "Passo a passo vs. marcos, Com/sem caminhos de arquivo"
-      },
-      "codeGeneration": {
-        "title": "Geração de Código",
-        "description": "Teste estilos de codificação autônoma e abordagens de refatoração",
-        "examples": "Conservador vs. agressivo, Densidade de comentários"
-      },
-      "modelParams": {
-        "title": "Parâmetros do Modelo",
-        "description": "Otimize temperatura, tokens e outras configurações do modelo",
-        "examples": "Qualidade vs. custo, Criatividade vs. consistência"
-      }
-    },
-    "questions": {
-      "typeAnswer": "Digite sua resposta...",
-      "selectOption": "Selecione uma opção..."
-    },
-    "status": {
-      "draft": "Rascunho",
-      "active": "Ativo",
-      "paused": "Pausado",
-      "completed": "Concluído",
-      "running": "Em Execução",
-      "winner": "Vencedor",
-      "losing": "Perdendo",
-      "control": "Controle"
-    },
-    "metrics": {
-      "successRate": "Taxa de Sucesso",
-      "avgDuration": "Duração Média",
-      "errorRate": "Taxa de Erro",
-      "sampleSize": "{count} tarefas",
-      "confidence": "{percent}% confiante",
-      "trafficAllocation": "Alocação de Tráfego"
-    },
-    "actions": {
-      "start": "Iniciar",
-      "pause": "Pausar",
-      "complete": "Concluir",
-      "viewResults": "Ver Resultados"
-    },
-    "variant": {
-      "type": "Tipo",
-      "weight": "{percent}%",
-      "controlLabel": "{name} (Controle)"
     }
   },
   "system": {

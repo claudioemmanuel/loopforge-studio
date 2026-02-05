@@ -20,9 +20,7 @@
     "history": "History",
     "failed": "Failed",
     "settings": "Settings",
-    "billing": "Billing",
     "dangerZone": "Danger Zone",
-    "experiments": "Experiments",
     "signOut": "Sign Out"
   },
   "tasks": {
@@ -155,9 +153,6 @@
     "accountPage": {
       "title": "Account",
       "profile": "Profile",
-      "billing": {
-        "title": "Billing & Subscription"
-      },
       "dangerZone": {
         "title": "Danger Zone",
         "subtitle": "Irreversible actions. Please proceed with caution.",
@@ -198,9 +193,13 @@
         "allExecutions": "All execution logs and outputs",
         "allSettings": "All settings and preferences",
         "apiKeys": "All stored API keys (encrypted)",
-        "subscription": "Your subscription will be cancelled",
+        "subscription": "Your account will be deleted",
         "noUndo": "This action cannot be undone",
-        "dataLoss": "All data will be permanently lost"
+        "dataLoss": "All data will be permanently lost",
+        "preserveBilling": "Account settings and preferences"
+      },
+      "usage": {
+        "title": "Usage"
       }
     },
     "integrationsPage": {
@@ -295,70 +294,6 @@
         "noDefaults": "No defaults configured",
         "noDefaultsMessage": "Configure test defaults to automatically apply them to new repositories."
       }
-    },
-    "billingPage": {
-      "title": "Subscription",
-      "subtitle": "Manage your plan and billing",
-      "billingMode": {
-        "byok": "Bring Your Own Key",
-        "managed": "Managed AI"
-      },
-      "billingCycle": {
-        "monthly": "Monthly",
-        "yearly": "Yearly",
-        "save": "(Save 20%)"
-      },
-      "plans": {
-        "popular": "Popular",
-        "perMonth": "/mo",
-        "billedYearly": "Billed {price}/year",
-        "managePlan": "Manage Plan",
-        "currentPlan": "Current Plan",
-        "freeForever": "Free Forever",
-        "upgrade": "Upgrade",
-        "switch": "Switch",
-        "to": "to"
-      },
-      "features": {
-        "free": {
-          "repos": "1 repository",
-          "tasks": "5 tasks per month",
-          "tokens": "50K tokens per month",
-          "support": "Community support"
-        },
-        "pro": {
-          "repos": "5 repositories",
-          "tasks": "100 tasks per month",
-          "tokens": "2M tokens per month",
-          "support": "Priority support",
-          "analytics": "Advanced analytics"
-        },
-        "team": {
-          "repos": "Unlimited repositories",
-          "tasks": "Unlimited tasks",
-          "tokens": "10M tokens per month",
-          "support": "Dedicated support",
-          "collaboration": "Team collaboration",
-          "integrations": "Custom integrations"
-        }
-      },
-      "billingDetails": {
-        "title": "Billing Details",
-        "status": "Status",
-        "cycle": "Billing Cycle",
-        "nextDate": "Next Billing Date",
-        "cancelNotice": "Your subscription will cancel at the end of the billing period",
-        "manageBilling": "Manage Billing"
-      },
-      "errors": {
-        "checkoutTitle": "Checkout error",
-        "checkoutMessage": "Failed to start checkout",
-        "billingTitle": "Billing error",
-        "billingMessage": "Failed to open billing portal"
-      },
-      "notices": {
-        "stripeNotConfigured": "Stripe is not configured. Plan upgrades are unavailable."
-      }
     }
   },
   "landing": {
@@ -408,7 +343,7 @@
       "headline": "Ready to ship code on autopilot?",
       "subheading": "Join developers who are shipping faster with AI-powered autonomous coding.",
       "primary": "Start Building Free",
-      "secondary": "View Pricing",
+      "secondary": "View on GitHub",
       "disclaimer": "Free tier available. No credit card required."
     },
     "footer": {
@@ -671,7 +606,6 @@
     "rateLimit": "Rate Limited",
     "rateLimitMessage": "You've hit the rate limit. Please try again later.",
     "configureApiKey": "Configure API Key",
-    "billingError": "Billing error",
     "noExecutionData": "No execution data available",
     "loading": "Loading...",
     "retry": "Retry",
@@ -824,104 +758,6 @@
         "message": "No stuck tasks",
         "hint": "Tasks needing attention appear here"
       }
-    }
-  },
-  "experiments": {
-    "title": "Experiments",
-    "subtitle": "View and manage A/B testing experiments",
-    "generateWithAI": "Generate with AI",
-    "noExperiments": "No Experiments Yet",
-    "noExperimentsMessage": "Create AI-powered A/B testing experiments to optimize your workflow. Test different prompts, models, and parameters.",
-    "viewDetails": "View Details",
-    "wizard": {
-      "title": "Generate Experiment with AI",
-      "step": "Step {current} of {total}",
-      "back": "Back",
-      "next": "Next",
-      "generating": "Generating...",
-      "creating": "Creating...",
-      "createExperiment": "Create Experiment",
-      "step1": {
-        "title": "Choose Test Area",
-        "subtitle": "Select which aspect of the AI workflow you want to experiment with",
-        "selectArea": "Please select a test area"
-      },
-      "step2": {
-        "title": "Answer a Few Questions",
-        "subtitle": "Help the AI understand your preferences for this experiment",
-        "answerAll": "Please answer all questions"
-      },
-      "step3": {
-        "title": "Review Generated Variants",
-        "subtitle": "Review the AI-generated experiment configuration"
-      },
-      "step4": {
-        "title": "Confirm & Create",
-        "subtitle": "Review final settings and create your experiment",
-        "experimentName": "Experiment Name",
-        "experimentNamePlaceholder": "Enter experiment name...",
-        "trafficAllocation": "Traffic Allocation ({percent}%)",
-        "trafficDescription": "Percentage of new tasks that will be assigned to this experiment",
-        "whatWillHappen": "What will happen:",
-        "trafficAssignment": "{percent}% of new tasks will be randomly assigned to one of the 3 variants",
-        "metricsCollection": "Metrics will be collected automatically during execution",
-        "statisticalAnalysis": "Statistical analysis will determine the winning variant"
-      }
-    },
-    "testAreas": {
-      "brainstorming": {
-        "title": "Brainstorming",
-        "description": "Test different brainstorming conversation styles and approaches",
-        "examples": "Speed vs. thoroughness, Technical vs. business focus"
-      },
-      "planning": {
-        "title": "Planning",
-        "description": "Experiment with plan generation granularity and structure",
-        "examples": "Step-by-step vs. milestones, With/without file paths"
-      },
-      "codeGeneration": {
-        "title": "Code Generation",
-        "description": "Test autonomous coding styles and refactoring approaches",
-        "examples": "Conservative vs. aggressive, Comment density"
-      },
-      "modelParams": {
-        "title": "Model Parameters",
-        "description": "Optimize temperature, tokens, and other model settings",
-        "examples": "Quality vs. cost, Creativity vs. consistency"
-      }
-    },
-    "questions": {
-      "typeAnswer": "Type your answer...",
-      "selectOption": "Select an option..."
-    },
-    "status": {
-      "draft": "Draft",
-      "active": "Active",
-      "paused": "Paused",
-      "completed": "Completed",
-      "running": "Running",
-      "winner": "Winner",
-      "losing": "Losing",
-      "control": "Control"
-    },
-    "metrics": {
-      "successRate": "Success Rate",
-      "avgDuration": "Avg Duration",
-      "errorRate": "Error Rate",
-      "sampleSize": "{count} tasks",
-      "confidence": "{percent}% confident",
-      "trafficAllocation": "Traffic Allocation"
-    },
-    "actions": {
-      "start": "Start",
-      "pause": "Pause",
-      "complete": "Complete",
-      "viewResults": "View Results"
-    },
-    "variant": {
-      "type": "Type",
-      "weight": "{percent}%",
-      "controlLabel": "{name} (Control)"
     }
   },
   "system": {

@@ -35,7 +35,6 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx lib/db/seed.ts",
-    "stripe:setup": "tsx scripts/setup-stripe-products.ts",
     "worker": "tsx workers/execution-worker.ts",
     "analyze": "ANALYZE=true next build",
     "prepare": "husky"
@@ -85,7 +84,6 @@
     "roughjs": "^4.6.6",
     "sharp": "^0.34.5",
     "simple-git": "^3.27.0",
-    "stripe": "^20.2.0",
     "tailwind-merge": "^2.6.0",
     "web-vitals": "^5.1.0",
     "ws": "^8.18.0",
