@@ -4,7 +4,7 @@ import { DashboardLayoutClient } from "@/components/layout";
 import { db } from "@/lib/db";
 import { repos, tasks } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { getFeatureFlag } from "@/lib/config/feature-flags";
+import { getFeatureFlag } from "@/lib/ralph/feature-flags";
 
 export default async function DashboardLayout({
   children,

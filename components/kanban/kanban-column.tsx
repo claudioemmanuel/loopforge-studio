@@ -23,7 +23,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import type { CardProcessingState } from "@/components/hooks/use-card-processing";
-import { STATUS_CONFIG } from "@/lib/constants/status-config";
+import { STATUS_CONFIG } from "@/components/status-config";
 
 interface KanbanColumnProps {
   id: TaskStatus;

@@ -9,7 +9,7 @@ import path from "path";
 import fs from "fs/promises";
 import { handleError, Errors } from "@/lib/errors";
 import { expandPath, getDefaultCloneDirectory } from "@/lib/utils/path-utils";
-import { emitCloneStatusChange } from "@/lib/events/clone-status";
+import { emitCloneStatusChange } from "@/lib/contexts/repository/infrastructure/clone-status";
 
 /**
  * Get clone directory for user with fallback priority

@@ -25,10 +25,7 @@ import {
   CompletionValidator,
   LegacyCompletionChecker,
 } from "./completion-validator";
-import {
-  getFeatureFlag,
-  areReliabilityFeaturesEnabled,
-} from "@/lib/config/feature-flags";
+import { getFeatureFlag, areReliabilityFeaturesEnabled } from "./feature-flags";
 import {
   createRecoveryEvent,
   publishRecoveryEvent,

@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import type { TaskStatus } from "@/lib/db/schema";
-import { getStatusConfig } from "@/lib/constants/status-config";
+import { getStatusConfig } from "@/components/status-config";
 
 type TranslationFunction = (key: string) => string;
 

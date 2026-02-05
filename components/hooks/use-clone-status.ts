@@ -6,8 +6,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { CloneStatus } from "@/lib/events/clone-status";
-import { subscribeToCloneStatus } from "@/lib/events/clone-status";
+import type { CloneStatus } from "@/lib/contexts/repository/infrastructure/clone-status";
+import { subscribeToCloneStatus } from "@/lib/contexts/repository/infrastructure/clone-status";
 
 interface CloneStatusState {
   status: CloneStatus;

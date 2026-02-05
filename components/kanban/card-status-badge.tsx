@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Task, TaskStatus } from "@/lib/db/schema";
-import { STATUS_CONFIG } from "@/lib/constants/status-config";
+import { STATUS_CONFIG } from "@/components/status-config";
 
 // Card-specific visual treatment per status.
 // icon and label are derived from the shared STATUS_CONFIG;

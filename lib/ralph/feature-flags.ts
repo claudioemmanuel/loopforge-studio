@@ -2,43 +2,41 @@
  * Feature Flags for Ralph Loop Reliability Improvements
  *
  * Enables progressive rollout of reliability features with graceful degradation.
- *
- * Part of Ralph Loop Reliability Improvements (2026-01-29)
  */
 
 export interface FeatureFlags {
   /**
    * Enable multi-signal stuck detection.
    * When false, uses legacy consecutive error counting.
-   * @default false
+   * @default true
    */
   ENABLE_STUCK_DETECTOR: boolean;
 
   /**
    * Enable progressive error recovery (4-tier system).
    * When false, no recovery attempts are made (tasks go to stuck immediately).
-   * @default false
+   * @default true
    */
   ENABLE_RECOVERY_STRATEGIES: boolean;
 
   /**
    * Enable completion validation with plan matching.
    * When false, uses legacy validation (RALPH_COMPLETE + commits > 0).
-   * @default false
+   * @default true
    */
   ENABLE_COMPLETION_VALIDATION: boolean;
 
   /**
    * Enable enhanced extraction with progressive strategies.
    * When false, uses existing smart-extractor logic.
-   * @default false
+   * @default true
    */
   ENABLE_ENHANCED_EXTRACTION: boolean;
 
   /**
    * Enable test gate enforcement.
    * When false, tests run but don't block PR creation.
-   * @default false
+   * @default true
    */
   ENABLE_TEST_GATES: boolean;
 
@@ -103,13 +101,6 @@ const featureFlags = loadFeatureFlags();
 
 /**
  * Gets value of a specific feature flag.
- *
- * @example
- * if (getFeatureFlag('ENABLE_STUCK_DETECTOR')) {
- *   detector = new StuckDetector(config);
- * } else {
- *   detector = new LegacyStuckChecker(threshold);
- * }
  */
 export function getFeatureFlag(flag: keyof FeatureFlags): boolean {
   return featureFlags[flag];
@@ -117,7 +108,6 @@ export function getFeatureFlag(flag: keyof FeatureFlags): boolean {
 
 /**
  * Gets all feature flags.
- * Useful for logging/debugging.
  */
 export function getAllFeatureFlags(): Readonly<FeatureFlags> {
   return { ...featureFlags };
@@ -125,7 +115,6 @@ export function getAllFeatureFlags(): Readonly<FeatureFlags> {
 
 /**
  * Checks if any reliability features are enabled.
- * Useful for conditional initialization.
  */
 export function areReliabilityFeaturesEnabled(): boolean {
   return (
@@ -139,7 +128,6 @@ export function areReliabilityFeaturesEnabled(): boolean {
 
 /**
  * Gets human-readable status of all feature flags.
- * Useful for startup logs.
  */
 export function getFeatureFlagStatus(): string {
   const flags = getAllFeatureFlags();

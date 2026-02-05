@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { WorkerJobPhase } from "@/lib/db/schema";
-import { STATUS_CONFIG } from "@/lib/constants/status-config";
+import { STATUS_CONFIG } from "@/components/status-config";
 
 // Event icons mapping
 const eventIcons: Record<
