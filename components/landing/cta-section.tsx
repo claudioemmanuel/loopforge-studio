@@ -66,7 +66,9 @@ export function CTASection() {
               borderColor="hsl(var(--border))"
             >
               <a
-                href="/billing"
+                href="https://github.com/loopforge/loopforge-studio"
+                target="_blank"
+                rel="noopener noreferrer"
                 ref={secondaryCta.ref as React.RefObject<HTMLAnchorElement>}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-background/50 px-8 py-4 text-base font-medium transition-all hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 style={secondaryCta.style}

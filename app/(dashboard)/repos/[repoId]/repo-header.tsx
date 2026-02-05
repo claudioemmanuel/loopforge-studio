@@ -12,7 +12,6 @@ import {
   Network,
 } from "lucide-react";
 import Link from "next/link";
-import { UsageIndicator } from "@/components/billing/usage-indicator";
 import { RepoData, statConfig } from "./use-task-actions";
 
 interface RepoHeaderProps {
@@ -140,10 +139,6 @@ export function RepoHeader({
                 </div>
               );
             })}
-            {/* Usage indicator for managed billing */}
-            <div className="hidden md:block border-l border-border pl-4 ml-2">
-              <UsageIndicator />
-            </div>
           </div>
         </div>
       </div>

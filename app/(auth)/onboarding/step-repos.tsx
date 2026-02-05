@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Search,
   Star,
@@ -16,10 +13,8 @@ import {
   Loader2,
   ArrowLeft,
   ArrowRight,
-  AlertTriangle,
 } from "lucide-react";
 import { GitHubRepo, FilterType } from "./onboarding-config";
-import { SUBSCRIPTION_PLANS } from "@/lib/contexts/billing/api";
 
 export function StepRepos({
   searchQuery,
@@ -48,60 +43,8 @@ export function StepRepos({
   onBack: () => void;
   formatDate: (dateString: string) => string;
 }) {
-  const [limitWarning, setLimitWarning] = useState<string | null>(null);
-
-  // Assume free tier during onboarding (default tier)
-  const userTier = "free" as const;
-  const maxRepos = SUBSCRIPTION_PLANS[userTier].maxRepos;
-
-  const handleRepoToggle = (repoId: number) => {
-    const isCurrentlySelected = selectedRepos.has(repoId);
-
-    if (!isCurrentlySelected) {
-      // Check limit BEFORE adding (free tier has fixed limit of 1)
-      if (selectedRepos.size >= maxRepos) {
-        setLimitWarning(
-          `Free tier allows only ${maxRepos} ${maxRepos === 1 ? "repository" : "repositories"}. Upgrade to Pro for ${SUBSCRIPTION_PLANS.pro.maxRepos} repositories.`,
-        );
-        return;
-      }
-    }
-
-    setLimitWarning(null);
-    onToggleRepo(repoId);
-  };
-
   return (
     <div className="space-y-4">
-      {/* Show limit info */}
-      <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
-        <p className="text-sm text-blue-900 dark:text-blue-100">
-          <span className="font-medium">Your plan:</span> {userTier} tier -{" "}
-          {maxRepos} {maxRepos === 1 ? "repository" : "repositories"}
-        </p>
-        <Link
-          href="/billing"
-          className="text-sm text-blue-600 hover:underline inline-block mt-1"
-        >
-          Upgrade to Pro for 20 repositories →
-        </Link>
-      </div>
-
-      {/* Show warning when limit reached */}
-      {limitWarning && (
-        <Alert
-          variant="default"
-          className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950"
-        >
-          <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-          <AlertTitle className="text-yellow-900 dark:text-yellow-100">
-            Repository limit reached
-          </AlertTitle>
-          <AlertDescription className="text-yellow-800 dark:text-yellow-200">
-            {limitWarning}
-          </AlertDescription>
-        </Alert>
-      )}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -166,7 +109,7 @@ export function StepRepos({
                 {ownerRepos.map((repo) => (
                   <button
                     key={repo.id}
-                    onClick={() => handleRepoToggle(repo.id)}
+                    onClick={() => onToggleRepo(repo.id)}
                     className={`w-full p-3 text-left rounded-lg border transition-all ${
                       selectedRepos.has(repo.id)
                         ? "border-primary bg-primary/5 ring-1 ring-primary"

@@ -27,7 +27,6 @@ import {
   useSlideAnimation,
 } from "@/components/hooks/use-card-processing";
 import { RepoSetupOverlay } from "@/components/repo-setup";
-import { UsageLimitOverlay } from "@/components/billing/usage-indicator";
 import { ActivityPanel } from "@/components/activity-panel";
 import type { Task, TaskStatus } from "@/lib/db/schema";
 import { useTaskActions } from "./use-task-actions";
@@ -323,9 +322,6 @@ export default function RepoPage() {
             onCloneComplete={fetchData}
           />
         )}
-
-        {/* Usage limit overlay (when at token limit) */}
-        <UsageLimitOverlay />
       </main>
 
       {/* Activity Panel (collapsible sidebar) */}
