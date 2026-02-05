@@ -3,6 +3,7 @@
 > **Last updated:** 2026-02-04
 > **Branch:** `main` (single branch – all work consolidated)
 > **Migration state:** Service layer + route migrations complete ✅ | Task & Execution aggregates wired ✅ | `lib/domain/` deleted ✅ | Remaining contexts (IAM, Repository, Billing, Analytics) staged
+> **Completion Roadmap:** See [`DDD-COMPLETION-ROADMAP.md`](./DDD-COMPLETION-ROADMAP.md) for detailed plan to finish the remaining 40%
 
 ---
 
