@@ -15,11 +15,10 @@ export function getBillingService(): BillingService {
 }
 
 export { BillingService } from "../application/billing-service";
-export type { LimitCheckResult, SubscriptionTier } from "../domain/types";
+export type { SubscriptionTier } from "../domain/types";
 export {
   SUBSCRIPTION_PLANS,
   getPlanConfig,
-  formatLimitError,
   getMaxReposForTier,
   getMaxTasksForTier,
 } from "../domain/types";

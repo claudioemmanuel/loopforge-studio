@@ -11,7 +11,6 @@ import type { BillingMode } from "@/lib/db/schema";
 export const SUBSCRIPTION_PLANS = {
   free: {
     name: "Free",
-    priceId: process.env.STRIPE_PRICE_FREE || "",
     maxRepos: 1,
     maxTasksPerRepo: 10,
     features: [
@@ -23,7 +22,6 @@ export const SUBSCRIPTION_PLANS = {
   },
   pro: {
     name: "Pro",
-    priceId: process.env.STRIPE_PRICE_PRO || "",
     maxRepos: 20,
     maxTasksPerRepo: 100,
     features: [
@@ -37,7 +35,6 @@ export const SUBSCRIPTION_PLANS = {
   },
   enterprise: {
     name: "Enterprise",
-    priceId: process.env.STRIPE_PRICE_ENTERPRISE || "",
     maxRepos: -1, // unlimited
     maxTasksPerRepo: -1, // unlimited
     features: [
@@ -90,30 +87,6 @@ export function getMaxReposForTier(tier: SubscriptionTier): number {
 
 export function getMaxTasksForTier(tier: SubscriptionTier): number {
   return getPlanConfig(tier).maxTasksPerRepo;
-}
-
-export function formatLimitError(
-  limitCheck: LimitCheckResult,
-  resourceType: "repository" | "task",
-): {
-  error: string;
-  message: string;
-  current: number;
-  limit: number;
-  tier: string;
-  upgradeUrl: string;
-} {
-  const resourcePlural =
-    resourceType === "repository" ? "repositories" : "tasks";
-
-  return {
-    error: `${resourceType}_limit_reached`,
-    message: `You've reached the limit of ${limitCheck.limit} ${resourcePlural} for the ${limitCheck.tier} plan. Upgrade to create more.`,
-    current: limitCheck.current,
-    limit: limitCheck.limit,
-    tier: limitCheck.tier,
-    upgradeUrl: "/billing",
-  };
 }
 
 // =============================================================================

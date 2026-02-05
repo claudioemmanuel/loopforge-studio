@@ -1,7 +1,7 @@
 /**
  * Billing Service (Application Layer)
  *
- * Orchestrates subscription limit checks, usage tracking, and Stripe sessions.
+ * Orchestrates usage tracking for the local deployment.
  */
 
 import type { Redis } from "ioredis";
@@ -9,18 +9,7 @@ import { db } from "@/lib/db";
 import { users, repos, tasks, usageRecords } from "@/lib/db/schema";
 import { eq, and, gte, lte, count, sum } from "drizzle-orm";
 import type { PlanLimits } from "@/lib/db/schema";
-import {
-  getPlanConfig,
-  calculateTokenCost,
-  type LimitCheckResult,
-  type SubscriptionTier,
-  type UsageSummary,
-} from "../domain/types";
-import {
-  createCheckoutSession,
-  createPortalSession,
-  type CreateCheckoutParams,
-} from "../infrastructure/stripe";
+import { calculateTokenCost, type UsageSummary } from "../domain/types";
 
 export class BillingService {
   // Redis kept for future event publishing; unused today.
@@ -28,85 +17,6 @@ export class BillingService {
 
   constructor(redis: Redis) {
     this._redis = redis;
-  }
-
-  // =========================================================================
-  // Limit checks
-  // =========================================================================
-
-  /** Can the user add another repository? */
-  async checkRepoLimit(userId: string): Promise<LimitCheckResult> {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-
-    const tier = (user?.subscriptionTier || "free") as SubscriptionTier;
-    const plan = getPlanConfig(tier);
-    const maxRepos = plan.maxRepos;
-
-    const repoCount = await db
-      .select({ count: count() })
-      .from(repos)
-      .where(eq(repos.userId, userId));
-
-    const current = repoCount[0]?.count || 0;
-
-    if (maxRepos === -1) {
-      return {
-        allowed: true,
-        current,
-        limit: -1,
-        tier,
-        upgradeRequired: false,
-      };
-    }
-
-    return {
-      allowed: current < maxRepos,
-      current,
-      limit: maxRepos,
-      tier,
-      upgradeRequired: current >= maxRepos,
-    };
-  }
-
-  /** Can the user add another task in the given repo? */
-  async checkTaskLimit(
-    userId: string,
-    repoId: string,
-  ): Promise<LimitCheckResult> {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-
-    const tier = (user?.subscriptionTier || "free") as SubscriptionTier;
-    const plan = getPlanConfig(tier);
-    const maxTasks = plan.maxTasksPerRepo;
-
-    const taskCount = await db
-      .select({ count: count() })
-      .from(tasks)
-      .where(eq(tasks.repoId, repoId));
-
-    const current = taskCount[0]?.count || 0;
-
-    if (maxTasks === -1) {
-      return {
-        allowed: true,
-        current,
-        limit: -1,
-        tier,
-        upgradeRequired: false,
-      };
-    }
-
-    return {
-      allowed: current < maxTasks,
-      current,
-      limit: maxTasks,
-      tier,
-      upgradeRequired: current >= maxTasks,
-    };
   }
 
   // =========================================================================
@@ -163,9 +73,9 @@ export class BillingService {
     const plan = subscription?.plan;
 
     const limits: PlanLimits = plan?.limits || {
-      maxRepos: 1,
-      maxTasksPerMonth: 5,
-      maxTokensPerMonth: 50_000,
+      maxRepos: -1,
+      maxTasksPerMonth: -1,
+      maxTokensPerMonth: -1,
     };
 
     const tokenUsage = await db
@@ -238,24 +148,6 @@ export class BillingService {
           }
         : null,
     };
-  }
-
-  // =========================================================================
-  // Stripe sessions
-  // =========================================================================
-
-  /** Create a Stripe Checkout session. */
-  async createCheckoutSession(
-    params: CreateCheckoutParams,
-  ): Promise<{ url: string } | { error: string }> {
-    return createCheckoutSession(params);
-  }
-
-  /** Create a Stripe Billing Portal session. */
-  async createPortalSession(params: {
-    userId: string;
-  }): Promise<{ url: string } | { error: string }> {
-    return createPortalSession(params.userId);
   }
 }
 
