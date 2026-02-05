@@ -9,13 +9,13 @@ import type { Redis } from "ioredis";
 
 export interface UserState {
   id: string;
-  email: string;
+  email: string | null; // ✅ Fixed: schema allows null
   githubId: string; // ✅ Fixed: schema uses text, not number
   username: string; // ✅ Fixed: schema uses username, not name
   avatarUrl: string | null; // ✅ Fixed: schema uses avatarUrl, not image
   locale: string; // ✅ Added: missing from original interface
-  encryptedGithubToken: string;
-  githubTokenIv: string;
+  encryptedGithubToken: string | null; // ✅ Fixed: schema allows null
+  githubTokenIv: string | null; // ✅ Fixed: schema allows null
 
   // Provider configurations
   preferredProvider: "anthropic" | "openai" | "gemini" | null;
@@ -35,15 +35,18 @@ export interface UserState {
   geminiApiKeyIv: string | null;
   preferredGeminiModel: string | null;
 
-  // User preferences
-  cloneDirectory: string | null;
-  testRunCommand: string | null;
-  testGatePolicy: "strict" | "warn" | "skip" | "autoApprove" | null;
+  // User preferences (workflow settings)
+  defaultCloneDirectory: string | null; // ✅ Fixed: schema uses defaultCloneDirectory
+  defaultTestCommand: string | null; // ✅ Fixed: schema uses defaultTestCommand
+  defaultTestTimeout: number | null; // ✅ Added: missing field from schema
+  defaultTestGatePolicy: "strict" | "warn" | "skip" | "autoApprove" | null; // ✅ Fixed: schema uses defaultTestGatePolicy
 
   // Subscription
   subscriptionTier: "free" | "pro" | "enterprise";
+  billingMode: "byok" | "managed"; // ✅ Added: missing field from schema
+  subscriptionStatus: "active" | "canceled" | "past_due"; // ✅ Added: missing field from schema
+  subscriptionPeriodEnd: Date | null; // ✅ Added: missing field from schema
   stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
 
   // Onboarding
   onboardingCompleted: boolean;
@@ -68,7 +71,7 @@ export class UserAggregate {
   static async create(
     params: {
       id: string;
-      email: string;
+      email: string | null;
       githubId: string; // ✅ Fixed: text type
       username: string; // ✅ Fixed: username field
       avatarUrl: string | null; // ✅ Fixed: avatarUrl field
@@ -90,12 +93,15 @@ export class UserAggregate {
       geminiEncryptedApiKey: null,
       geminiApiKeyIv: null,
       preferredGeminiModel: null,
-      cloneDirectory: null,
-      testRunCommand: null,
-      testGatePolicy: null,
+      defaultCloneDirectory: null, // ✅ Fixed: correct field name
+      defaultTestCommand: null, // ✅ Fixed: correct field name
+      defaultTestTimeout: null, // ✅ Added: missing field
+      defaultTestGatePolicy: null, // ✅ Fixed: correct field name
       subscriptionTier: "enterprise",
+      billingMode: "byok", // ✅ Added: missing field
+      subscriptionStatus: "active", // ✅ Added: missing field
+      subscriptionPeriodEnd: null, // ✅ Added: missing field
       stripeCustomerId: null,
-      stripeSubscriptionId: null,
       onboardingCompleted: false,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -168,18 +174,22 @@ export class UserAggregate {
    * Update user preferences
    */
   updatePreferences(preferences: {
-    cloneDirectory?: string;
-    testRunCommand?: string;
-    testGatePolicy?: "strict" | "warn" | "skip" | "autoApprove";
+    defaultCloneDirectory?: string;
+    defaultTestCommand?: string;
+    defaultTestTimeout?: number;
+    defaultTestGatePolicy?: "strict" | "warn" | "skip" | "autoApprove";
   }): void {
-    if (preferences.cloneDirectory !== undefined) {
-      this.state.cloneDirectory = preferences.cloneDirectory;
+    if (preferences.defaultCloneDirectory !== undefined) {
+      this.state.defaultCloneDirectory = preferences.defaultCloneDirectory;
     }
-    if (preferences.testRunCommand !== undefined) {
-      this.state.testRunCommand = preferences.testRunCommand;
+    if (preferences.defaultTestCommand !== undefined) {
+      this.state.defaultTestCommand = preferences.defaultTestCommand;
     }
-    if (preferences.testGatePolicy !== undefined) {
-      this.state.testGatePolicy = preferences.testGatePolicy;
+    if (preferences.defaultTestTimeout !== undefined) {
+      this.state.defaultTestTimeout = preferences.defaultTestTimeout;
+    }
+    if (preferences.defaultTestGatePolicy !== undefined) {
+      this.state.defaultTestGatePolicy = preferences.defaultTestGatePolicy;
     }
 
     this.state.updatedAt = new Date();
@@ -198,17 +208,25 @@ export class UserAggregate {
    */
   updateSubscription(params: {
     tier?: "free" | "pro" | "enterprise";
+    billingMode?: "byok" | "managed";
+    status?: "active" | "canceled" | "past_due";
+    periodEnd?: Date;
     stripeCustomerId?: string;
-    stripeSubscriptionId?: string;
   }): void {
     if (params.tier !== undefined) {
       this.state.subscriptionTier = params.tier;
     }
+    if (params.billingMode !== undefined) {
+      this.state.billingMode = params.billingMode;
+    }
+    if (params.status !== undefined) {
+      this.state.subscriptionStatus = params.status;
+    }
+    if (params.periodEnd !== undefined) {
+      this.state.subscriptionPeriodEnd = params.periodEnd;
+    }
     if (params.stripeCustomerId !== undefined) {
       this.state.stripeCustomerId = params.stripeCustomerId;
-    }
-    if (params.stripeSubscriptionId !== undefined) {
-      this.state.stripeSubscriptionId = params.stripeSubscriptionId;
     }
 
     this.state.updatedAt = new Date();

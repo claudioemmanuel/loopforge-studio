@@ -25,16 +25,19 @@ export class UserService {
    */
   async registerUser(params: {
     id: string;
-    email: string;
-    name: string | null;
-    image: string | null;
-    githubId: number;
-    githubUsername: string | null;
+    email: string | null;
+    username: string; // ✅ Fixed: correct field name
+    avatarUrl: string | null; // ✅ Fixed: correct field name
+    githubId: string; // ✅ Fixed: text type
+    locale?: string;
     encryptedGithubToken: string;
     githubTokenIv: string;
   }): Promise<{ userId: string }> {
     const user = await UserAggregate.create(
-      params,
+      {
+        ...params,
+        locale: params.locale || "en",
+      },
       this.userRepository["redis"],
     );
 
@@ -96,9 +99,10 @@ export class UserService {
   async updatePreferences(params: {
     userId: string;
     preferences: {
-      cloneDirectory?: string;
-      testRunCommand?: string;
-      testGatePolicy?: "strict" | "warn" | "skip" | "autoApprove";
+      defaultCloneDirectory?: string; // ✅ Fixed: correct field name
+      defaultTestCommand?: string; // ✅ Fixed: correct field name
+      defaultTestTimeout?: number; // ✅ Added: missing field
+      defaultTestGatePolicy?: "strict" | "warn" | "skip" | "autoApprove"; // ✅ Fixed: correct field name
     };
   }): Promise<void> {
     const user = await this.userRepository.findById(params.userId);
@@ -133,8 +137,10 @@ export class UserService {
   async updateSubscription(params: {
     userId: string;
     tier?: "free" | "pro" | "enterprise";
+    billingMode?: "byok" | "managed";
+    status?: "active" | "canceled" | "past_due";
+    periodEnd?: Date;
     stripeCustomerId?: string;
-    stripeSubscriptionId?: string;
   }): Promise<void> {
     const user = await this.userRepository.findById(params.userId);
 
@@ -144,8 +150,10 @@ export class UserService {
 
     user.updateSubscription({
       tier: params.tier,
+      billingMode: params.billingMode,
+      status: params.status,
+      periodEnd: params.periodEnd,
       stripeCustomerId: params.stripeCustomerId,
-      stripeSubscriptionId: params.stripeSubscriptionId,
     });
 
     await this.userRepository.save(user);
@@ -232,7 +240,7 @@ export class UserService {
       return null;
     }
 
-    return decryptApiKey(encryptedKey, iv);
+    return decryptApiKey({ encrypted: encryptedKey, iv });
   }
 
   /**

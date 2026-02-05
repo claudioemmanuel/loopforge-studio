@@ -44,12 +44,15 @@ export class UserRepository {
         geminiEncryptedApiKey: state.geminiEncryptedApiKey,
         geminiApiKeyIv: state.geminiApiKeyIv,
         preferredGeminiModel: state.preferredGeminiModel,
-        cloneDirectory: state.cloneDirectory,
-        testRunCommand: state.testRunCommand,
-        testGatePolicy: state.testGatePolicy,
+        defaultCloneDirectory: state.defaultCloneDirectory, // ✅ Fixed: correct field name
+        defaultTestCommand: state.defaultTestCommand, // ✅ Fixed: correct field name
+        defaultTestTimeout: state.defaultTestTimeout, // ✅ Added: missing field
+        defaultTestGatePolicy: state.defaultTestGatePolicy, // ✅ Fixed: correct field name
         subscriptionTier: state.subscriptionTier,
+        billingMode: state.billingMode, // ✅ Added: missing field
+        subscriptionStatus: state.subscriptionStatus, // ✅ Added: missing field
+        subscriptionPeriodEnd: state.subscriptionPeriodEnd, // ✅ Added: missing field
         stripeCustomerId: state.stripeCustomerId,
-        stripeSubscriptionId: state.stripeSubscriptionId,
         onboardingCompleted: state.onboardingCompleted,
         createdAt: state.createdAt,
         updatedAt: state.updatedAt,
@@ -73,12 +76,15 @@ export class UserRepository {
           geminiEncryptedApiKey: state.geminiEncryptedApiKey,
           geminiApiKeyIv: state.geminiApiKeyIv,
           preferredGeminiModel: state.preferredGeminiModel,
-          cloneDirectory: state.cloneDirectory,
-          testRunCommand: state.testRunCommand,
-          testGatePolicy: state.testGatePolicy,
+          defaultCloneDirectory: state.defaultCloneDirectory, // ✅ Fixed: correct field name
+          defaultTestCommand: state.defaultTestCommand, // ✅ Fixed: correct field name
+          defaultTestTimeout: state.defaultTestTimeout, // ✅ Added: missing field
+          defaultTestGatePolicy: state.defaultTestGatePolicy, // ✅ Fixed: correct field name
           subscriptionTier: state.subscriptionTier,
+          billingMode: state.billingMode, // ✅ Added: missing field
+          subscriptionStatus: state.subscriptionStatus, // ✅ Added: missing field
+          subscriptionPeriodEnd: state.subscriptionPeriodEnd, // ✅ Added: missing field
           stripeCustomerId: state.stripeCustomerId,
-          stripeSubscriptionId: state.stripeSubscriptionId,
           onboardingCompleted: state.onboardingCompleted,
           updatedAt: state.updatedAt,
         },
@@ -120,18 +126,23 @@ export class UserRepository {
       geminiEncryptedApiKey: row.geminiEncryptedApiKey,
       geminiApiKeyIv: row.geminiApiKeyIv,
       preferredGeminiModel: row.preferredGeminiModel,
-      cloneDirectory: row.cloneDirectory,
-      testRunCommand: row.testRunCommand,
-      testGatePolicy: row.testGatePolicy as
+      defaultCloneDirectory: row.defaultCloneDirectory, // ✅ Fixed: correct field name
+      defaultTestCommand: row.defaultTestCommand, // ✅ Fixed: correct field name
+      defaultTestTimeout: row.defaultTestTimeout, // ✅ Added: missing field
+      defaultTestGatePolicy: row.defaultTestGatePolicy as
         | "strict"
         | "warn"
         | "skip"
         | "autoApprove"
-        | null,
+        | null, // ✅ Fixed: correct field name
       subscriptionTier: row.subscriptionTier as "free" | "pro" | "enterprise",
+      billingMode: (row.billingMode as "byok" | "managed") || "byok", // ✅ Added: missing field
+      subscriptionStatus:
+        (row.subscriptionStatus as "active" | "canceled" | "past_due") ||
+        "active", // ✅ Added: missing field
+      subscriptionPeriodEnd: row.subscriptionPeriodEnd, // ✅ Added: missing field
       stripeCustomerId: row.stripeCustomerId,
-      stripeSubscriptionId: row.stripeSubscriptionId,
-      onboardingCompleted: row.onboardingCompleted,
+      onboardingCompleted: row.onboardingCompleted ?? false, // ✅ Handle null with default
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -174,18 +185,23 @@ export class UserRepository {
       geminiEncryptedApiKey: row.geminiEncryptedApiKey,
       geminiApiKeyIv: row.geminiApiKeyIv,
       preferredGeminiModel: row.preferredGeminiModel,
-      cloneDirectory: row.cloneDirectory,
-      testRunCommand: row.testRunCommand,
-      testGatePolicy: row.testGatePolicy as
+      defaultCloneDirectory: row.defaultCloneDirectory, // ✅ Fixed: correct field name
+      defaultTestCommand: row.defaultTestCommand, // ✅ Fixed: correct field name
+      defaultTestTimeout: row.defaultTestTimeout, // ✅ Added: missing field
+      defaultTestGatePolicy: row.defaultTestGatePolicy as
         | "strict"
         | "warn"
         | "skip"
         | "autoApprove"
-        | null,
+        | null, // ✅ Fixed: correct field name
       subscriptionTier: row.subscriptionTier as "free" | "pro" | "enterprise",
+      billingMode: (row.billingMode as "byok" | "managed") || "byok", // ✅ Added: missing field
+      subscriptionStatus:
+        (row.subscriptionStatus as "active" | "canceled" | "past_due") ||
+        "active", // ✅ Added: missing field
+      subscriptionPeriodEnd: row.subscriptionPeriodEnd, // ✅ Added: missing field
       stripeCustomerId: row.stripeCustomerId,
-      stripeSubscriptionId: row.stripeSubscriptionId,
-      onboardingCompleted: row.onboardingCompleted,
+      onboardingCompleted: row.onboardingCompleted ?? false, // ✅ Handle null with default
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
