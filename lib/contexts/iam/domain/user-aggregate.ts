@@ -93,7 +93,7 @@ export class UserAggregate {
       cloneDirectory: null,
       testRunCommand: null,
       testGatePolicy: null,
-      subscriptionTier: "free",
+      subscriptionTier: "enterprise",
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       onboardingCompleted: false,

@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { db, tasks, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import type { User, Task, Repo } from "@/lib/db/schema";
-import { getBillingService } from "@/lib/contexts/billing/api";
 import { handleError, Errors } from "@/lib/errors";
 
 export interface AuthContext {
@@ -88,39 +87,5 @@ export function withTask(
       task,
       taskId,
     });
-  };
-}
-
-/**
- * Higher-order function that validates auth + enforces repo limit
- */
-export function withRepoLimit(
-  handler: (request: Request, context: AuthContext) => Promise<NextResponse>,
-) {
-  return async (request: Request): Promise<NextResponse> => {
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return handleError(Errors.unauthorized());
-    }
-
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    // Check if user can add more repos
-    const limitCheck = await getBillingService().checkRepoLimit(user.id);
-    if (!limitCheck.allowed) {
-      return handleError(
-        Errors.repoLimitExceeded(limitCheck.tier, limitCheck.limit),
-      );
-    }
-
-    // session is guaranteed to be non-null after the check above
-    return handler(request, { session: session as Session, user });
   };
 }

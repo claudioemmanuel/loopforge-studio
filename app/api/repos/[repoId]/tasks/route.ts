@@ -4,10 +4,6 @@ import { auth } from "@/lib/auth";
 import { db, repos, tasks } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
-import {
-  getBillingService,
-  formatLimitError,
-} from "@/lib/contexts/billing/api";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { getTaskService } from "@/lib/contexts/task/api";
 
@@ -84,18 +80,6 @@ export async function POST(
   }
 
   const { title, description, autonomousMode, autoApprove } = validatedBody;
-
-  // Check subscription limits
-  const billingService = getBillingService();
-  const limitCheck = await billingService.checkTaskLimit(
-    session.user.id,
-    repoId,
-  );
-  if (!limitCheck.allowed) {
-    return NextResponse.json(formatLimitError(limitCheck, "task"), {
-      status: 402,
-    });
-  }
 
   const taskService = getTaskService();
   const newTask = await taskService.createTask({
