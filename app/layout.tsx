@@ -4,7 +4,15 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getLocale } from "next-intl/server";
 import { Providers } from "@/components/providers/providers";
 import { WebVitals } from "@/components/providers/web-vitals";
+import { initializeEventHandlers } from "@/lib/contexts/event-initialization";
 import "./globals.css";
+
+// Initialize event handlers on server startup
+if (typeof window === "undefined") {
+  initializeEventHandlers().catch((error) => {
+    console.error("Failed to initialize event handlers:", error);
+  });
+}
 
 const inter = Inter({
   subsets: ["latin"],

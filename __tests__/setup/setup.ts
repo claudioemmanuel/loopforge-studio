@@ -1,8 +1,14 @@
 import { beforeAll, afterAll, beforeEach } from "vitest";
 import { getTestPool, closeTestPool, truncateAllTables } from "./test-db";
+import { initializeEventHandlers } from "@/lib/contexts/event-initialization";
 
 // Run schema setup once per test file
 beforeAll(async () => {
+  // Initialize event handlers for tests
+  await initializeEventHandlers().catch((error) => {
+    console.error("Failed to initialize event handlers in tests:", error);
+  });
+
   const pool = getTestPool();
 
   // Create enums and tables if they don't exist

@@ -81,8 +81,14 @@ import simpleGit from "simple-git";
 import path from "path";
 import fs from "fs/promises";
 import { workerLogger } from "../lib/logger";
+import { initializeEventHandlers } from "../lib/contexts/event-initialization";
 
 const REPOS_DIR = process.env.REPOS_DIR || "/app/repos";
+
+// Initialize event handlers on worker startup
+initializeEventHandlers().catch((error) => {
+  console.error("Failed to initialize event handlers in worker:", error);
+});
 
 // Determine execution mode from environment or default to multi-agent
 const EXECUTION_MODE: ExecutionMode =
