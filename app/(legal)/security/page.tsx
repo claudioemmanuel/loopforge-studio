@@ -199,18 +199,17 @@ export default function SecurityPage() {
               </h2>
               <p className="text-muted-foreground mb-4">
                 If you discover a security vulnerability, please report it
-                responsibly. We appreciate your help in keeping Loopforge
-                secure.
+                responsibly using GitHub&apos;s Security Advisories feature. We
+                appreciate your help in keeping Loopforge secure.
               </p>
-              <p className="text-sm">
-                Email:{" "}
-                <a
-                  href="mailto:security@loopforge.dev"
-                  className="text-primary hover:underline"
-                >
-                  security@loopforge.dev
-                </a>
-              </p>
+              <a
+                href="https://github.com/claudioemmanuel/loopforge-studio/security/advisories/new"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block text-sm text-primary hover:underline"
+              >
+                Report a Security Vulnerability →
+              </a>
             </div>
           </div>
         </div>

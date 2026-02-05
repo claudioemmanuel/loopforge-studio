@@ -114,7 +114,8 @@ export default function PrivacyPage() {
         <p>
           If you self-host Loopforge Studio, you are responsible for the privacy
           and security of data on your own infrastructure. This privacy policy
-          applies only to our hosted service.
+          applies only to officially hosted instances. Self-hosted deployments
+          are governed by the MIT License.
         </p>
 
         <h2>Changes to This Policy</h2>
@@ -126,8 +127,16 @@ export default function PrivacyPage() {
 
         <h2>Contact Us</h2>
         <p>
-          If you have questions about this Privacy Policy, please contact us at{" "}
-          <a href="mailto:privacy@loopforge.dev">privacy@loopforge.dev</a>.
+          If you have questions about this Privacy Policy, please{" "}
+          <a
+            href="https://github.com/claudioemmanuel/loopforge-studio/discussions"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            start a discussion on GitHub
+          </a>
+          .
         </p>
       </ProseContent>
     </>

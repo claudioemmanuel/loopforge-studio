@@ -121,8 +121,8 @@ export default function TermsPage() {
         <p>
           Loopforge Studio is open source software. The source code is available
           under the terms specified in the project repository. These Terms of
-          Service apply to your use of the hosted Service, not to self-hosted
-          deployments.
+          Service apply only to officially hosted instances. Self-hosted
+          deployments are governed by the MIT License.
         </p>
 
         <h2>Changes to Terms</h2>
@@ -148,8 +148,16 @@ export default function TermsPage() {
 
         <h2>Contact</h2>
         <p>
-          For questions about these Terms, please contact us at{" "}
-          <a href="mailto:legal@loopforge.dev">legal@loopforge.dev</a>.
+          For questions about these Terms, please{" "}
+          <a
+            href="https://github.com/claudioemmanuel/loopforge-studio/discussions"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            start a discussion on GitHub
+          </a>
+          .
         </p>
       </ProseContent>
     </>

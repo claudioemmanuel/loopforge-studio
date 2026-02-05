@@ -208,7 +208,7 @@ Triggered when:
 ## Related
 Task: #{taskId}
 
-🤖 Generated with [Loopforge Studio](https://loopforge.dev)
+🤖 Generated with [Loopforge Studio](https://github.com/claudioemmanuel/loopforge-studio)
 \`\`\`
 
 **Auto-Approve Logic** (if enabled):

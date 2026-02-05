@@ -20,10 +20,10 @@ const contactMethods = [
   },
   {
     icon: Mail,
-    title: "Email",
-    description: "For business inquiries",
-    href: "mailto:hello@loopforge.dev",
-    linkText: "hello@loopforge.dev",
+    title: "GitHub Discussions",
+    description: "Ask questions and get support",
+    href: "https://github.com/claudioemmanuel/loopforge-studio/discussions",
+    linkText: "Start a Discussion",
   },
 ];
 
