@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { createCheckoutSession, isStripeConfigured } from "@/lib/billing/infra";
+import {
+  createCheckoutSession,
+  isStripeConfigured,
+} from "@/lib/contexts/billing/infrastructure/stripe";
 import { handleError, Errors } from "@/lib/errors";
 
 export async function POST(request: Request) {

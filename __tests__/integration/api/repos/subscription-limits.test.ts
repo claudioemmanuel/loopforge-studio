@@ -7,13 +7,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { db, users, repos } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
-  checkRepoLimit,
+  getBillingService,
   getMaxReposForTier,
-} from "@/lib/billing/domain";
+} from "@/lib/contexts/billing/api";
 
 // Mock Stripe to avoid requiring API key in tests
-vi.mock("@/lib/billing/infra", async () => {
-  const actual = await vi.importActual("@/lib/billing/infra");
+vi.mock("@/lib/contexts/billing/infrastructure/stripe", async () => {
+  const actual = await vi.importActual(
+    "@/lib/contexts/billing/infrastructure/stripe",
+  );
   return {
     ...actual,
     stripe: {
@@ -217,7 +219,7 @@ describe("Subscription Limit Enforcement", () => {
 
   describe("Limit Check Functions", () => {
     it("should correctly report repo limits for free tier", async () => {
-      const limitCheck = await checkRepoLimit(testUserId);
+      const limitCheck = await getBillingService().checkRepoLimit(testUserId);
 
       expect(limitCheck.tier).toBe("free");
       expect(limitCheck.limit).toBe(1);
@@ -238,7 +240,7 @@ describe("Subscription Limit Enforcement", () => {
         isPrivate: false,
       });
 
-      const limitCheck = await checkRepoLimit(testUserId);
+      const limitCheck = await getBillingService().checkRepoLimit(testUserId);
 
       expect(limitCheck.current).toBe(1);
       expect(limitCheck.limit).toBe(1);

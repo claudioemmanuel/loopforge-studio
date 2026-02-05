@@ -19,7 +19,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { GitHubRepo, FilterType } from "./onboarding-config";
-import { SUBSCRIPTION_PLANS } from "@/lib/billing/domain";
+import { SUBSCRIPTION_PLANS } from "@/lib/contexts/billing/api";
 
 export function StepRepos({
   searchQuery,

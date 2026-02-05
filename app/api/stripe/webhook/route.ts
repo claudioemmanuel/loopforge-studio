@@ -7,7 +7,7 @@ import {
   handleSubscriptionDeleted,
   handlePaymentFailed,
   isStripeConfigured,
-} from "@/lib/billing/infra";
+} from "@/lib/contexts/billing/infrastructure/stripe";
 import { handleError, Errors } from "@/lib/errors";
 
 export async function POST(request: Request) {

@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { getStripeClient } from "@/lib/billing/infra";
+import { getStripeClient } from "@/lib/contexts/billing/infrastructure/stripe";
 import { db, users, repos } from "@/lib/db";
 import { eq, count } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";

@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
-import { getStripeClient } from "@/lib/billing/infra";
+import { getStripeClient } from "@/lib/contexts/billing/infrastructure/stripe";
 import {
   SUBSCRIPTION_PLANS,
   type SubscriptionTier,

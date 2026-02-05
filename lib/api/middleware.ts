@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { db, tasks, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import type { User, Task, Repo } from "@/lib/db/schema";
-import { checkRepoLimit } from "@/lib/billing/domain";
+import { getBillingService } from "@/lib/contexts/billing/api";
 import { handleError, Errors } from "@/lib/errors";
 
 export interface AuthContext {
@@ -113,7 +113,7 @@ export function withRepoLimit(
     }
 
     // Check if user can add more repos
-    const limitCheck = await checkRepoLimit(user.id);
+    const limitCheck = await getBillingService().checkRepoLimit(user.id);
     if (!limitCheck.allowed) {
       return handleError(
         Errors.repoLimitExceeded(limitCheck.tier, limitCheck.limit),
