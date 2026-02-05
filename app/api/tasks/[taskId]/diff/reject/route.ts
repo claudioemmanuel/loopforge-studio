@@ -5,8 +5,6 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { deletePendingChangesByTask } from "@/lib/db/pending-changes";
-import { deleteTestRunsByExecution } from "@/lib/db/test-runs";
 import { discardBranchChanges } from "@/lib/ralph/git-operations";
 import type { StatusHistoryEntry, TaskStatus } from "@/lib/db/schema";
 import { handleError, Errors } from "@/lib/errors";
@@ -59,11 +57,11 @@ export async function POST(
     }
 
     // Clean up pending changes
-    await deletePendingChangesByTask(taskId);
+    await executionService.deletePendingChanges(taskId);
 
     // Clean up test runs and mark execution as failed
     if (latestExecution) {
-      await deleteTestRunsByExecution(latestExecution.id);
+      await executionService.deleteTestRunsForExecution(latestExecution.id);
       await executionService.markFailed(latestExecution.id, reason);
     }
 

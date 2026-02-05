@@ -1,14 +1,15 @@
 /**
- * Test Runs - CRUD operations for test execution results
+ * Test Run Repository (Infrastructure Layer)
+ * CRUD operations for test execution results
  */
 
-import { db } from "./index";
+import { db } from "@/lib/db";
 import {
   testRuns,
   type TestRun,
   type NewTestRun,
   type TestRunStatus,
-} from "./schema";
+} from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 
 /**

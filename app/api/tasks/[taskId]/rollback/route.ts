@@ -4,12 +4,6 @@
  */
 
 import { NextResponse } from "next/server";
-import {
-  canRollback,
-  getCommitsByExecution,
-  markAllCommitsReverted,
-  markExecutionReverted,
-} from "@/lib/db/execution-commits";
 import { revertCommits } from "@/lib/ralph/git-operations";
 import type { StatusHistoryEntry } from "@/lib/db/schema";
 import { withTask } from "@/lib/api";
@@ -28,7 +22,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   }
 
   // Check if rollback is possible
-  const rollbackCheck = await canRollback(latestExecution.id);
+  const rollbackCheck = await executionService.canRollback(latestExecution.id);
   if (!rollbackCheck.canRollback) {
     return NextResponse.json(
       { error: rollbackCheck.reason || "Cannot rollback" },
@@ -42,7 +36,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
 
   try {
     // Get commits to revert
-    const commits = await getCommitsByExecution(latestExecution.id);
+    const commits = await executionService.getCommits(latestExecution.id);
     if (commits.length === 0) {
       return NextResponse.json(
         { error: "No commits to revert" },
@@ -78,15 +72,12 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       message: `[LoopForge] Revert: ${task.title}\n\nReason: ${reason}`,
     });
 
-    // Mark commits as reverted
-    await markAllCommitsReverted(latestExecution.id, revertResult.revertSha);
-
-    // Mark execution as reverted
-    await markExecutionReverted(
-      latestExecution.id,
-      revertResult.revertSha,
+    // Mark commits as reverted and execution as reverted (atomic)
+    await executionService.rollbackCommits({
+      executionId: latestExecution.id,
+      revertCommitSha: revertResult.revertSha,
       reason,
-    );
+    });
 
     // Update task status to stuck
     const taskService = getTaskService();

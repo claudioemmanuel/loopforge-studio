@@ -1,14 +1,15 @@
 /**
- * Execution Commits - CRUD operations for commit tracking and rollback
+ * Commit Repository (Infrastructure Layer)
+ * CRUD operations for commit tracking and rollback
  */
 
-import { db } from "./index";
+import { db } from "@/lib/db";
 import {
   executionCommits,
   executions,
   type ExecutionCommit,
   type NewExecutionCommit,
-} from "./schema";
+} from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 /**

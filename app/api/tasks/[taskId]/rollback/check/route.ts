@@ -5,7 +5,6 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { canRollback, getCommitsByExecution } from "@/lib/db/execution-commits";
 import { handleError, Errors } from "@/lib/errors";
 import { getTaskService } from "@/lib/contexts/task/api";
 import { getExecutionService } from "@/lib/contexts/execution/api";
@@ -40,10 +39,10 @@ export async function GET(
   }
 
   // Check if rollback is possible
-  const rollbackCheck = await canRollback(latestExecution.id);
+  const rollbackCheck = await executionService.canRollback(latestExecution.id);
 
   // Get commits info
-  const commits = await getCommitsByExecution(latestExecution.id);
+  const commits = await executionService.getCommits(latestExecution.id);
   const commitInfo = commits.map((c) => ({
     sha: c.commitSha,
     message: c.commitMessage,

@@ -8,6 +8,26 @@ import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
 import { executions, executionEvents } from "@/lib/db/schema/tables";
 import { eq, inArray } from "drizzle-orm";
+import {
+  getPendingChangesByTask as getPendingChangesByTaskHelper,
+  countPendingChanges as countPendingChangesHelper,
+  deletePendingChangesByTask as deletePendingChangesByTaskHelper,
+  type PendingChange,
+} from "../infrastructure/pending-changes-repository";
+import {
+  createExecutionCommit as createExecutionCommitHelper,
+  getCommitsByExecution as getCommitsByExecutionHelper,
+  markAllCommitsReverted,
+  markExecutionReverted,
+  canRollback as canRollbackHelper,
+  type ExecutionCommit,
+} from "../infrastructure/commit-repository";
+import {
+  getLatestTestRun,
+  getTestRunSummary,
+  deleteTestRunsByExecution as deleteTestRunsByExecutionHelper,
+  type TestRun,
+} from "../infrastructure/test-run-repository";
 
 export class ExecutionService {
   private _redis: Redis;
@@ -166,5 +186,114 @@ export class ExecutionService {
       createdAt: new Date(),
     });
     return params.id;
+  }
+
+  // =========================================================================
+  // Pending Changes (Diff Review Flow)
+  // =========================================================================
+
+  /** Get all pending changes for a task. */
+  async getPendingChanges(taskId: string): Promise<PendingChange[]> {
+    return getPendingChangesByTaskHelper(taskId);
+  }
+
+  /** Get summary counts of pending changes for an execution. */
+  async getPendingChangesSummary(
+    executionId: string,
+  ): Promise<{ total: number; approved: number; pending: number }> {
+    return countPendingChangesHelper(executionId);
+  }
+
+  /** Delete all pending changes for a task. */
+  async deletePendingChanges(taskId: string): Promise<number> {
+    return deletePendingChangesByTaskHelper(taskId);
+  }
+
+  // =========================================================================
+  // Execution Commits (Commit Tracking & Rollback)
+  // =========================================================================
+
+  /** Record a commit for an execution. */
+  async recordCommit(data: {
+    executionId: string;
+    commitSha: string;
+    commitMessage: string;
+    filesChanged: string[];
+  }): Promise<ExecutionCommit> {
+    return createExecutionCommitHelper({
+      executionId: data.executionId,
+      commitSha: data.commitSha,
+      commitMessage: data.commitMessage,
+      filesChanged: data.filesChanged,
+      isReverted: false,
+      createdAt: new Date(),
+    });
+  }
+
+  /** Get all commits for an execution. */
+  async getCommits(executionId: string): Promise<ExecutionCommit[]> {
+    return getCommitsByExecutionHelper(executionId);
+  }
+
+  /**
+   * Rollback all commits for an execution (atomic operation).
+   * Marks all commits as reverted and updates execution record.
+   */
+  async rollbackCommits(params: {
+    executionId: string;
+    revertCommitSha: string;
+    reason?: string;
+  }): Promise<void> {
+    // Use transaction to ensure atomicity
+    await db.transaction(async (tx) => {
+      // Mark all commits as reverted
+      await markAllCommitsReverted(params.executionId, params.revertCommitSha);
+
+      // Mark execution as reverted
+      await markExecutionReverted(
+        params.executionId,
+        params.revertCommitSha,
+        params.reason,
+      );
+    });
+  }
+
+  /** Check if an execution can be rolled back. */
+  async canRollback(
+    executionId: string,
+  ): Promise<{ canRollback: boolean; reason?: string }> {
+    return canRollbackHelper(executionId);
+  }
+
+  // =========================================================================
+  // Test Runs
+  // =========================================================================
+
+  /** Get the latest test run for an execution with summary. */
+  async getTestRunForExecution(executionId: string): Promise<
+    | (TestRun & {
+        statusText: string;
+        durationText: string;
+        hasOutput: boolean;
+      })
+    | null
+  > {
+    // Get the task from execution
+    const execution = await this.getById(executionId);
+    if (!execution) return null;
+
+    const testRun = await getLatestTestRun(execution.taskId);
+    if (!testRun) return null;
+
+    const summary = getTestRunSummary(testRun);
+    return {
+      ...testRun,
+      ...summary,
+    };
+  }
+
+  /** Delete all test runs for an execution. */
+  async deleteTestRunsForExecution(executionId: string): Promise<number> {
+    return deleteTestRunsByExecutionHelper(executionId);
   }
 }

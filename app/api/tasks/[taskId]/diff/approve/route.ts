@@ -5,12 +5,6 @@
 
 import { NextResponse } from "next/server";
 import { getUserGithubToken } from "@/lib/auth";
-import {
-  getPendingChangesByTask,
-  deletePendingChangesByTask,
-} from "@/lib/db/pending-changes";
-import { createExecutionCommit } from "@/lib/db/execution-commits";
-import { getLatestTestRun } from "@/lib/db/test-runs";
 import { buildPrContent, generateBranchName } from "@/lib/github/pr-builder";
 import {
   commitAndPush,
@@ -35,8 +29,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     );
   }
 
+  const executionService = getExecutionService();
+
   // Get pending changes
-  const pendingChanges = await getPendingChangesByTask(taskId);
+  const pendingChanges = await executionService.getPendingChanges(taskId);
 
   if (pendingChanges.length === 0) {
     return NextResponse.json(
@@ -45,7 +41,6 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     );
   }
 
-  const executionService = getExecutionService();
   const latestExecution = await executionService.getLatestForTask(taskId);
 
   if (!latestExecution) {
@@ -95,7 +90,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     });
 
     // Record the commit
-    await createExecutionCommit({
+    await executionService.recordCommit({
       executionId: latestExecution.id,
       commitSha: commitResult.sha,
       commitMessage,
@@ -114,7 +109,9 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
 
     if (createPr) {
       // Get test run for PR description
-      const testRun = await getLatestTestRun(taskId);
+      const testRun = await executionService.getTestRunForExecution(
+        latestExecution.id,
+      );
 
       // Build PR content
       const prContent = buildPrContent({
@@ -166,7 +163,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     });
 
     // Clean up pending changes
-    await deletePendingChangesByTask(taskId);
+    await executionService.deletePendingChanges(taskId);
 
     const updatedTask = await taskService.getTaskFull(taskId);
 

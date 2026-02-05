@@ -4,11 +4,6 @@
  */
 
 import { NextResponse } from "next/server";
-import {
-  getPendingChangesByTask,
-  countPendingChanges,
-} from "@/lib/db/pending-changes";
-import { getLatestTestRun, getTestRunSummary } from "@/lib/db/test-runs";
 import { withTask } from "@/lib/api";
 import { getExecutionService } from "@/lib/contexts/execution/api";
 
@@ -23,25 +18,27 @@ export const GET = withTask(async (request, { task, taskId }) => {
     });
   }
 
-  // Get pending changes
-  const changes = await getPendingChangesByTask(taskId);
-
   const executionService = getExecutionService();
+
+  // Get pending changes
+  const changes = await executionService.getPendingChanges(taskId);
+
   const latestExecution = await executionService.getLatestForTask(taskId);
 
   let testRunData = null;
 
   if (latestExecution) {
-    const testRun = await getLatestTestRun(taskId);
+    const testRun = await executionService.getTestRunForExecution(
+      latestExecution.id,
+    );
     if (testRun) {
-      testRunData = {
-        ...testRun,
-        ...getTestRunSummary(testRun),
-      };
+      testRunData = testRun;
     }
 
     // Get counts
-    const counts = await countPendingChanges(latestExecution.id);
+    const counts = await executionService.getPendingChangesSummary(
+      latestExecution.id,
+    );
 
     return NextResponse.json({
       taskId,

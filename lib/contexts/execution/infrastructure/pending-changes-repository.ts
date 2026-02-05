@@ -1,14 +1,14 @@
 /**
- * Pending Changes - CRUD operations for pending file changes
- * Used for diff preview in the review flow
+ * Pending Changes Repository (Infrastructure Layer)
+ * CRUD operations for pending file changes - Used for diff preview in the review flow
  */
 
-import { db } from "./index";
+import { db } from "@/lib/db";
 import {
   pendingChanges,
   type PendingChange,
   type NewPendingChange,
-} from "./schema";
+} from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
 /**
