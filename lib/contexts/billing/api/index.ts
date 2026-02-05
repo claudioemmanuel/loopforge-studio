@@ -2,7 +2,6 @@
  * Billing Context API (Public Interface)
  */
 
-import { getRedis } from "@/lib/queue";
 import { BillingService } from "../application/billing-service";
 
 /**
@@ -10,8 +9,7 @@ import { BillingService } from "../application/billing-service";
  * Stateless – safe to create per request.
  */
 export function getBillingService(): BillingService {
-  const redis = getRedis();
-  return new BillingService(redis);
+  return new BillingService();
 }
 
 export { BillingService } from "../application/billing-service";

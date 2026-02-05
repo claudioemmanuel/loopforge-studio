@@ -94,9 +94,3 @@ export function getStatusConfig(
     },
   };
 }
-
-/**
- * Legacy constant for backwards compatibility.
- * @deprecated Use getStatusConfig(t) instead
- */
-export const STATUS_CONFIG = getStatusConfig((key: string) => key);

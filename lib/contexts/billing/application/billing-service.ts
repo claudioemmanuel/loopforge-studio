@@ -4,7 +4,6 @@
  * Orchestrates usage tracking for the local deployment.
  */
 
-import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
 import { users, repos, tasks, usageRecords } from "@/lib/db/schema";
 import { eq, and, gte, lte, count, sum } from "drizzle-orm";
@@ -12,11 +11,8 @@ import type { PlanLimits } from "@/lib/db/schema";
 import { calculateTokenCost, type UsageSummary } from "../domain/types";
 
 export class BillingService {
-  // Redis kept for future event publishing; unused today.
-  private _redis: Redis;
-
-  constructor(redis: Redis) {
-    this._redis = redis;
+  constructor() {
+    // No dependencies needed yet
   }
 
   // =========================================================================

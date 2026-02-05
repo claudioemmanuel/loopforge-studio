@@ -43,12 +43,6 @@ export function getStatusConfigForModal(t: TranslationFunction): Record<
   >;
 }
 
-/**
- * Legacy export for backwards compatibility.
- * @deprecated Use getStatusConfigForModal(t) instead
- */
-export const statusConfig = getStatusConfigForModal((key: string) => key);
-
 // Component-specific color mappings for the task modal
 function getModalColors(status: TaskStatus): {
   color: string;
