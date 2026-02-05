@@ -41,15 +41,6 @@ export default function OnboardingPage() {
   const [selectedModel, setSelectedModel] = useState<string>(
     "claude-sonnet-4-20250514",
   );
-  const [limitError, setLimitError] = useState<{
-    message: string;
-    tier: string;
-    limit: number;
-    current: number;
-    upgradeUrl?: string;
-    partialAllowed?: boolean;
-    maxAllowed?: number;
-  } | null>(null);
 
   const currentProvider = providers.find((p) => p.id === selectedProvider)!;
 
@@ -171,7 +162,6 @@ export default function OnboardingPage() {
 
     setLoading(true);
     setError(null);
-    setLimitError(null);
 
     try {
       const selectedReposList = repos.filter((r) => selectedRepos.has(r.id));
@@ -189,22 +179,6 @@ export default function OnboardingPage() {
 
       if (!res.ok) {
         const data = await res.json();
-
-        // Handle structured limit error
-        if (data.error === "repository_limit_exceeded") {
-          setLimitError({
-            message: data.message,
-            tier: data.tier || "free",
-            limit: data.limit || 1,
-            current: data.current || 0,
-            upgradeUrl: data.upgradeUrl,
-            partialAllowed: data.partialAllowed,
-            maxAllowed: data.maxAllowed,
-          });
-          return;
-        }
-
-        // Generic error fallback
         throw new Error(data.error || "Failed to complete onboarding");
       }
 
@@ -320,48 +294,6 @@ export default function OnboardingPage() {
             <div className="mb-4 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
               {error}
             </div>
-          )}
-
-          {limitError && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Repository Limit Exceeded</AlertTitle>
-              <AlertDescription>
-                <p className="mb-2">{limitError.message}</p>
-
-                {limitError.partialAllowed && limitError.maxAllowed && (
-                  <p className="mb-2 text-sm">
-                    You can select up to {limitError.maxAllowed}{" "}
-                    {limitError.maxAllowed === 1
-                      ? "repository"
-                      : "repositories"}{" "}
-                    to continue.
-                  </p>
-                )}
-
-                <div className="flex gap-2 mt-3">
-                  {limitError.upgradeUrl && (
-                    <Button asChild size="sm" variant="default">
-                      <Link href={limitError.upgradeUrl}>Upgrade to Pro →</Link>
-                    </Button>
-                  )}
-
-                  {limitError.partialAllowed && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        // Allow user to adjust selection
-                        setLimitError(null);
-                        setStep("repos");
-                      }}
-                    >
-                      Change Selection
-                    </Button>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
           )}
 
           {/* Step 1: Repository Selection */}
