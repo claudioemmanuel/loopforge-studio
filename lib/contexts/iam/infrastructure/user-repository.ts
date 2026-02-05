@@ -28,10 +28,10 @@ export class UserRepository {
       .values({
         id: state.id,
         email: state.email,
-        name: state.name,
-        image: state.image,
-        githubId: state.githubId,
-        githubUsername: state.githubUsername,
+        username: state.username, // ✅ Fixed: username field
+        avatarUrl: state.avatarUrl, // ✅ Fixed: avatarUrl field
+        githubId: state.githubId, // ✅ Already text type
+        locale: state.locale, // ✅ Added: locale field
         encryptedGithubToken: state.encryptedGithubToken,
         githubTokenIv: state.githubTokenIv,
         preferredProvider: state.preferredProvider,
@@ -58,9 +58,9 @@ export class UserRepository {
         target: users.id,
         set: {
           email: state.email,
-          name: state.name,
-          image: state.image,
-          githubUsername: state.githubUsername,
+          username: state.username, // ✅ Fixed: username field
+          avatarUrl: state.avatarUrl, // ✅ Fixed: avatarUrl field
+          locale: state.locale, // ✅ Added: locale field
           encryptedGithubToken: state.encryptedGithubToken,
           githubTokenIv: state.githubTokenIv,
           preferredProvider: state.preferredProvider,
@@ -100,10 +100,10 @@ export class UserRepository {
     const state: UserState = {
       id: row.id,
       email: row.email,
-      name: row.name,
-      image: row.image,
-      githubId: row.githubId,
-      githubUsername: row.githubUsername,
+      username: row.username, // ✅ Fixed: username field
+      avatarUrl: row.avatarUrl, // ✅ Fixed: avatarUrl field
+      githubId: row.githubId, // ✅ Already text type
+      locale: row.locale || "en", // ✅ Added: locale field with default
       encryptedGithubToken: row.encryptedGithubToken,
       githubTokenIv: row.githubTokenIv,
       preferredProvider: row.preferredProvider as
@@ -154,10 +154,10 @@ export class UserRepository {
     const state: UserState = {
       id: row.id,
       email: row.email,
-      name: row.name,
-      image: row.image,
-      githubId: row.githubId,
-      githubUsername: row.githubUsername,
+      username: row.username, // ✅ Fixed: username field
+      avatarUrl: row.avatarUrl, // ✅ Fixed: avatarUrl field
+      githubId: row.githubId, // ✅ Already text type
+      locale: row.locale || "en", // ✅ Added: locale field with default
       encryptedGithubToken: row.encryptedGithubToken,
       githubTokenIv: row.githubTokenIv,
       preferredProvider: row.preferredProvider as

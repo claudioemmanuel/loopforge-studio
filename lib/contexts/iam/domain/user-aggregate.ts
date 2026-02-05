@@ -10,10 +10,10 @@ import type { Redis } from "ioredis";
 export interface UserState {
   id: string;
   email: string;
-  name: string | null;
-  image: string | null;
-  githubId: number;
-  githubUsername: string | null;
+  githubId: string; // ✅ Fixed: schema uses text, not number
+  username: string; // ✅ Fixed: schema uses username, not name
+  avatarUrl: string | null; // ✅ Fixed: schema uses avatarUrl, not image
+  locale: string; // ✅ Added: missing from original interface
   encryptedGithubToken: string;
   githubTokenIv: string;
 
@@ -69,10 +69,10 @@ export class UserAggregate {
     params: {
       id: string;
       email: string;
-      name: string | null;
-      image: string | null;
-      githubId: number;
-      githubUsername: string | null;
+      githubId: string; // ✅ Fixed: text type
+      username: string; // ✅ Fixed: username field
+      avatarUrl: string | null; // ✅ Fixed: avatarUrl field
+      locale: string; // ✅ Added: locale field
       encryptedGithubToken: string;
       githubTokenIv: string;
     },
