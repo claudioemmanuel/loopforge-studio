@@ -421,4 +421,26 @@ export class TaskService {
 
     return rows[0] ?? {};
   }
+
+  /**
+   * Count tasks for a user (via repos ownership).
+   * Used by BillingService for limit checks.
+   */
+  async countByUser(userId: string): Promise<number> {
+    const { sql } = await import("drizzle-orm");
+
+    const userRepos = await db.query.repos.findMany({
+      where: eq(repos.userId, userId),
+    });
+
+    if (userRepos.length === 0) return 0;
+
+    const repoIds = userRepos.map((r) => r.id);
+    const result = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tasks)
+      .where(inArray(tasks.repoId, repoIds));
+
+    return result[0]?.count ?? 0;
+  }
 }

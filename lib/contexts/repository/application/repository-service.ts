@@ -190,4 +190,13 @@ export class RepositoryService {
 
     await this.repository.save(updatedAggregate);
   }
+
+  /**
+   * Count repositories for a user.
+   * Used by BillingService for limit checks.
+   */
+  async countByUser(userId: string): Promise<number> {
+    const aggregates = await this.repository.findByUser(userId);
+    return aggregates.length;
+  }
 }
