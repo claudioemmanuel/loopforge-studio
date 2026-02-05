@@ -66,7 +66,7 @@ export function CTASection() {
               borderColor="hsl(var(--border))"
             >
               <a
-                href="https://github.com/loopforge/loopforge-studio"
+                href="https://github.com/claudioemmanuel/loopforge-studio"
                 target="_blank"
                 rel="noopener noreferrer"
                 ref={secondaryCta.ref as React.RefObject<HTMLAnchorElement>}

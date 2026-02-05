@@ -20,7 +20,7 @@ export default function PricingPage() {
             started in minutes.
           </p>
           <Link
-            href="https://github.com/loopforge/loopforge-studio"
+            href="https://github.com/claudioemmanuel/loopforge-studio"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-block py-3 px-8 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors shadow-lg shadow-primary/25"
