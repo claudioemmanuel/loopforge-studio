@@ -256,7 +256,6 @@ function tCDF(t: number, df: number): number {
   }
 
   // Simple approximation for small df
-  // This is a rough approximation; for production, use a proper stats library
   const x = df / (df + t * t);
   const beta = incompleteBeta(x, df / 2, 0.5);
   return 1 - beta / 2;
@@ -272,8 +271,7 @@ function tInverse(p: number, df: number): number {
     return normalInverse(p);
   }
 
-  // Rough approximation; for production, use a proper stats library
-  // Using normal approximation with correction factor
+  // Rough approximation using normal with correction factor
   const z = normalInverse(p);
   return z * (1 + (z * z + 1) / (4 * df));
 }
@@ -360,8 +358,7 @@ function erf(x: number): number {
 /**
  * Incomplete beta function (simplified)
  */
-function incompleteBeta(x: number, a: number, b: number): number {
-  // Rough approximation; for production, use a proper stats library
+function incompleteBeta(x: number, _a: number, _b: number): number {
   if (x <= 0) return 0;
   if (x >= 1) return 1;
 

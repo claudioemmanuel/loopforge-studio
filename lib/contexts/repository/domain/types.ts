@@ -4,6 +4,13 @@
  * Value objects and types for the Repository Management context.
  */
 
+import type {
+  RepoIndexTechStack,
+  RepoIndexEntryPoint,
+  RepoIndexDependency,
+  RepoIndexFileEntry,
+} from "@/lib/db/schema";
+
 /**
  * Clone status
  */
@@ -118,6 +125,27 @@ export const DEFAULT_TEST_CONFIG: TestConfiguration = {
   gatePolicy: "warn",
   criticalPatterns: [],
 };
+
+/**
+ * Result of a repository indexing pass (file scan + tech-stack detection).
+ */
+export interface IndexingResult {
+  fileCount: number;
+  symbolCount: number;
+  techStack: RepoIndexTechStack;
+  entryPoints: RepoIndexEntryPoint[];
+  dependencies: RepoIndexDependency[];
+  fileIndex: RepoIndexFileEntry[];
+}
+
+/**
+ * Progress callback payload emitted while indexing.
+ */
+export interface IndexingProgress {
+  phase: "scanning" | "analyzing" | "complete";
+  filesScanned: number;
+  currentPath?: string;
+}
 
 /**
  * Default PR configuration values

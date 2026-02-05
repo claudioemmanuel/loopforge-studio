@@ -11,9 +11,9 @@ import type {
   Dependency,
   EntryPoint,
   IndexMetadata,
+  IndexingResult,
   TechStack,
 } from "../domain/types";
-import type { IndexingResult } from "@/lib/indexing/types";
 import { randomUUID } from "crypto";
 import { RepoIndexRepository } from "../infrastructure/repo-index-repository";
 

@@ -7,7 +7,7 @@
 import { db } from "@/lib/db";
 import { repoIndex } from "@/lib/db/schema/tables";
 import { eq } from "drizzle-orm";
-import type { IndexingResult } from "@/lib/indexing/types";
+import type { IndexingResult } from "../domain/types";
 
 export class RepoIndexRepository {
   async upsertIndex(params: { repositoryId: string; result: IndexingResult }) {

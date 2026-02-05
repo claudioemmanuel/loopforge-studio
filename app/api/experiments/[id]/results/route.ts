@@ -3,7 +3,7 @@ import { withAuth } from "@/lib/api";
 import { db } from "@/lib/db";
 import { experiments } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { analyzeExperiment } from "@/lib/testing/statistics";
+import { analyzeExperiment } from "@/lib/contexts/analytics/infrastructure/experiment-statistics";
 
 // GET /api/experiments/[id]/results - Get statistical analysis
 export const GET = withAuth(async (request) => {
