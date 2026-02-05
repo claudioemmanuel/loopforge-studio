@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { ZOOM_CONFIG } from "@/lib/execution/graph-types";
+import { ZOOM_CONFIG } from "@/lib/shared/graph-types";
 
 /**
  * Viewport state for pan/zoom

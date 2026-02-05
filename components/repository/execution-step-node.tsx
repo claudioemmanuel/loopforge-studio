@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import type { GraphNode } from "@/lib/execution/graph-types";
+import type { GraphNode } from "@/lib/shared/graph-types";
 import { CheckCircle2, Circle, XCircle, Clock, Loader2 } from "lucide-react";
 
 interface ExecutionStepNodeData {

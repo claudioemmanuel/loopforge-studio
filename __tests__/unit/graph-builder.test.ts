@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { buildExecutionGraph } from "@/lib/execution/graph-builder";
-import type { ExecutionData } from "@/lib/execution/graph-types";
-import { DEFAULT_LAYOUT_CONFIG } from "@/lib/execution/graph-types";
+import { buildExecutionGraph } from "@/lib/shared/graph-builder";
+import type { ExecutionData } from "@/lib/shared/graph-types";
+import { DEFAULT_LAYOUT_CONFIG } from "@/lib/shared/graph-types";
 
 describe("Graph Builder", () => {
   describe("buildExecutionGraph", () => {

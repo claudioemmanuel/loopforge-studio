@@ -1,6 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { Task } from "@/lib/db/schema";
-import type { ExecutionGraph } from "@/lib/execution/graph-types";
+import type { ExecutionGraph } from "./graph-types";
 
 const COLUMN_WIDTH = 400;
 const NODE_HEIGHT = 180;

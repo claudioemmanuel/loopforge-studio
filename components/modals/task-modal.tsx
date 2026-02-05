@@ -23,7 +23,7 @@ import { workflowSteps } from "./task-modal/task-config";
 import { DetailsTab } from "./task-modal/details-tab";
 import { ExecutionDetailTabs } from "@/components/workers/execution-detail-tabs";
 import { ExecutionGraph } from "@/components/execution/execution-graph";
-import type { ExecutionGraph as ExecutionGraphType } from "@/lib/execution/graph-types";
+import type { ExecutionGraph as ExecutionGraphType } from "@/lib/shared/graph-types";
 
 const BrainstormPanel = dynamic(() =>
   import("@/components/brainstorm").then((mod) => mod.BrainstormPanel),

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import type { ExecutionGraph, GraphNode } from "@/lib/execution/graph-types";
+import type { ExecutionGraph, GraphNode } from "@/lib/shared/graph-types";
 import { ExecutionGraph as ExecutionGraphComponent } from "./execution-graph";
 import { Menu, X } from "lucide-react";
 

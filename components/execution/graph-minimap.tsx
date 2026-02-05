@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useCallback } from "react";
-import type { GraphNode, GraphEdge } from "@/lib/execution/graph-types";
+import type { GraphNode, GraphEdge } from "@/lib/shared/graph-types";
 import type { ViewportState } from "./use-graph-viewport";
 
 /**

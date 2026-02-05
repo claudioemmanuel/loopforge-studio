@@ -11,7 +11,7 @@ import {
   PerformanceMonitor,
   PERFORMANCE_THRESHOLDS,
 } from "@/components/execution/graph-performance";
-import type { GraphNode, GraphEdge } from "@/lib/execution/graph-types";
+import type { GraphNode, GraphEdge } from "@/lib/shared/graph-types";
 import type { ViewportState } from "@/components/execution/use-graph-viewport";
 
 describe("Graph Performance", () => {

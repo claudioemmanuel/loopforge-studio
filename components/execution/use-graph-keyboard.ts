@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import type { GraphNode } from "@/lib/execution/graph-types";
+import type { GraphNode } from "@/lib/shared/graph-types";
 
 /**
  * Hook options

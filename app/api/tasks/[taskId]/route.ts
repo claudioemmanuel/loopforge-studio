@@ -12,8 +12,8 @@ import {
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
-import { buildExecutionGraph } from "@/lib/execution/graph-builder";
-import type { ExecutionData } from "@/lib/execution/graph-types";
+import { buildExecutionGraph } from "@/lib/shared/graph-builder";
+import type { ExecutionData } from "@/lib/shared/graph-types";
 import { getTaskService } from "@/lib/contexts/task/api";
 import { getExecutionService } from "@/lib/contexts/execution/api";
 

@@ -7,8 +7,8 @@ import type {
   GraphNode,
   GraphEdge,
   GraphLayoutConfig,
-} from "@/lib/execution/graph-types";
-import { DEFAULT_LAYOUT_CONFIG } from "@/lib/execution/graph-types";
+} from "@/lib/shared/graph-types";
+import { DEFAULT_LAYOUT_CONFIG } from "@/lib/shared/graph-types";
 
 /**
  * Layout result with positioned nodes and graph dimensions

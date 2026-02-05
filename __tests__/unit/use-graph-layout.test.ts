@@ -4,8 +4,8 @@
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useGraphLayout } from "@/components/execution/use-graph-layout";
-import type { ExecutionGraph } from "@/lib/execution/graph-types";
-import { DEFAULT_LAYOUT_CONFIG } from "@/lib/execution/graph-types";
+import type { ExecutionGraph } from "@/lib/shared/graph-types";
+import { DEFAULT_LAYOUT_CONFIG } from "@/lib/shared/graph-types";
 
 describe("useGraphLayout", () => {
   describe("Layout Calculation", () => {

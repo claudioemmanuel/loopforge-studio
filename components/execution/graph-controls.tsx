@@ -2,7 +2,7 @@
 
 import React from "react";
 import { ZoomIn, ZoomOut, Maximize2, RotateCcw } from "lucide-react";
-import { ZOOM_CONFIG } from "@/lib/execution/graph-types";
+import { ZOOM_CONFIG } from "@/lib/shared/graph-types";
 
 /**
  * Props for GraphControls component

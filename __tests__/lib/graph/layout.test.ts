@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { calculateGraphLayout, buildDependencyMap } from "@/lib/graph/layout";
+import {
+  calculateGraphLayout,
+  buildDependencyMap,
+} from "@/lib/shared/graph-layout";
 import type { Task } from "@/lib/db/schema";
 
 const createMockTask = (

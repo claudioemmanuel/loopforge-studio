@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useCallback, useEffect } from "react";
-import type { ExecutionGraph, GraphNode } from "@/lib/execution/graph-types";
+import type { ExecutionGraph, GraphNode } from "@/lib/shared/graph-types";
 import { useGraphLayout } from "./use-graph-layout";
 import { useGraphViewport } from "./use-graph-viewport";
 import { GraphNodeComponent } from "./graph-node";

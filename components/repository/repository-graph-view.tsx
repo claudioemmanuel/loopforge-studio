@@ -12,9 +12,12 @@ import {
 import { TaskGraphNode } from "./task-graph-node";
 import { ExecutionStepNode } from "./execution-step-node";
 import { GraphSidePanel } from "./graph-side-panel";
-import { calculateGraphLayout, buildDependencyMap } from "@/lib/graph/layout";
+import {
+  calculateGraphLayout,
+  buildDependencyMap,
+} from "@/lib/shared/graph-layout";
 import type { Task } from "@/lib/db/schema";
-import type { ExecutionGraph } from "@/lib/execution/graph-types";
+import type { ExecutionGraph } from "@/lib/shared/graph-types";
 import { GitBranch, Loader2 } from "lucide-react";
 import "@xyflow/react/dist/style.css";
 

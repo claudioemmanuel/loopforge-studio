@@ -2,7 +2,7 @@
  * Performance optimization utilities for execution graph
  */
 
-import type { GraphNode, GraphEdge } from "@/lib/execution/graph-types";
+import type { GraphNode, GraphEdge } from "@/lib/shared/graph-types";
 import type { ViewportState } from "./use-graph-viewport";
 
 /**

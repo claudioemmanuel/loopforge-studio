@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import type { GraphEdge, GraphNode } from "@/lib/execution/graph-types";
-import { ANIMATION_DURATIONS } from "@/lib/execution/graph-types";
+import type { GraphEdge, GraphNode } from "@/lib/shared/graph-types";
+import { ANIMATION_DURATIONS } from "@/lib/shared/graph-types";
 
 /**
  * Props for GraphEdge component

@@ -4,12 +4,12 @@ import {
   ZOOM_CONFIG,
   DEFAULT_LAYOUT_CONFIG,
   ANIMATION_DURATIONS,
-} from "@/lib/execution/graph-types";
+} from "@/lib/shared/graph-types";
 import type {
   ExecutionGraph,
   GraphNode,
   GraphEdge,
-} from "@/lib/execution/graph-types";
+} from "@/lib/shared/graph-types";
 
 describe("Execution Graph Types", () => {
   it("should have correct node sizes", () => {

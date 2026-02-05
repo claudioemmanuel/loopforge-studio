@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import type { ExecutionGraph } from "@/lib/execution/graph-types";
+import type { ExecutionGraph } from "@/lib/shared/graph-types";
 
 /**
  * SSE event types for execution updates

@@ -4,8 +4,8 @@ import { db } from "@/lib/db";
 import { tasks, repos } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
-import { buildDependencyMap } from "@/lib/graph/layout";
-import type { ExecutionGraph } from "@/lib/execution/graph-types";
+import { buildDependencyMap } from "@/lib/shared/graph-layout";
+import type { ExecutionGraph } from "@/lib/shared/graph-types";
 
 /**
  * GET /api/repos/[repoId]/graph

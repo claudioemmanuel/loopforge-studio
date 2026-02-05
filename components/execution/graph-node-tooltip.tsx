@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import type { GraphNode } from "@/lib/execution/graph-types";
+import type { GraphNode } from "@/lib/shared/graph-types";
 import {
   CheckCircle2,
   XCircle,

@@ -2,7 +2,7 @@
 
 import React from "react";
 import * as Popover from "@radix-ui/react-popover";
-import type { GraphNode } from "@/lib/execution/graph-types";
+import type { GraphNode } from "@/lib/shared/graph-types";
 import {
   CheckCircle2,
   XCircle,

@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { ExecutionEventMetadata } from "@/lib/ralph/types";
 import type { ExperimentVariantConfig } from "./types";
-import type { ExecutionGraph } from "@/lib/execution/graph-types";
+import type { ExecutionGraph } from "@/lib/shared/graph-types";
 import {
   taskStatusEnum,
   executionStatusEnum,

@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Calendar, GitBranch } from "lucide-react";
 import type { Task } from "@/lib/db/schema";
-import type { ExecutionGraph } from "@/lib/execution/graph-types";
+import type { ExecutionGraph } from "@/lib/shared/graph-types";
 import { format } from "date-fns";
 
 interface GraphSidePanelProps {
