@@ -39,13 +39,6 @@ export interface FeatureFlags {
    * @default true
    */
   ENABLE_TEST_GATES: boolean;
-
-  /**
-   * Enable A/B testing framework UI.
-   * When false, experiments page and navigation are hidden.
-   * @default false
-   */
-  ENABLE_AB_TESTING: boolean;
 }
 
 /**
@@ -89,7 +82,6 @@ export function loadFeatureFlags(): FeatureFlags {
       true,
     ),
     ENABLE_TEST_GATES: parseBoolean(process.env.ENABLE_TEST_GATES, true),
-    ENABLE_AB_TESTING: parseBoolean(process.env.ENABLE_AB_TESTING, false),
   };
 }
 

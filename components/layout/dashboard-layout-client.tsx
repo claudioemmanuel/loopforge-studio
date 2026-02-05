@@ -31,36 +31,26 @@ interface DashboardLayoutClientProps {
     image?: string | null;
   };
   repos: SidebarRepo[];
-  enableABTesting: boolean;
 }
 
 export function DashboardLayoutClient({
   children,
   user,
   repos,
-  enableABTesting,
 }: DashboardLayoutClientProps) {
   return (
     <SidebarProvider>
       <div className="flex h-screen bg-background">
         {/* Desktop sidebar - hidden on mobile */}
         <div className="hidden md:block sidebar-static">
-          <Sidebar
-            user={user}
-            repos={repos}
-            enableABTesting={enableABTesting}
-          />
+          <Sidebar user={user} repos={repos} />
         </div>
 
         {/* Mobile header - visible only on mobile */}
         <MobileHeader />
 
         {/* Mobile sidebar drawer */}
-        <MobileSidebar
-          user={user}
-          repos={repos}
-          enableABTesting={enableABTesting}
-        />
+        <MobileSidebar user={user} repos={repos} />
 
         {/* Main content with top padding on mobile for fixed header */}
         <main className="flex-1 overflow-auto pt-14 md:pt-0">

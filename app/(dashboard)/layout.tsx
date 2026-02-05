@@ -4,7 +4,6 @@ import { DashboardLayoutClient } from "@/components/layout";
 import { db } from "@/lib/db";
 import { repos, tasks } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { getFeatureFlag } from "@/lib/ralph/feature-flags";
 
 export default async function DashboardLayout({
   children,
@@ -41,15 +40,8 @@ export default async function DashboardLayout({
     )
     .orderBy(repos.name);
 
-  // Get feature flags on server side to avoid hydration mismatches
-  const enableABTesting = getFeatureFlag("ENABLE_AB_TESTING");
-
   return (
-    <DashboardLayoutClient
-      user={session.user}
-      repos={userRepos}
-      enableABTesting={enableABTesting}
-    >
+    <DashboardLayoutClient user={session.user} repos={userRepos}>
       {children}
     </DashboardLayoutClient>
   );

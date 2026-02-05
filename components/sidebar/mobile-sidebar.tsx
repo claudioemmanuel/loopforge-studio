@@ -21,7 +21,6 @@ import {
   Activity,
   Play,
   History,
-  FlaskConical,
   FolderGit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -49,7 +48,6 @@ interface MobileSidebarProps {
     image?: string | null;
   };
   repos?: SidebarRepo[];
-  enableABTesting: boolean;
 }
 
 // Note: Labels will be translated in the component using useTranslations
@@ -66,11 +64,7 @@ const activitySubItems = [
   { href: "/activity/failed", labelKey: "failed", icon: AlertTriangle },
 ];
 
-export function MobileSidebar({
-  user,
-  repos = [],
-  enableABTesting,
-}: MobileSidebarProps) {
+export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
   const pathname = usePathname();
   const { isOpen, closeSidebar } = useSidebar();
   const t = useTranslations("navigation");
@@ -82,7 +76,6 @@ export function MobileSidebar({
   const isActivityActive = pathname.startsWith("/activity");
   const isAnalyticsActive = pathname === "/analytics";
   const isSettingsActive = pathname.startsWith("/settings");
-  const isExperimentsActive = pathname === "/experiments";
 
   // Close sidebar on route change
   useEffect(() => {
@@ -304,22 +297,6 @@ export function MobileSidebar({
               })}
             </div>
           </div>
-
-          {/* Experiments */}
-          {enableABTesting && (
-            <Link
-              href="/experiments"
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                isExperimentsActive
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <FlaskConical className="w-4 h-4" />
-              {t("experiments")}
-            </Link>
-          )}
         </nav>
 
         {/* User section */}

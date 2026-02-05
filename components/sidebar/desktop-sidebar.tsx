@@ -22,7 +22,6 @@ import {
   Activity,
   Play,
   History,
-  FlaskConical,
   FolderGit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -61,7 +60,6 @@ interface SidebarProps {
     image?: string | null;
   };
   repos?: SidebarRepo[];
-  enableABTesting: boolean;
 }
 
 // Note: Labels will be translated in the component using useTranslations
@@ -78,7 +76,7 @@ const activitySubItems = [
   { href: "/activity/failed", labelKey: "failed", icon: AlertTriangle },
 ];
 
-export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
+export function Sidebar({ user, repos = [] }: SidebarProps) {
   const pathname = usePathname();
   const t = useTranslations("navigation");
   const tSettings = useTranslations("settings");
@@ -108,7 +106,6 @@ export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
   const isActivityActive = pathname.startsWith("/activity");
   const isAnalyticsActive = pathname === "/analytics";
   const isSettingsActive = pathname.startsWith("/settings");
-  const isExperimentsActive = pathname === "/experiments";
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -529,45 +526,6 @@ export function Sidebar({ user, repos = [], enableABTesting }: SidebarProps) {
                   </>
                 )}
               </div>
-
-              {/* Experiments (no cascade) */}
-              {mounted && enableABTesting && (
-                <>
-                  {collapsed ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Link
-                          href="/experiments"
-                          className={cn(
-                            "flex items-center justify-center p-2 rounded-lg transition-colors",
-                            isExperimentsActive
-                              ? "bg-primary/10 text-primary"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          <FlaskConical className="w-5 h-5" />
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        {t("experiments")}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <Link
-                      href="/experiments"
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                        isExperimentsActive
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <FlaskConical className="w-4 h-4" />
-                      {t("experiments")}
-                    </Link>
-                  )}
-                </>
-              )}
             </>
           )}
         </nav>
