@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { discardBranchChanges } from "@/lib/ralph/git-operations";
-import type { StatusHistoryEntry, TaskStatus } from "@/lib/db/schema";
+import type { StatusHistoryEntry, TaskStatus } from "@/lib/contexts/task/api";
 import { handleError, Errors } from "@/lib/errors";
 import { getTaskService } from "@/lib/contexts/task/api";
 import { getExecutionService } from "@/lib/contexts/execution/api";

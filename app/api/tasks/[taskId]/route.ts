@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { queueExecution } from "@/lib/queue";
-import type { TaskStatus } from "@/lib/db/schema";
+import type { TaskStatus } from "@/lib/contexts/task/api";
 import {
   withTask,
   getProviderApiKey,

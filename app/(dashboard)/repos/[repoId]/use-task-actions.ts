@@ -4,7 +4,8 @@ import { clientLogger } from "@/lib/logger";
 import { isBackwardMove } from "@/components/ui/backward-move-dialog";
 import { requiresActionConfirmation } from "@/components/ui/confirm-action-dialog";
 import { ListTodo, CheckCircle2, Zap, AlertTriangle } from "lucide-react";
-import type { Task, TaskStatus, IndexingStatus } from "@/lib/db/schema";
+import type { Task, TaskStatus } from "@/lib/contexts/task/api";
+import type { IndexingStatus } from "@/lib/contexts/repository/api";
 
 export interface RepoData {
   id: string;

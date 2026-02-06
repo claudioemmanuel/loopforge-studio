@@ -11,3 +11,6 @@ export function getRepositoryService(): RepositoryService {
 }
 
 export { RepositoryService } from "../application/repository-service";
+
+// Re-export types for use in presentation layer
+export type { IndexingStatus } from "@/lib/db/schema";

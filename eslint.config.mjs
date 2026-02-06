@@ -60,28 +60,11 @@ const eslintConfig = [
       ],
     },
   },
-  // Temporary allowlist (disable boundary rules for files not yet migrated)
-  // TODO: Remove these as files are migrated to use facades/services (P2 work)
+  // Permanent exceptions (documented in docs/architecture/BOUNDARY_RULES.md)
   {
     files: [
-      // === Permanent Exceptions ===
-      // Documented in docs/architecture/BOUNDARY_RULES.md
       "app/api/system/health/**/*.{ts,tsx}",
       "app/api/workers/monitoring/**/*.{ts,tsx}",
-
-      // === Temporary Allowlist (TODO: Fix in P2 - Server Page Facades) ===
-      // See docs/architecture/2026-02-06-architecture-migration-master-plan.md
-      // Priority: P2 Medium (B2 - Server Page Facade Migration)
-      "app/(dashboard)/repos/[repoId]/page.tsx", // TODO: Create repository facade
-      "app/(dashboard)/repos/[repoId]/use-task-actions.ts", // TODO: Use task service
-      "app/api/settings/api-key/route.ts", // TODO: Use user service
-      "app/api/settings/provider/route.ts", // TODO: Use user service
-      "app/api/tasks/[taskId]/diff/approve/route.ts", // TODO: Use task service
-      "app/api/tasks/[taskId]/diff/reject/route.ts", // TODO: Use task service
-      "app/api/tasks/[taskId]/rollback/route.ts", // TODO: Use task service
-      "app/api/tasks/[taskId]/route.ts", // TODO: Use task service (partial)
-      "app/api/workers/history/route.ts", // TODO: Use analytics service
-      "app/api/workers/sse/route.ts", // TODO: Use worker monitoring service
     ],
     rules: {
       "no-restricted-imports": "off",

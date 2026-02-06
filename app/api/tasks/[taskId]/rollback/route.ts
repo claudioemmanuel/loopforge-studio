@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { revertCommits } from "@/lib/ralph/git-operations";
-import type { StatusHistoryEntry } from "@/lib/db/schema";
+import type { StatusHistoryEntry } from "@/lib/contexts/task/api";
 import { withTask } from "@/lib/api";
 import { getTaskService } from "@/lib/contexts/task/api";
 import { getExecutionService } from "@/lib/contexts/execution/api";

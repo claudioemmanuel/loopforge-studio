@@ -28,7 +28,7 @@ import {
 } from "@/components/hooks/use-card-processing";
 import { RepoSetupOverlay } from "@/components/repo-setup";
 import { ActivityPanel } from "@/components/activity-panel";
-import type { Task, TaskStatus } from "@/lib/db/schema";
+import type { Task, TaskStatus } from "@/lib/contexts/task/api";
 import { useTaskActions } from "./use-task-actions";
 import { RepoHeader } from "./repo-header";
 import type {

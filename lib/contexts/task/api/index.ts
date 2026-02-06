@@ -11,3 +11,6 @@ export function getTaskService(): TaskService {
 }
 
 export { TaskService } from "../application/task-service";
+
+// Re-export types for use in presentation layer
+export type { Task, TaskStatus, StatusHistoryEntry } from "@/lib/db/schema";
