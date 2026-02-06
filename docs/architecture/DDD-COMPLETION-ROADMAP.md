@@ -145,7 +145,7 @@ All now call `getExecutionService()` and no longer import legacy diff/commit/tes
 
 ---
 
-## Priority 4: Absorb Legacy Backend Internals (IN PROGRESS)
+## ✅ Priority 4: Absorb Legacy Backend Internals (COMPLETE)
 
 Execution helper absorption is complete. Worker/queue migration progress:
 
@@ -167,9 +167,9 @@ Execution helper absorption is complete. Worker/queue migration progress:
 6. ✅ `status-history.ts` kept shared with explicit rationale (cross-context helper used by task + execution internals)
 7. ✅ `transactions.ts` reviewed and kept shared; no current consumers to inline
 
-**Estimated effort remaining:** 1-2 hours
+**Estimated effort remaining:** 0 hours
 
-## Priority 5: Fix Pre-existing TS Errors (LOW)
+## ✅ Priority 5: Fix Pre-existing TS Errors (COMPLETE)
 
 | File                         | Error                                | Fix                                                   |
 | ---------------------------- | ------------------------------------ | ----------------------------------------------------- | --------------------- |
@@ -180,7 +180,7 @@ Execution helper absorption is complete. Worker/queue migration progress:
 | `navigation.ts`              | next-intl API change                 | ✅ Resolved (`createNavigation`)                      |
 | `lib/workers/events.ts`      | `recovering` processing phase typing | ✅ Resolved (explicit `ProcessingPhase                | "recovering"` record) |
 
-**Estimated effort:** 2-3 hours
+**Estimated effort:** 0 hours
 
 ## Completion Criteria
 
@@ -190,4 +190,4 @@ Execution helper absorption is complete. Worker/queue migration progress:
 ✅ Pre-existing TS errors resolved
 ✅ Domain events published from all 6 contexts
 
-**Total estimated effort:** 18-24 hours
+**Total estimated effort:** 18-24 hours (completed)

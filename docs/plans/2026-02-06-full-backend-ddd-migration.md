@@ -81,6 +81,7 @@
 4. ✅ Address pre-existing repo-wide TypeScript and backend test-contract typing debt for migrated suites (`tsc` pass).
 5. ✅ Remove all remaining `@ts-nocheck` from `__tests__` (current remaining: 0 files).
 6. Run runtime verification pass (targeted vitest + integration suites with local DB/Redis) before final release tagging.
+   - Status: pending environment availability (sandbox cannot connect to local Postgres: `EPERM 127.0.0.1:5432`).
 
 ### Resume commands
 

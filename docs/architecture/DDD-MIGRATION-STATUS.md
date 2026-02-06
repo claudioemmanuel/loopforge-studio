@@ -365,9 +365,9 @@ Result: `app/api`, `lib/queue`, `lib/workers`, and `workers` no longer import `@
   `execute/route`, `brainstorm/save/route`, `dependencies/route`, `autonomous/resume/route`, `tasks/[taskId]/route` (PATCH executing + GET graph-cache), `repos/[repoId]/tasks/route` (POST create)
 - `lib/domain/` deleted (13 files)
 
-### Priority 1 – Migrate Remaining Non-route Backend DB Access
+### ✅ Priority 1 – Migrate Remaining Non-route Backend DB Access (COMPLETE)
 
-Service-to-repository wiring is complete across all six contexts and API routes are migrated. Remaining work is backend internals (workers/queue/utilities) that still use direct DB access.
+Service-to-repository wiring is complete across all six contexts and API routes are migrated. Backend internals (`workers/execution-worker.ts`, `lib/queue/autonomous-flow.ts`, `lib/workers/events.ts`) are migrated and no longer import direct DB modules.
 
 ### Priority 2 – Routes with heavy in-route infrastructure (keep as-is for now)
 
@@ -401,15 +401,12 @@ Service-to-repository wiring is complete across all six contexts and API routes 
 
 ---
 
-## Known Pre-existing TypeScript Errors
+## TypeScript/Test Debt Status
 
-These errors existed before the DDD migration and are **not caused by it**:
+Compile/type-contract status after migration:
 
-| File                               | Error                                                       |
-| ---------------------------------- | ----------------------------------------------------------- |
-| `app/api/webhooks/stripe/route.ts` | `stripe` variable used outside its initialising `try` block |
-| `workers/execution-worker.ts`      | `console.warn` overload mismatch with `unknown` argument    |
-| `__tests__/**`                     | Fixture shape mismatches, missing test-db module paths      |
+- `npx tsc --noEmit --pretty false` passes.
+- `@ts-nocheck` remaining in `__tests__`: 0.
 
 Resolved since 2026-02-06:
 
@@ -422,6 +419,10 @@ Resolved since 2026-02-06:
 - `lib/contexts/execution/infrastructure/execution-repository.ts` typed insert/update row mapping
 - `lib/contexts/repository/infrastructure/repository-repository.ts` clone status/domain mapping + typed row mapping
 - `lib/contexts/task/adapters/repositories/TaskRepository.ts` status-history mapping + typed row mapping
+
+Runtime verification note:
+
+- Targeted `vitest` execution still requires local PostgreSQL (`localhost:5432`) in the execution environment. In this sandbox, test runtime is blocked by `EPERM` when connecting to Postgres.
 
 ---
 
