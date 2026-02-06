@@ -1,6 +1,4 @@
 import { auth } from "@/lib/auth";
-import { db, repos, tasks } from "@/lib/db";
-import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { Button } from "@/components/ui/button";
@@ -15,6 +13,7 @@ import {
 import { AddRepoButton } from "@/components/dashboard";
 import { RepoStatusDot } from "@/components/repo-status-indicator";
 import { formatDistanceToNow } from "date-fns";
+import { getDashboardData } from "@/lib/contexts/dashboard/api";
 
 export default async function RepositoriesPage() {
   const t = await getTranslations("repositories");
@@ -26,25 +25,11 @@ export default async function RepositoriesPage() {
 
   const userId = session.user.id;
 
-  // Fetch user repos with tasks
-  const userRepos = await db.query.repos.findMany({
-    where: eq(repos.userId, userId),
-    orderBy: [desc(repos.updatedAt)],
-  });
-
-  // Get GitHub repo IDs for the AddRepoButton
-  const existingRepoGithubIds = userRepos
-    .map((r) => parseInt(r.githubRepoId, 10))
-    .filter((id) => !isNaN(id));
-
-  // Fetch all tasks for each repo
-  const repoIds = userRepos.map((r) => r.id);
-  const allTasks =
-    repoIds.length > 0
-      ? await db.query.tasks.findMany({
-          where: (tasks, { inArray }) => inArray(tasks.repoId, repoIds),
-        })
-      : [];
+  const {
+    repos: userRepos,
+    allTasks,
+    existingRepoGithubIds,
+  } = await getDashboardData(userId);
 
   // Calculate task counts per repo
   const reposWithCounts = userRepos.map((repo) => {
@@ -98,7 +83,13 @@ export default async function RepositoriesPage() {
                   </div>
                   <RepoStatusDot
                     isCloned={repo.isCloned}
-                    indexingStatus={repo.indexingStatus}
+                    indexingStatus={
+                      (repo.indexingStatus || "pending") as
+                        | "pending"
+                        | "indexing"
+                        | "indexed"
+                        | "failed"
+                    }
                   />
                 </div>
 

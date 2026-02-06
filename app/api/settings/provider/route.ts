@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
-import { aiProviders, type AiProvider } from "@/lib/db/schema";
 import { apiLogger } from "@/lib/logger";
 import { handleError, Errors } from "@/lib/errors";
-import { getUserService } from "@/lib/contexts/iam/api";
+import {
+  getUserService,
+  aiProviders,
+  type AiProvider,
+} from "@/lib/contexts/iam/api";
 
 export const POST = withAuth(async (request, { user }) => {
   try {

@@ -5,6 +5,7 @@
  * Handles invariant enforcement for user identity and provider settings.
  */
 
+import { randomUUID } from "crypto";
 import type { Redis } from "ioredis";
 
 export interface UserState {
@@ -68,19 +69,20 @@ export class UserAggregate {
   /**
    * Create a new user
    */
-  static async create(
+  static create(
     params: {
       id: string;
       email: string | null;
-      githubId: string; // ✅ Fixed: text type
-      username: string; // ✅ Fixed: username field
-      avatarUrl: string | null; // ✅ Fixed: avatarUrl field
-      locale: string; // ✅ Added: locale field
+      githubId: string;
+      username: string;
+      avatarUrl: string | null;
+      locale: string;
       encryptedGithubToken: string;
       githubTokenIv: string;
     },
     redis: Redis,
-  ): Promise<UserAggregate> {
+  ): [UserAggregate, import("./events").UserRegisteredEvent] {
+    const now = new Date();
     const state: UserState = {
       ...params,
       preferredProvider: null,
@@ -93,21 +95,36 @@ export class UserAggregate {
       geminiEncryptedApiKey: null,
       geminiApiKeyIv: null,
       preferredGeminiModel: null,
-      defaultCloneDirectory: null, // ✅ Fixed: correct field name
-      defaultTestCommand: null, // ✅ Fixed: correct field name
-      defaultTestTimeout: null, // ✅ Added: missing field
-      defaultTestGatePolicy: null, // ✅ Fixed: correct field name
+      defaultCloneDirectory: null,
+      defaultTestCommand: null,
+      defaultTestTimeout: null,
+      defaultTestGatePolicy: null,
       subscriptionTier: "enterprise",
-      billingMode: "byok", // ✅ Added: missing field
-      subscriptionStatus: "active", // ✅ Added: missing field
-      subscriptionPeriodEnd: null, // ✅ Added: missing field
+      billingMode: "byok",
+      subscriptionStatus: "active",
+      subscriptionPeriodEnd: null,
       stripeCustomerId: null,
       onboardingCompleted: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
     };
 
-    return new UserAggregate(state, redis);
+    const event: import("./events").UserRegisteredEvent = {
+      id: randomUUID(),
+      eventType: "UserRegistered",
+      aggregateType: "User",
+      aggregateId: params.id,
+      occurredAt: now,
+      data: {
+        userId: params.id,
+        githubId: params.githubId,
+        username: params.username,
+        email: params.email ?? undefined,
+        avatarUrl: params.avatarUrl ?? undefined,
+      },
+    };
+
+    return [new UserAggregate(state, redis), event];
   }
 
   /**
@@ -118,56 +135,92 @@ export class UserAggregate {
     encryptedApiKey: string,
     apiKeyIv: string,
     preferredModel?: string | null,
-  ): void {
-    this.state.preferredProvider = provider;
+  ): [UserAggregate, import("./events").ProviderConfiguredEvent] {
+    const now = new Date();
+    const newState = { ...this.state };
+    newState.preferredProvider = provider;
 
     if (provider === "anthropic") {
-      this.state.encryptedApiKey = encryptedApiKey;
-      this.state.apiKeyIv = apiKeyIv;
+      newState.encryptedApiKey = encryptedApiKey;
+      newState.apiKeyIv = apiKeyIv;
       if (preferredModel !== undefined) {
-        this.state.preferredAnthropicModel = preferredModel;
+        newState.preferredAnthropicModel = preferredModel;
       }
     } else if (provider === "openai") {
-      this.state.openaiEncryptedApiKey = encryptedApiKey;
-      this.state.openaiApiKeyIv = apiKeyIv;
+      newState.openaiEncryptedApiKey = encryptedApiKey;
+      newState.openaiApiKeyIv = apiKeyIv;
       if (preferredModel !== undefined) {
-        this.state.preferredOpenaiModel = preferredModel;
+        newState.preferredOpenaiModel = preferredModel;
       }
     } else if (provider === "gemini") {
-      this.state.geminiEncryptedApiKey = encryptedApiKey;
-      this.state.geminiApiKeyIv = apiKeyIv;
+      newState.geminiEncryptedApiKey = encryptedApiKey;
+      newState.geminiApiKeyIv = apiKeyIv;
       if (preferredModel !== undefined) {
-        this.state.preferredGeminiModel = preferredModel;
+        newState.preferredGeminiModel = preferredModel;
       }
     }
 
-    this.state.updatedAt = new Date();
+    newState.updatedAt = now;
+
+    const event: import("./events").ProviderConfiguredEvent = {
+      id: randomUUID(),
+      eventType: "ProviderConfigured",
+      aggregateType: "User",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: {
+        userId: this.state.id,
+        provider,
+        hasApiKey: true,
+      },
+    };
+
+    return [new UserAggregate(newState, this.redis), event];
   }
 
   /**
    * Remove provider configuration
    */
-  removeProvider(provider: "anthropic" | "openai" | "gemini"): void {
+  removeProvider(
+    provider: "anthropic" | "openai" | "gemini",
+  ): [UserAggregate, import("./events").ProviderRemovedEvent] {
+    const now = new Date();
+    const newState = { ...this.state };
+
     if (provider === "anthropic") {
-      this.state.encryptedApiKey = null;
-      this.state.apiKeyIv = null;
-      this.state.preferredAnthropicModel = null;
+      newState.encryptedApiKey = null;
+      newState.apiKeyIv = null;
+      newState.preferredAnthropicModel = null;
     } else if (provider === "openai") {
-      this.state.openaiEncryptedApiKey = null;
-      this.state.openaiApiKeyIv = null;
-      this.state.preferredOpenaiModel = null;
+      newState.openaiEncryptedApiKey = null;
+      newState.openaiApiKeyIv = null;
+      newState.preferredOpenaiModel = null;
     } else if (provider === "gemini") {
-      this.state.geminiEncryptedApiKey = null;
-      this.state.geminiApiKeyIv = null;
-      this.state.preferredGeminiModel = null;
+      newState.geminiEncryptedApiKey = null;
+      newState.geminiApiKeyIv = null;
+      newState.preferredGeminiModel = null;
     }
 
     // If removing the preferred provider, clear it
-    if (this.state.preferredProvider === provider) {
-      this.state.preferredProvider = null;
+    if (newState.preferredProvider === provider) {
+      newState.preferredProvider = null;
     }
 
-    this.state.updatedAt = new Date();
+    newState.updatedAt = now;
+
+    const event: import("./events").ProviderRemovedEvent = {
+      id: randomUUID(),
+      eventType: "ProviderRemoved",
+      aggregateType: "User",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: {
+        userId: this.state.id,
+        provider,
+      },
+    };
+
+    return [new UserAggregate(newState, this.redis), event];
   }
 
   /**
@@ -178,29 +231,63 @@ export class UserAggregate {
     defaultTestCommand?: string;
     defaultTestTimeout?: number;
     defaultTestGatePolicy?: "strict" | "warn" | "skip" | "autoApprove";
-  }): void {
+  }): [UserAggregate, import("./events").UserPreferencesUpdatedEvent] {
+    const now = new Date();
+    const newState = { ...this.state };
+
     if (preferences.defaultCloneDirectory !== undefined) {
-      this.state.defaultCloneDirectory = preferences.defaultCloneDirectory;
+      newState.defaultCloneDirectory = preferences.defaultCloneDirectory;
     }
     if (preferences.defaultTestCommand !== undefined) {
-      this.state.defaultTestCommand = preferences.defaultTestCommand;
+      newState.defaultTestCommand = preferences.defaultTestCommand;
     }
     if (preferences.defaultTestTimeout !== undefined) {
-      this.state.defaultTestTimeout = preferences.defaultTestTimeout;
+      newState.defaultTestTimeout = preferences.defaultTestTimeout;
     }
     if (preferences.defaultTestGatePolicy !== undefined) {
-      this.state.defaultTestGatePolicy = preferences.defaultTestGatePolicy;
+      newState.defaultTestGatePolicy = preferences.defaultTestGatePolicy;
     }
 
-    this.state.updatedAt = new Date();
+    newState.updatedAt = now;
+
+    const event: import("./events").UserPreferencesUpdatedEvent = {
+      id: randomUUID(),
+      eventType: "UserPreferencesUpdated",
+      aggregateType: "User",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: {
+        userId: this.state.id,
+      },
+    };
+
+    return [new UserAggregate(newState, this.redis), event];
   }
 
   /**
    * Complete onboarding
    */
-  completeOnboarding(): void {
-    this.state.onboardingCompleted = true;
-    this.state.updatedAt = new Date();
+  completeOnboarding(): [
+    UserAggregate,
+    import("./events").OnboardingCompletedEvent,
+  ] {
+    const now = new Date();
+    const newState = { ...this.state };
+    newState.onboardingCompleted = true;
+    newState.updatedAt = now;
+
+    const event: import("./events").OnboardingCompletedEvent = {
+      id: randomUUID(),
+      eventType: "OnboardingCompleted",
+      aggregateType: "User",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: {
+        userId: this.state.id,
+      },
+    };
+
+    return [new UserAggregate(newState, this.redis), event];
   }
 
   /**

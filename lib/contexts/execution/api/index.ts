@@ -18,3 +18,10 @@ export function getWorkerMonitoringService(): WorkerMonitoringService {
 
 export { ExecutionService } from "../application/execution-service";
 export { WorkerMonitoringService } from "../application/worker-monitoring-service";
+export {
+  processingPhases,
+  workerJobPhases,
+  type ExecutionStatus,
+  type ProcessingPhase,
+  type WorkerJobPhase,
+} from "../domain/types";

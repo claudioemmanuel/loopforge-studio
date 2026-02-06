@@ -129,20 +129,33 @@ export class UserAdapter {
       preferredProvider: state.preferredProvider ?? "anthropic",
 
       // GitHub token (from additional data)
-      encryptedGithubToken: additionalData?.encryptedGithubToken ?? null,
-      githubTokenIv: additionalData?.githubTokenIv ?? null,
+      encryptedGithubToken:
+        additionalData?.encryptedGithubToken ??
+        state.encryptedGithubToken ??
+        null,
+      githubTokenIv:
+        additionalData?.githubTokenIv ?? state.githubTokenIv ?? null,
 
       // User preferences
       onboardingCompleted: state.onboardingCompleted,
       locale: state.locale,
-      defaultCloneDirectory: additionalData?.defaultCloneDirectory ?? null,
-      defaultTestCommand: additionalData?.defaultTestCommand ?? null,
-      defaultTestTimeout: additionalData?.defaultTestTimeout ?? null,
-      defaultTestGatePolicy: additionalData?.defaultTestGatePolicy ?? null,
+      defaultCloneDirectory:
+        additionalData?.defaultCloneDirectory ??
+        state.defaultCloneDirectory ??
+        null,
+      defaultTestCommand:
+        additionalData?.defaultTestCommand ?? state.defaultTestCommand ?? null,
+      defaultTestTimeout:
+        additionalData?.defaultTestTimeout ?? state.defaultTestTimeout ?? null,
+      defaultTestGatePolicy:
+        additionalData?.defaultTestGatePolicy ??
+        state.defaultTestGatePolicy ??
+        null,
 
       // Billing (from additional data)
-      billingMode: additionalData?.billingMode ?? "byok",
-      subscriptionTier: additionalData?.subscriptionTier ?? null,
+      billingMode: additionalData?.billingMode ?? state.billingMode ?? "byok",
+      subscriptionTier:
+        additionalData?.subscriptionTier ?? state.subscriptionTier ?? null,
 
       // Timestamps
       createdAt: state.createdAt,

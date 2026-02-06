@@ -21,6 +21,7 @@ beforeAll(async () => {
     DO $$ BEGIN
       CREATE TYPE execution_status AS ENUM ('queued', 'running', 'completed', 'failed', 'cancelled');
     EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN ALTER TYPE execution_status ADD VALUE IF NOT EXISTS 'stuck'; EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     DO $$ BEGIN
       CREATE TYPE execution_event_type AS ENUM ('thinking', 'file_read', 'file_write', 'command_run', 'commit', 'error', 'complete', 'stuck', 'setup_start', 'repo_clone', 'repo_update', 'branch_create', 'branch_checkout', 'setup_complete');
@@ -95,6 +96,8 @@ beforeAll(async () => {
     DO $$ BEGIN
       CREATE TYPE clone_status AS ENUM ('not_cloned', 'cloning', 'cloned', 'failed', 'updating');
     EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN ALTER TYPE clone_status ADD VALUE IF NOT EXISTS 'pending'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN ALTER TYPE clone_status ADD VALUE IF NOT EXISTS 'completed'; EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     CREATE TABLE IF NOT EXISTS repos (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -289,6 +292,32 @@ beforeAll(async () => {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS execution_commits (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      execution_id UUID NOT NULL REFERENCES executions(id) ON DELETE CASCADE,
+      commit_sha TEXT NOT NULL,
+      commit_message TEXT NOT NULL,
+      files_changed JSONB,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      is_reverted BOOLEAN NOT NULL DEFAULT false,
+      reverted_at TIMESTAMP,
+      revert_sha TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS test_runs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      execution_id UUID NOT NULL REFERENCES executions(id) ON DELETE CASCADE,
+      task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      command TEXT NOT NULL,
+      exit_code INTEGER,
+      stdout TEXT,
+      stderr TEXT,
+      duration_ms INTEGER,
+      status TEXT NOT NULL,
+      started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS repo_index (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       repo_id UUID NOT NULL UNIQUE REFERENCES repos(id) ON DELETE CASCADE,
@@ -379,6 +408,58 @@ beforeAll(async () => {
 
     CREATE INDEX IF NOT EXISTS task_dependencies_task_id_idx ON task_dependencies(task_id);
     CREATE INDEX IF NOT EXISTS task_dependencies_blocked_by_id_idx ON task_dependencies(blocked_by_id);
+
+    -- =========================================
+    -- A/B Testing Tables
+    -- =========================================
+
+    CREATE TABLE IF NOT EXISTS experiments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL UNIQUE,
+      description TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'draft',
+      traffic_allocation INTEGER NOT NULL DEFAULT 10,
+      start_date TIMESTAMP,
+      end_date TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS experiment_variants (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      experiment_id UUID NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
+      name VARCHAR(100) NOT NULL,
+      weight INTEGER NOT NULL DEFAULT 50,
+      config JSONB NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      CONSTRAINT experiment_variants_experiment_name_unique UNIQUE(experiment_id, name)
+    );
+
+    CREATE TABLE IF NOT EXISTS variant_assignments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      experiment_id UUID NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
+      variant_id UUID NOT NULL REFERENCES experiment_variants(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      execution_id UUID REFERENCES executions(id) ON DELETE SET NULL,
+      assigned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      CONSTRAINT variant_assignments_experiment_task_unique UNIQUE(experiment_id, task_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS experiment_metrics (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      variant_assignment_id UUID NOT NULL REFERENCES variant_assignments(id) ON DELETE CASCADE,
+      metric_name VARCHAR(100) NOT NULL,
+      metric_value INTEGER NOT NULL,
+      metadata JSONB,
+      recorded_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_experiment_variants_experiment_id ON experiment_variants(experiment_id);
+    CREATE INDEX IF NOT EXISTS idx_variant_assignments_experiment_id ON variant_assignments(experiment_id);
+    CREATE INDEX IF NOT EXISTS idx_variant_assignments_variant_id ON variant_assignments(variant_id);
+    CREATE INDEX IF NOT EXISTS idx_variant_assignments_task_id ON variant_assignments(task_id);
+    CREATE INDEX IF NOT EXISTS idx_experiment_metrics_assignment_id ON experiment_metrics(variant_assignment_id);
 
     -- =========================================
     -- Domain Events (DDD Architecture)

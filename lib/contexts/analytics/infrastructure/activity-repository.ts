@@ -7,7 +7,8 @@
 import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
 import { activityEvents, activitySummaries } from "@/lib/db/schema";
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { DomainEventTypes } from "@/lib/contexts/domain-events/event-taxonomy";
 import type {
   ActivityEvent,
   ActivityFilter,
@@ -23,6 +24,10 @@ import { getTimeRange } from "../domain/types";
  */
 export class ActivityRepository {
   constructor(private redis: Redis) {}
+
+  private matchesEventType(eventType: string, expected: string[]): boolean {
+    return expected.includes(eventType);
+  }
 
   /**
    * Record a new activity event
@@ -176,26 +181,45 @@ export class ActivityRepository {
     });
 
     // Count tasks completed/failed
-    const tasksCompleted = activities.filter(
-      (a) => a.eventType === "ExecutionCompleted",
+    const tasksCompleted = activities.filter((a) =>
+      this.matchesEventType(a.eventType, [
+        DomainEventTypes.execution.completed,
+        "ExecutionCompleted",
+      ]),
     ).length;
-    const tasksFailed = activities.filter(
-      (a) => a.eventType === "ExecutionFailed",
+    const tasksFailed = activities.filter((a) =>
+      this.matchesEventType(a.eventType, [
+        DomainEventTypes.execution.failed,
+        "ExecutionFailed",
+      ]),
     ).length;
 
     // Count commits
-    const commits = activities.filter(
-      (a) => a.eventType === "CommitCreated",
+    const commits = activities.filter((a) =>
+      this.matchesEventType(a.eventType, [
+        DomainEventTypes.execution.commitCreated,
+        "CommitCreated",
+      ]),
     ).length;
 
     // Count files changed (sum from commit metadata)
     const filesChanged = activities
-      .filter((a) => a.eventType === "CommitCreated")
+      .filter((a) =>
+        this.matchesEventType(a.eventType, [
+          DomainEventTypes.execution.commitCreated,
+          "CommitCreated",
+        ]),
+      )
       .reduce((sum, a) => sum + ((a.metadata?.filesChanged as number) || 0), 0);
 
     // Count tokens used (sum from usage metadata)
     const tokensUsed = activities
-      .filter((a) => a.eventType === "UsageRecorded")
+      .filter((a) =>
+        this.matchesEventType(a.eventType, [
+          DomainEventTypes.billing.usageRecorded,
+          "UsageRecorded",
+        ]),
+      )
       .reduce((sum, a) => sum + ((a.metadata?.tokensUsed as number) || 0), 0);
 
     // Generate summary text

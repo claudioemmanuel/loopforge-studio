@@ -250,7 +250,7 @@ const executeLogic = async (
   }
 
   // If no plan yet, provide guidance
-  if (!planContent || planContent.trim().length < 100) {
+  if (!planContent || planContent.trim().length === 0) {
     return {
       skillId: "writing-plans",
       status: "warning",

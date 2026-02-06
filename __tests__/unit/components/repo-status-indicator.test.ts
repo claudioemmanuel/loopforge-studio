@@ -2,8 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
+import { readSourceFile } from "../../helpers/source-file";
 
 /**
  * Tests for Repository Status Indicator components
@@ -15,74 +14,87 @@ describe("Repository Status Indicator", () => {
   let statusIndicatorContent: string;
 
   beforeEach(() => {
-    const filePath = path.resolve(
+    statusIndicatorContent = readSourceFile(
       __dirname,
-      "../components/repo-status-indicator.tsx",
+      "components/repo-status-indicator.tsx",
     );
-    statusIndicatorContent = fs.readFileSync(filePath, "utf-8");
   });
 
   describe("getStatusConfig function", () => {
     it("should return 'Not Cloned' config when isCloned is false", () => {
       // Verify the function handles not cloned state
       expect(statusIndicatorContent).toContain("if (!isCloned)");
-      expect(statusIndicatorContent).toContain('label: "Not Cloned"');
+      expect(statusIndicatorContent).toContain(
+        'label: t("repositories.status.notCloned")',
+      );
       expect(statusIndicatorContent).toContain("text-red-500");
       expect(statusIndicatorContent).toContain("bg-red-500/10");
       expect(statusIndicatorContent).toContain(
-        "Repository needs to be cloned locally before execution",
+        'description: t("repositories.status.notClonedMessage")',
       );
     });
 
     it("should return 'Ready' config when cloned and indexed", () => {
       // Verify indexed state configuration
       expect(statusIndicatorContent).toContain('case "indexed":');
-      expect(statusIndicatorContent).toContain('label: "Ready"');
+      expect(statusIndicatorContent).toContain(
+        'label: t("repositories.status.ready")',
+      );
       expect(statusIndicatorContent).toContain("text-green-500");
       expect(statusIndicatorContent).toContain("bg-green-500/10");
       expect(statusIndicatorContent).toContain(
-        "Repository is cloned and indexed - ready for execution",
+        'description: t("repositories.status.readyMessage")',
       );
     });
 
     it("should return 'Indexing' config when cloned and indexing", () => {
       // Verify indexing state configuration
       expect(statusIndicatorContent).toContain('case "indexing":');
-      expect(statusIndicatorContent).toContain('label: "Indexing"');
+      expect(statusIndicatorContent).toContain(
+        'label: t("repositories.status.indexing")',
+      );
       expect(statusIndicatorContent).toContain("text-yellow-500");
       expect(statusIndicatorContent).toContain("bg-yellow-500/10");
       expect(statusIndicatorContent).toContain(
-        "Repository is being indexed...",
+        'description: t("repositories.status.indexingMessage")',
       );
     });
 
     it("should return 'Pending' config when cloned and pending", () => {
       // Verify pending state configuration
       expect(statusIndicatorContent).toContain('case "pending":');
-      expect(statusIndicatorContent).toContain('label: "Pending"');
+      expect(statusIndicatorContent).toContain(
+        'label: t("repositories.status.pending")',
+      );
       expect(statusIndicatorContent).toContain("text-orange-500");
       expect(statusIndicatorContent).toContain("bg-orange-500/10");
       expect(statusIndicatorContent).toContain(
-        "Repository is cloned but not yet indexed",
+        'description: t("repositories.status.pendingMessage")',
       );
     });
 
     it("should return 'Index Failed' config when cloned and failed", () => {
       // Verify failed state configuration
       expect(statusIndicatorContent).toContain('case "failed":');
-      expect(statusIndicatorContent).toContain('label: "Index Failed"');
       expect(statusIndicatorContent).toContain(
-        "Repository indexing failed - execution will proceed without index context",
+        'label: t("repositories.status.failed")',
+      );
+      expect(statusIndicatorContent).toContain(
+        'description: t("repositories.status.failedMessage")',
       );
     });
 
     it("should return 'Unknown' config for unknown indexing status", () => {
       // Verify default/unknown state configuration
       expect(statusIndicatorContent).toContain("default:");
-      expect(statusIndicatorContent).toContain('label: "Unknown"');
+      expect(statusIndicatorContent).toContain(
+        'label: t("repositories.status.unknown")',
+      );
       expect(statusIndicatorContent).toContain("text-gray-500");
       expect(statusIndicatorContent).toContain("bg-gray-500/10");
-      expect(statusIndicatorContent).toContain("Unknown repository status");
+      expect(statusIndicatorContent).toContain(
+        'description: t("repositories.status.unknownMessage")',
+      );
     });
 
     it("should use correct icons for each status", () => {

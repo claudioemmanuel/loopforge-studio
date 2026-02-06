@@ -2,8 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
+import { readSourceFile } from "../../helpers/source-file";
 
 /**
  * Tests for Repository Setup Modal component
@@ -15,11 +14,10 @@ describe("RepoSetupModal", () => {
   let modalContent: string;
 
   beforeEach(() => {
-    const filePath = path.resolve(
+    modalContent = readSourceFile(
       __dirname,
-      "../components/modals/repo-setup-modal.tsx",
+      "components/modals/repo-setup-modal.tsx",
     );
-    modalContent = fs.readFileSync(filePath, "utf-8");
   });
 
   describe("Initial render", () => {

@@ -4,8 +4,11 @@
  * Orchestrates usage tracking and subscription management.
  */
 
-import type { PlanLimits } from "@/lib/db/schema";
-import type { BillingUsageSummary, PlanTier } from "../domain/types";
+import type {
+  BillingUsageSummary,
+  PlanLimits,
+  PlanTier,
+} from "../domain/types";
 import { calculateTokenCost, getPlanConfig } from "../domain/types";
 import { SubscriptionRepository } from "../infrastructure/subscription-repository";
 import { UsageRepository } from "../infrastructure/usage-repository";

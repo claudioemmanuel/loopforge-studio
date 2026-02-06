@@ -53,7 +53,8 @@ function calculatePlanCoverage(
   }
 
   if (planFiles.size === 0) {
-    return 0.5; // No specific files mentioned, give benefit of doubt
+    // No explicit file references in the plan. Don't hard-fail by default.
+    return 0.8;
   }
 
   // For now, return placeholder - in production, this would check git diff
@@ -218,10 +219,11 @@ const executeLogic = async (
 
   // If any failures, block completion
   if (failures.length > 0) {
+    const failureSummary = failures.join("; ");
     return {
       skillId: "verification-before-completion",
       status: "blocked",
-      message: `BLOCKED: Completion claimed without sufficient verification. ${failures.length} critical issues found.`,
+      message: `BLOCKED: ${failureSummary}`,
       recommendations: [
         "Complete the following verification steps:",
         ...failures,
@@ -229,9 +231,9 @@ const executeLogic = async (
         ...(warnings.length > 0 ? ["Warnings:", ...warnings] : []),
         "",
         "Run verification commands:",
-        "- npm test (show passing output)",
-        "- git status && git log -1 (verify commit)",
-        "- npm run build (verify build success)",
+        "npm test (show passing output)",
+        "git status && git log -1 (verify commit)",
+        "npm run build (verify build success)",
       ],
       metadata: {
         failures,

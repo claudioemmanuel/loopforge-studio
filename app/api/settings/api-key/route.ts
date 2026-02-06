@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
-import type { AiProvider } from "@/lib/db/schema";
-import { getUserService } from "@/lib/contexts/iam/api";
+import { getUserService, type AiProvider } from "@/lib/contexts/iam/api";
 
 // POST: Set or update an API key for a provider
 export const POST = withAuth(async (request, { user }) => {

@@ -134,15 +134,27 @@ export function isLimitExceeded(current: number, limit: number): boolean {
 }
 
 export function getMonthlyBillingPeriod(reference = new Date()): BillingPeriod {
-  const start = new Date(reference.getFullYear(), reference.getMonth(), 1);
+  const start = new Date(
+    Date.UTC(
+      reference.getUTCFullYear(),
+      reference.getUTCMonth(),
+      1,
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
   const end = new Date(
-    reference.getFullYear(),
-    reference.getMonth() + 1,
-    0,
-    23,
-    59,
-    59,
-    999,
+    Date.UTC(
+      reference.getUTCFullYear(),
+      reference.getUTCMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    ),
   );
 
   return { start, end };

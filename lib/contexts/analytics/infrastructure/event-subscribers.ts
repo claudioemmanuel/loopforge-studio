@@ -11,6 +11,11 @@ import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
 import { activityEvents } from "@/lib/db/schema";
 import type { ActivityCategory } from "../domain/types";
+import {
+  DomainEventPatterns,
+  DomainEventTypes,
+  toCanonicalEventType,
+} from "@/lib/contexts/domain-events/event-taxonomy";
 
 /**
  * Analytics event subscriber
@@ -32,12 +37,12 @@ export class AnalyticsEventSubscriber {
   async start(): Promise<void> {
     // Subscribe to specific event patterns to avoid wildcard issues
     const eventPatterns = [
-      "Task.*",
-      "Execution.*",
-      "Repository.*",
-      "User.*",
-      "Subscription.*",
-      "Usage.*",
+      DomainEventPatterns.task,
+      DomainEventPatterns.execution,
+      DomainEventPatterns.repository,
+      DomainEventPatterns.user,
+      DomainEventPatterns.subscription,
+      DomainEventPatterns.usage,
     ];
 
     for (const pattern of eventPatterns) {
@@ -55,12 +60,12 @@ export class AnalyticsEventSubscriber {
    */
   async stop(): Promise<void> {
     const eventPatterns = [
-      "Task.*",
-      "Execution.*",
-      "Repository.*",
-      "User.*",
-      "Subscription.*",
-      "Usage.*",
+      DomainEventPatterns.task,
+      DomainEventPatterns.execution,
+      DomainEventPatterns.repository,
+      DomainEventPatterns.user,
+      DomainEventPatterns.subscription,
+      DomainEventPatterns.usage,
     ];
 
     for (const pattern of eventPatterns) {
@@ -73,16 +78,29 @@ export class AnalyticsEventSubscriber {
    */
   private async handleDomainEvent(event: DomainEvent): Promise<void> {
     try {
+      // Idempotency check: Skip if already processed (24h TTL)
+      const inboxKey = `domain-events:inbox:analytics:${event.id}`;
+      const alreadyProcessed = await this.redis.get(inboxKey);
+      if (alreadyProcessed) {
+        return; // Skip duplicate event delivery
+      }
+
+      const canonicalEventType = toCanonicalEventType(event.eventType);
+      const normalizedEvent: DomainEvent = {
+        ...event,
+        eventType: canonicalEventType,
+      };
+
       // Skip analytics events to avoid loops
       if (
-        event.aggregateType === "Activity" ||
-        event.aggregateType === "Summary"
+        normalizedEvent.aggregateType === "Activity" ||
+        normalizedEvent.aggregateType === "Summary"
       ) {
         return;
       }
 
       // Map domain event to activity
-      const activity = this.mapEventToActivity(event);
+      const activity = this.mapEventToActivity(normalizedEvent);
       if (!activity) {
         return;
       }
@@ -93,13 +111,16 @@ export class AnalyticsEventSubscriber {
         taskId: activity.taskId || null,
         repoId: activity.repoId || null,
         executionId: activity.executionId || null,
-        eventType: event.eventType,
+        eventType: normalizedEvent.eventType,
         eventCategory: activity.category as "ai_action" | "git" | "system",
         title: activity.title,
         content: activity.content || null,
         metadata: activity.metadata || null,
-        createdAt: event.occurredAt,
+        createdAt: normalizedEvent.occurredAt,
       });
+
+      // Mark as processed (24h TTL)
+      await this.redis.setex(inboxKey, 86400, "1");
     } catch (error) {
       console.error("Failed to handle domain event:", error);
     }
@@ -191,18 +212,18 @@ export class AnalyticsEventSubscriber {
    */
   private getTaskEventTitle(eventType: string): string {
     const titles: Record<string, string> = {
-      TaskCreated: "Task created",
-      TaskStatusChanged: "Task status changed",
-      BrainstormingStarted: "Brainstorming started",
-      BrainstormingCompleted: "Brainstorming completed",
-      PlanningStarted: "Planning started",
-      PlanningCompleted: "Planning completed",
-      ExecutionStarted: "Execution started",
-      ExecutionCompleted: "Execution completed",
-      ExecutionFailed: "Execution failed",
-      TaskStuck: "Task stuck",
-      TaskUnblocked: "Task unblocked",
-      DependencyAdded: "Dependency added",
+      [DomainEventTypes.task.created]: "Task created",
+      [DomainEventTypes.task.statusChanged]: "Task status changed",
+      [DomainEventTypes.task.brainstormingStarted]: "Brainstorming started",
+      [DomainEventTypes.task.brainstormingCompleted]: "Brainstorming completed",
+      [DomainEventTypes.task.planningStarted]: "Planning started",
+      [DomainEventTypes.task.planningCompleted]: "Planning completed",
+      [DomainEventTypes.task.executionStarted]: "Execution started",
+      [DomainEventTypes.task.executionCompleted]: "Execution completed",
+      [DomainEventTypes.task.executionFailed]: "Execution failed",
+      [DomainEventTypes.task.stuck]: "Task stuck",
+      [DomainEventTypes.task.unblocked]: "Task unblocked",
+      [DomainEventTypes.task.dependencyAdded]: "Dependency added",
     };
     return titles[eventType] || eventType;
   }
@@ -214,11 +235,11 @@ export class AnalyticsEventSubscriber {
     const data = event.data as Record<string, unknown>;
 
     switch (event.eventType) {
-      case "TaskCreated":
+      case DomainEventTypes.task.created:
         return `Created task: ${data.title || "Untitled"}`;
-      case "TaskStatusChanged":
+      case DomainEventTypes.task.statusChanged:
         return `Status: ${data.fromStatus} → ${data.toStatus}`;
-      case "ExecutionCompleted":
+      case DomainEventTypes.task.executionCompleted:
         return `Completed with ${data.commitCount || 0} commits`;
       default:
         return undefined;
@@ -230,19 +251,19 @@ export class AnalyticsEventSubscriber {
    */
   private getExecutionEventTitle(eventType: string): string {
     const titles: Record<string, string> = {
-      ExecutionStarted: "AI execution started",
-      IterationCompleted: "Iteration completed",
-      FilesExtracted: "Files extracted",
-      CommitCreated: "Commit created",
-      StuckSignalDetected: "Stuck signal detected",
-      RecoveryStarted: "Recovery started",
-      RecoverySucceeded: "Recovery succeeded",
-      RecoveryFailed: "Recovery failed",
-      CompletionValidated: "Completion validated",
-      ExecutionCompleted: "Execution completed",
-      ExecutionFailed: "Execution failed",
-      SkillInvoked: "Skill invoked",
-      SkillBlocked: "Skill blocked",
+      [DomainEventTypes.execution.started]: "AI execution started",
+      [DomainEventTypes.execution.iterationCompleted]: "Iteration completed",
+      [DomainEventTypes.execution.filesExtracted]: "Files extracted",
+      [DomainEventTypes.execution.commitCreated]: "Commit created",
+      [DomainEventTypes.execution.stuckSignalDetected]: "Stuck signal detected",
+      [DomainEventTypes.execution.recoveryStarted]: "Recovery started",
+      [DomainEventTypes.execution.recoverySucceeded]: "Recovery succeeded",
+      [DomainEventTypes.execution.recoveryFailed]: "Recovery failed",
+      [DomainEventTypes.execution.completionValidated]: "Completion validated",
+      [DomainEventTypes.execution.completed]: "Execution completed",
+      [DomainEventTypes.execution.failed]: "Execution failed",
+      [DomainEventTypes.execution.skillInvoked]: "Skill invoked",
+      [DomainEventTypes.execution.skillBlocked]: "Skill blocked",
     };
     return titles[eventType] || eventType;
   }
@@ -254,11 +275,11 @@ export class AnalyticsEventSubscriber {
     const data = event.data as Record<string, unknown>;
 
     switch (event.eventType) {
-      case "IterationCompleted":
+      case DomainEventTypes.execution.iterationCompleted:
         return `Iteration ${data.iteration}: ${data.actionCount} actions`;
-      case "CommitCreated":
+      case DomainEventTypes.execution.commitCreated:
         return `Commit ${data.commitHash}: ${data.filesChanged} files`;
-      case "RecoveryStarted":
+      case DomainEventTypes.execution.recoveryStarted:
         return `Recovery tier ${data.tier}: ${data.strategy}`;
       default:
         return undefined;
@@ -270,12 +291,12 @@ export class AnalyticsEventSubscriber {
    */
   private getRepositoryEventTitle(eventType: string): string {
     const titles: Record<string, string> = {
-      RepositoryConnected: "Repository connected",
-      CloneStarted: "Clone started",
-      CloneCompleted: "Clone completed",
-      CloneFailed: "Clone failed",
-      IndexingStarted: "Indexing started",
-      IndexingCompleted: "Indexing completed",
+      [DomainEventTypes.repository.connected]: "Repository connected",
+      [DomainEventTypes.repository.cloneStarted]: "Clone started",
+      [DomainEventTypes.repository.cloneCompleted]: "Clone completed",
+      [DomainEventTypes.repository.cloneFailed]: "Clone failed",
+      [DomainEventTypes.repository.indexingStarted]: "Indexing started",
+      [DomainEventTypes.repository.indexingCompleted]: "Indexing completed",
     };
     return titles[eventType] || eventType;
   }
@@ -287,9 +308,9 @@ export class AnalyticsEventSubscriber {
     const data = event.data as Record<string, unknown>;
 
     switch (event.eventType) {
-      case "RepositoryConnected":
+      case DomainEventTypes.repository.connected:
         return `Connected: ${data.repoName}`;
-      case "IndexingCompleted":
+      case DomainEventTypes.repository.indexingCompleted:
         return `Indexed ${data.fileCount || 0} files`;
       default:
         return undefined;
@@ -301,11 +322,11 @@ export class AnalyticsEventSubscriber {
    */
   private getIAMEventTitle(eventType: string): string {
     const titles: Record<string, string> = {
-      UserRegistered: "User registered",
-      ProviderConfigured: "Provider configured",
-      ProviderRemoved: "Provider removed",
-      UserPreferencesUpdated: "Preferences updated",
-      OnboardingCompleted: "Onboarding completed",
+      [DomainEventTypes.user.registered]: "User registered",
+      [DomainEventTypes.user.providerConfigured]: "Provider configured",
+      [DomainEventTypes.user.providerRemoved]: "Provider removed",
+      [DomainEventTypes.user.preferencesUpdated]: "Preferences updated",
+      [DomainEventTypes.user.onboardingCompleted]: "Onboarding completed",
     };
     return titles[eventType] || eventType;
   }
@@ -317,9 +338,9 @@ export class AnalyticsEventSubscriber {
     const data = event.data as Record<string, unknown>;
 
     switch (event.eventType) {
-      case "ProviderConfigured":
+      case DomainEventTypes.user.providerConfigured:
         return `Configured ${data.provider} provider`;
-      case "UserPreferencesUpdated":
+      case DomainEventTypes.user.preferencesUpdated:
         return `Updated preferences`;
       default:
         return undefined;
@@ -331,13 +352,14 @@ export class AnalyticsEventSubscriber {
    */
   private getBillingEventTitle(eventType: string): string {
     const titles: Record<string, string> = {
-      SubscriptionCreated: "Subscription created",
-      SubscriptionUpgraded: "Subscription upgraded",
-      SubscriptionDowngraded: "Subscription downgraded",
-      SubscriptionCanceled: "Subscription canceled",
-      UsageRecorded: "Usage recorded",
-      LimitExceeded: "Limit exceeded",
-      BillingPeriodEnded: "Billing period ended",
+      [DomainEventTypes.billing.subscriptionCreated]: "Subscription created",
+      [DomainEventTypes.billing.subscriptionUpgraded]: "Subscription upgraded",
+      [DomainEventTypes.billing.subscriptionDowngraded]:
+        "Subscription downgraded",
+      [DomainEventTypes.billing.subscriptionCanceled]: "Subscription canceled",
+      [DomainEventTypes.billing.usageRecorded]: "Usage recorded",
+      [DomainEventTypes.billing.limitExceeded]: "Limit exceeded",
+      [DomainEventTypes.billing.billingPeriodEnded]: "Billing period ended",
     };
     return titles[eventType] || eventType;
   }
@@ -349,11 +371,11 @@ export class AnalyticsEventSubscriber {
     const data = event.data as Record<string, unknown>;
 
     switch (event.eventType) {
-      case "SubscriptionUpgraded":
+      case DomainEventTypes.billing.subscriptionUpgraded:
         return `Upgraded: ${data.fromTier} → ${data.toTier}`;
-      case "UsageRecorded":
+      case DomainEventTypes.billing.usageRecorded:
         return `Used ${data.tokensUsed} tokens`;
-      case "LimitExceeded":
+      case DomainEventTypes.billing.limitExceeded:
         return `Limit exceeded: ${data.limitType}`;
       default:
         return undefined;

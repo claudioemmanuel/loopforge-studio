@@ -1,9 +1,9 @@
 import { auth } from "@/lib/auth";
-import type { ProcessingPhase } from "@/lib/db/schema";
 import { connectionOptions } from "@/lib/queue/connection";
 import Redis from "ioredis";
 import { apiLogger } from "@/lib/logger";
 import { getTaskService } from "@/lib/contexts/task/api";
+import { type ProcessingPhase } from "@/lib/contexts/execution/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

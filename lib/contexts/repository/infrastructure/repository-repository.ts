@@ -6,7 +6,7 @@
  */
 
 import { db } from "@/lib/db";
-import { repos } from "@/lib/db/schema/tables";
+import { repos, repoIndex, tasks } from "@/lib/db/schema/tables";
 import { eq, and } from "drizzle-orm";
 import type { Redis } from "ioredis";
 import {
@@ -309,6 +309,92 @@ export class RepositoryRepository {
    */
   async deleteByUser(userId: string): Promise<void> {
     await db.delete(repos).where(eq(repos.userId, userId));
+  }
+
+  /**
+   * List tasks for a repository.
+   */
+  async listTasksByRepoId(repoId: string) {
+    return db.query.tasks.findMany({
+      where: eq(tasks.repoId, repoId),
+    });
+  }
+
+  /**
+   * Read repo index metadata.
+   */
+  async findRepoIndexByRepoId(repoId: string) {
+    return db.query.repoIndex.findFirst({
+      where: eq(repoIndex.repoId, repoId),
+    });
+  }
+
+  /**
+   * Read repository with index relation under owner check.
+   */
+  async findRepositoryWithIndexByOwner(repoId: string, userId: string) {
+    return db.query.repos.findFirst({
+      where: and(eq(repos.id, repoId), eq(repos.userId, userId)),
+      with: {
+        index: true,
+      },
+    });
+  }
+
+  /**
+   * Mark existing local clone as verified.
+   */
+  async markRepositoryCloneVerified(
+    repoId: string,
+    fields: {
+      localPath: string;
+      clonePath: string;
+      isCloned: true;
+      cloneStatus: "completed";
+      clonedAt: Date;
+      cloneCompletedAt: Date;
+      indexingStatus: "pending";
+      updatedAt: Date;
+    },
+  ): Promise<void> {
+    await db.update(repos).set(fields).where(eq(repos.id, repoId));
+  }
+
+  async markCloneStarted(
+    repoId: string,
+    fields: {
+      cloneStatus: "cloning";
+      cloneStartedAt: Date;
+      updatedAt: Date;
+    },
+  ): Promise<void> {
+    await db.update(repos).set(fields).where(eq(repos.id, repoId));
+  }
+
+  async markCloneCompleted(
+    repoId: string,
+    fields: {
+      localPath: string;
+      isCloned: true;
+      clonedAt: Date;
+      cloneStatus: "completed";
+      clonePath: string;
+      cloneCompletedAt: Date;
+      indexingStatus: "pending";
+      updatedAt: Date;
+    },
+  ): Promise<void> {
+    await db.update(repos).set(fields).where(eq(repos.id, repoId));
+  }
+
+  async markCloneFailed(
+    repoId: string,
+    fields: {
+      cloneStatus: "failed";
+      updatedAt: Date;
+    },
+  ): Promise<void> {
+    await db.update(repos).set(fields).where(eq(repos.id, repoId));
   }
 
   /**

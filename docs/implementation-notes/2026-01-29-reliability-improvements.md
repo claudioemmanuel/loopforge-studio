@@ -56,7 +56,7 @@ This implementation strengthens Ralph Loop autonomous execution with 5 critical 
    - `__tests__/ralph/reliability-suite.test.ts` - Not created
 
 3. **Documentation** (Task #14)
-   - Update CLAUDE.MD with reliability patterns
+   - Update public project docs with reliability patterns
    - Add troubleshooting guide
    - Document recovery strategies
    - Update prompt engineering examples
@@ -395,7 +395,7 @@ All new features have legacy fallbacks:
 - [ ] Test with feature flags OFF (verify no regressions)
 - [ ] Test with feature flags ON (verify new behavior)
 - [ ] Performance check (ensure <5% slowdown)
-- [ ] Update CLAUDE.MD documentation
+- [ ] Update public project documentation
 
 ### Post-Deployment Monitoring
 
@@ -411,7 +411,7 @@ All new features have legacy fallbacks:
 
 1. Write unit tests for all modules (Task #11)
 2. Write integration tests (Task #12)
-3. Update CLAUDE.MD documentation (Task #14)
+3. Update public project documentation (Task #14)
 
 ### Short-term (Before Production)
 
@@ -487,8 +487,8 @@ ENABLE_STUCK_DETECTOR=true npm run worker
 
 ### Related Documentation
 
-- CLAUDE.MD - Project context and architecture
-- PROMPT-ENGINEERING.md - KERNEL framework (in .gitignore, referenced in CLAUDE.MD)
+- README.md / docs/architecture - Project context and architecture
+- PROMPT-ENGINEERING.md - KERNEL framework (in .gitignore; reference in public docs as needed)
 
 ---
 

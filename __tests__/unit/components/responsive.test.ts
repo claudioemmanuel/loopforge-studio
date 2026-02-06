@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { cn } from "@/lib/utils";
-import * as fs from "fs";
-import * as path from "path";
+import { readSourceFile } from "../../helpers/source-file";
 
 /**
  * Tests for responsive design implementation
@@ -13,8 +12,7 @@ describe("Responsive Design", () => {
     let globalsCss: string;
 
     beforeEach(() => {
-      const cssPath = path.resolve(__dirname, "../app/globals.css");
-      globalsCss = fs.readFileSync(cssPath, "utf-8");
+      globalsCss = readSourceFile(__dirname, "app/globals.css");
     });
 
     it("should have scrollbar-hide utility class", () => {
@@ -31,7 +29,8 @@ describe("Responsive Design", () => {
 
   describe("Sidebar Context Pattern", () => {
     it("should export correct functions from sidebar context", async () => {
-      const sidebarModule = await import("@/components/sidebar/sidebar-context");
+      const sidebarModule =
+        await import("@/components/sidebar/sidebar-context");
       expect(sidebarModule.SidebarProvider).toBeDefined();
       expect(sidebarModule.useSidebar).toBeDefined();
     });
@@ -41,8 +40,10 @@ describe("Responsive Design", () => {
     let mobileHeaderContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/sidebar/mobile-header.tsx");
-      mobileHeaderContent = fs.readFileSync(filePath, "utf-8");
+      mobileHeaderContent = readSourceFile(
+        __dirname,
+        "components/sidebar/mobile-header.tsx",
+      );
     });
 
     it("should have md:hidden class to hide on desktop", () => {
@@ -67,13 +68,17 @@ describe("Responsive Design", () => {
     let mobileSidebarContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/sidebar/mobile-sidebar.tsx");
-      mobileSidebarContent = fs.readFileSync(filePath, "utf-8");
+      mobileSidebarContent = readSourceFile(
+        __dirname,
+        "components/sidebar/mobile-sidebar.tsx",
+      );
     });
 
     it("should have md:hidden class on backdrop", () => {
       // Backdrop should only show on mobile
-      expect(mobileSidebarContent).toMatch(/className=\{cn\([^}]*"[^"]*md:hidden[^"]*"/);
+      expect(mobileSidebarContent).toMatch(
+        /className=\{cn\([^}]*"[^"]*md:hidden[^"]*"/,
+      );
     });
 
     it("should have md:hidden class on sidebar aside", () => {
@@ -108,8 +113,10 @@ describe("Responsive Design", () => {
     let layoutContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/layout/dashboard-layout-client.tsx");
-      layoutContent = fs.readFileSync(filePath, "utf-8");
+      layoutContent = readSourceFile(
+        __dirname,
+        "components/layout/dashboard-layout-client.tsx",
+      );
     });
 
     it("should hide desktop sidebar on mobile with hidden md:block", () => {
@@ -138,8 +145,10 @@ describe("Responsive Design", () => {
     let kanbanColumnContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/kanban/kanban-column.tsx");
-      kanbanColumnContent = fs.readFileSync(filePath, "utf-8");
+      kanbanColumnContent = readSourceFile(
+        __dirname,
+        "components/kanban/kanban-column.tsx",
+      );
     });
 
     it("should have fixed width for horizontal scrolling (not w-full)", () => {
@@ -161,8 +170,10 @@ describe("Responsive Design", () => {
     let kanbanCardContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/kanban/kanban-card.tsx");
-      kanbanCardContent = fs.readFileSync(filePath, "utf-8");
+      kanbanCardContent = readSourceFile(
+        __dirname,
+        "components/kanban/kanban-card.tsx",
+      );
     });
 
     it("should have touch-friendly drag handle (visible on mobile)", () => {
@@ -172,12 +183,16 @@ describe("Responsive Design", () => {
     });
 
     it("should have touch-friendly dropdown trigger", () => {
-      expect(kanbanCardContent).toMatch(/sm:opacity-0.*sm:group-hover:opacity-100/s);
+      expect(kanbanCardContent).toMatch(
+        /sm:opacity-0.*sm:group-hover:opacity-100/s,
+      );
     });
 
     it("should have touch-friendly action buttons", () => {
       // Action buttons should be visible on mobile (sm:opacity-0 pattern)
-      const matches = kanbanCardContent.match(/sm:opacity-0 sm:group-hover:opacity-100/g);
+      const matches = kanbanCardContent.match(
+        /sm:opacity-0 sm:group-hover:opacity-100/g,
+      );
       expect(matches).not.toBeNull();
       expect(matches!.length).toBeGreaterThanOrEqual(3); // drag handle, dropdown, action buttons
     });
@@ -187,8 +202,10 @@ describe("Responsive Design", () => {
     let kanbanBoardContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/kanban/kanban-board.tsx");
-      kanbanBoardContent = fs.readFileSync(filePath, "utf-8");
+      kanbanBoardContent = readSourceFile(
+        __dirname,
+        "components/kanban/kanban-board.tsx",
+      );
     });
 
     it("should have horizontal scroll container", () => {
@@ -210,8 +227,10 @@ describe("Responsive Design", () => {
     let taskModalContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/modals/task-modal.tsx");
-      taskModalContent = fs.readFileSync(filePath, "utf-8");
+      taskModalContent = readSourceFile(
+        __dirname,
+        "components/modals/task-modal/task-actions.tsx",
+      );
     });
 
     it("should have responsive footer layout", () => {
@@ -229,8 +248,10 @@ describe("Responsive Design", () => {
     let newTaskModalContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/modals/new-task-modal.tsx");
-      newTaskModalContent = fs.readFileSync(filePath, "utf-8");
+      newTaskModalContent = readSourceFile(
+        __dirname,
+        "components/modals/new-task-modal.tsx",
+      );
     });
 
     it("should have responsive footer layout", () => {
@@ -247,8 +268,10 @@ describe("Responsive Design", () => {
     let errorDialogContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/ui/error-dialog.tsx");
-      errorDialogContent = fs.readFileSync(filePath, "utf-8");
+      errorDialogContent = readSourceFile(
+        __dirname,
+        "components/ui/error-dialog.tsx",
+      );
     });
 
     it("should have proper mobile viewport margins", () => {
@@ -260,8 +283,10 @@ describe("Responsive Design", () => {
     let confirmDialogContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/ui/confirm-dialog.tsx");
-      confirmDialogContent = fs.readFileSync(filePath, "utf-8");
+      confirmDialogContent = readSourceFile(
+        __dirname,
+        "components/ui/confirm-dialog.tsx",
+      );
     });
 
     it("should have proper mobile viewport margins", () => {
@@ -273,8 +298,10 @@ describe("Responsive Design", () => {
     let analyticsPageContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../app/(dashboard)/analytics/page.tsx");
-      analyticsPageContent = fs.readFileSync(filePath, "utf-8");
+      analyticsPageContent = readSourceFile(
+        __dirname,
+        "app/(dashboard)/analytics/analytics-page-client.tsx",
+      );
     });
 
     it("should have responsive padding", () => {
@@ -298,8 +325,10 @@ describe("Responsive Design", () => {
     let repoActivityTableContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../components/analytics/repo-activity-table.tsx");
-      repoActivityTableContent = fs.readFileSync(filePath, "utf-8");
+      repoActivityTableContent = readSourceFile(
+        __dirname,
+        "components/analytics/repo-activity-table.tsx",
+      );
     });
 
     it("should have mobile card layout", () => {
@@ -317,8 +346,10 @@ describe("Responsive Design", () => {
     let integrationsPageContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(__dirname, "../app/(dashboard)/settings/integrations/page.tsx");
-      integrationsPageContent = fs.readFileSync(filePath, "utf-8");
+      integrationsPageContent = readSourceFile(
+        __dirname,
+        "app/(dashboard)/settings/connections/integrations-page-client.tsx",
+      );
     });
 
     it("should have responsive provider selector layout", () => {
@@ -348,7 +379,7 @@ describe("Responsive Design", () => {
       const result = cn(
         "flex",
         isMobile ? "flex-col" : "flex-row",
-        "sm:flex-row"
+        "sm:flex-row",
       );
       expect(result).toContain("flex-col");
       expect(result).toContain("sm:flex-row");
@@ -369,20 +400,20 @@ describe("Responsive Design", () => {
     it("should use consistent breakpoints across components", () => {
       // Read all relevant component files and verify breakpoint usage
       const components = [
-        "../components/sidebar/mobile-header.tsx",
-        "../components/sidebar/mobile-sidebar.tsx",
-        "../components/layout/dashboard-layout-client.tsx",
-        "../components/kanban/kanban-column.tsx",
+        "components/sidebar/mobile-header.tsx",
+        "components/sidebar/mobile-sidebar.tsx",
+        "components/layout/dashboard-layout-client.tsx",
+        "components/kanban/kanban-column.tsx",
       ];
 
       for (const componentPath of components) {
-        const content = fs.readFileSync(
-          path.resolve(__dirname, componentPath),
-          "utf-8"
-        );
+        const content = readSourceFile(__dirname, componentPath);
 
         // All mobile/desktop transitions should use md: breakpoint (768px)
-        if (content.includes("md:hidden") || content.includes("hidden md:block")) {
+        if (
+          content.includes("md:hidden") ||
+          content.includes("hidden md:block")
+        ) {
           // Verify consistent use of md: for mobile/desktop transitions
           expect(content).toMatch(/md:(hidden|block)/);
         }

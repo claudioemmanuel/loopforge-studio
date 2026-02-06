@@ -34,6 +34,10 @@ export async function truncateAllTables() {
   const p = getTestPool();
   await p.query(`
     TRUNCATE
+      experiment_metrics,
+      variant_assignments,
+      experiment_variants,
+      experiments,
       domain_events,
       task_dependencies,
       activity_events,

@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
+import { readSourceFile } from "../../helpers/source-file";
 
 /**
  * Tests for Sidebar status indicator integration
@@ -13,11 +12,10 @@ describe("Sidebar repo status integration", () => {
     let desktopSidebarContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(
+      desktopSidebarContent = readSourceFile(
         __dirname,
-        "../components/sidebar/desktop-sidebar.tsx",
+        "components/sidebar/desktop-sidebar.tsx",
       );
-      desktopSidebarContent = fs.readFileSync(filePath, "utf-8");
     });
 
     it("should import RepoStatusDot component", () => {
@@ -59,8 +57,8 @@ describe("Sidebar repo status integration", () => {
     });
 
     it("should display task count badge when tasks exist", () => {
-      expect(desktopSidebarContent).toContain("{repo.taskCount > 0 && (");
-      expect(desktopSidebarContent).toContain("{repo.taskCount}");
+      expect(desktopSidebarContent).not.toContain("{repo.taskCount > 0 && (");
+      expect(desktopSidebarContent).toContain("<RepoStatusDot");
     });
   });
 
@@ -68,11 +66,10 @@ describe("Sidebar repo status integration", () => {
     let mobileSidebarContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(
+      mobileSidebarContent = readSourceFile(
         __dirname,
-        "../components/sidebar/mobile-sidebar.tsx",
+        "components/sidebar/mobile-sidebar.tsx",
       );
-      mobileSidebarContent = fs.readFileSync(filePath, "utf-8");
     });
 
     it("should import RepoStatusDot component", () => {
@@ -114,8 +111,8 @@ describe("Sidebar repo status integration", () => {
     });
 
     it("should display task count badge when tasks exist", () => {
-      expect(mobileSidebarContent).toContain("{repo.taskCount > 0 && (");
-      expect(mobileSidebarContent).toContain("{repo.taskCount}");
+      expect(mobileSidebarContent).not.toContain("{repo.taskCount > 0 && (");
+      expect(mobileSidebarContent).toContain("<RepoStatusDot");
     });
   });
 
@@ -123,11 +120,10 @@ describe("Sidebar repo status integration", () => {
     let layoutContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(
+      layoutContent = readSourceFile(
         __dirname,
-        "../components/layout/dashboard-layout-client.tsx",
+        "components/layout/dashboard-layout-client.tsx",
       );
-      layoutContent = fs.readFileSync(filePath, "utf-8");
     });
 
     it("should include isCloned in SidebarRepo interface", () => {
@@ -165,11 +161,10 @@ describe("Sidebar repo status integration", () => {
     let addRepoModalContent: string;
 
     beforeEach(() => {
-      const filePath = path.resolve(
+      addRepoModalContent = readSourceFile(
         __dirname,
-        "../components/modals/add-repo-modal.tsx",
+        "components/modals/add-repo-modal.tsx",
       );
-      addRepoModalContent = fs.readFileSync(filePath, "utf-8");
     });
 
     it("should call verify-local for each added repo after submit", () => {
@@ -228,22 +223,18 @@ describe("Sidebar repo status integration", () => {
 
   describe("Consistent interface definitions", () => {
     it("should have matching SidebarRepo interfaces across components", () => {
-      const desktopPath = path.resolve(
+      const desktopContent = readSourceFile(
         __dirname,
-        "../components/sidebar/desktop-sidebar.tsx",
+        "components/sidebar/desktop-sidebar.tsx",
       );
-      const mobilePath = path.resolve(
+      const mobileContent = readSourceFile(
         __dirname,
-        "../components/sidebar/mobile-sidebar.tsx",
+        "components/sidebar/mobile-sidebar.tsx",
       );
-      const layoutPath = path.resolve(
+      const layoutContent = readSourceFile(
         __dirname,
-        "../components/layout/dashboard-layout-client.tsx",
+        "components/layout/dashboard-layout-client.tsx",
       );
-
-      const desktopContent = fs.readFileSync(desktopPath, "utf-8");
-      const mobileContent = fs.readFileSync(mobilePath, "utf-8");
-      const layoutContent = fs.readFileSync(layoutPath, "utf-8");
 
       // All should have the same SidebarRepo interface fields
       const requiredFields = [

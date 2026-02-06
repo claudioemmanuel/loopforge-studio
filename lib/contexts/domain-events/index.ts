@@ -7,3 +7,5 @@
 export * from "./types";
 export * from "./event-publisher";
 export * from "./event-subscriber";
+export * from "./event-taxonomy";
+export * from "./runtime";

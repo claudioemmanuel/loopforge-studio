@@ -50,6 +50,23 @@ export class UsageRepository {
   }
 
   /**
+   * Check if usage has already been recorded for an execution.
+   * Used for idempotency in event subscribers.
+   */
+  async hasUsageForExecution(executionId: string): Promise<boolean> {
+    if (!executionId) {
+      return false;
+    }
+
+    const existing = await db.query.usageRecords.findFirst({
+      where: eq(usageRecords.executionId, executionId),
+      columns: { id: true },
+    });
+
+    return Boolean(existing);
+  }
+
+  /**
    * Find usage record by ID
    */
   async findById(id: string): Promise<UsageTrackingAggregate | null> {

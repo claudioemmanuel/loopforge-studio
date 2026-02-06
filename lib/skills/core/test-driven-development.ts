@@ -14,7 +14,23 @@ import type {
 } from "../types";
 import { existsSync } from "fs";
 import { join } from "path";
-import { Glob } from "glob";
+
+function isTestFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  const testPatterns = [
+    /\.test\.(ts|tsx|js|jsx)$/,
+    /\.spec\.(ts|tsx|js|jsx)$/,
+    /(^|\/)__tests__\//,
+    /(^|\/)test\//,
+    /(^|\/)tests\//,
+  ];
+
+  return testPatterns.some((pattern) => pattern.test(normalized));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /**
  * Detect if files contain production code changes
@@ -22,17 +38,7 @@ import { Glob } from "glob";
 async function hasProductionCodeChanges(
   modifiedFiles: string[],
 ): Promise<boolean> {
-  const testPatterns = [
-    /\.test\.(ts|tsx|js|jsx)$/,
-    /\.spec\.(ts|tsx|js|jsx)$/,
-    /__tests__\//,
-    /test\//,
-    /tests\//,
-  ];
-
-  return modifiedFiles.some(
-    (file) => !testPatterns.some((pattern) => pattern.test(file)),
-  );
+  return modifiedFiles.some((file) => !isTestFile(file));
 }
 
 /**
@@ -42,35 +48,57 @@ async function findCorrespondingTests(
   modifiedFiles: string[],
   workingDir: string,
 ): Promise<string[]> {
-  const testFiles: string[] = [];
+  const normalizedFiles = modifiedFiles.map((file) => file.replace(/\\/g, "/"));
+  const modifiedTestFiles = normalizedFiles.filter((file) => isTestFile(file));
+  const discoveredTests = new Set<string>(modifiedTestFiles);
 
-  for (const file of modifiedFiles) {
+  for (const file of normalizedFiles) {
     // Skip if already a test file
-    if (
-      file.includes(".test.") ||
-      file.includes(".spec.") ||
-      file.includes("__tests__")
-    ) {
+    if (isTestFile(file)) {
       continue;
     }
 
-    // Common test patterns
-    const patterns = [
-      file.replace(/\.(ts|tsx|js|jsx)$/, ".test.$1"),
-      file.replace(/\.(ts|tsx|js|jsx)$/, ".spec.$1"),
-      file.replace(/^(.*)\/([^/]+)$/, "$1/__tests__/$2"),
-      file.replace(/^(.*)\/([^/]+)$/, "__tests__/$1/$2"),
+    const extensionMatch = file.match(/\.(ts|tsx|js|jsx)$/);
+    if (!extensionMatch) {
+      continue;
+    }
+
+    const extension = extensionMatch[1];
+    const withoutExt = file.slice(0, -extension.length - 1);
+    const pathParts = withoutExt.split("/");
+    const baseName = pathParts[pathParts.length - 1];
+    const dir = pathParts.slice(0, -1).join("/");
+
+    // Common test path candidates
+    const candidates = [
+      `${withoutExt}.test.${extension}`,
+      `${withoutExt}.spec.${extension}`,
+      `${dir ? `${dir}/` : ""}__tests__/${baseName}.test.${extension}`,
+      `${dir ? `${dir}/` : ""}__tests__/${baseName}.spec.${extension}`,
+      `__tests__/${dir ? `${dir}/` : ""}${baseName}.test.${extension}`,
+      `__tests__/${dir ? `${dir}/` : ""}${baseName}.spec.${extension}`,
     ];
 
-    for (const pattern of patterns) {
-      const fullPath = join(workingDir, pattern);
+    for (const candidate of candidates) {
+      const normalizedCandidate = candidate.replace(/\/+/g, "/");
+      const fullPath = join(workingDir, normalizedCandidate);
       if (existsSync(fullPath)) {
-        testFiles.push(pattern);
+        discoveredTests.add(normalizedCandidate);
+      }
+    }
+
+    // If the test is already part of modified files, infer by base name.
+    const baseNamePattern = new RegExp(
+      `(^|/)${escapeRegExp(baseName)}\\.(test|spec)\\.(ts|tsx|js|jsx)$`,
+    );
+    for (const modifiedTestFile of modifiedTestFiles) {
+      if (baseNamePattern.test(modifiedTestFile)) {
+        discoveredTests.add(modifiedTestFile);
       }
     }
   }
 
-  return testFiles;
+  return Array.from(discoveredTests);
 }
 
 /**
@@ -158,7 +186,16 @@ Remember: "Test first" is not negotiable. The test must exist and must fail befo
 const executeLogic = async (
   context: SkillInvocationContext,
 ): Promise<SkillResult> => {
-  const { modifiedFiles = [], testHistory, workingDir } = context;
+  const { modifiedFiles = [], testHistory, workingDir, phase } = context;
+
+  if (phase !== "executing") {
+    return {
+      skillId: "test-driven-development",
+      status: "passed",
+      message: "Not in executing phase - TDD validation skipped",
+      timestamp: new Date(),
+    };
+  }
 
   // No files modified = nothing to validate
   if (modifiedFiles.length === 0) {
@@ -186,7 +223,7 @@ const executeLogic = async (
   const testFiles = await findCorrespondingTests(modifiedFiles, workingDir);
 
   if (testFiles.length === 0) {
-    const productionFiles = modifiedFiles.filter((f) => !f.includes("test"));
+    const productionFiles = modifiedFiles.filter((f) => !isTestFile(f));
 
     return {
       skillId: "test-driven-development",

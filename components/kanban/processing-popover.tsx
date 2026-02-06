@@ -67,8 +67,19 @@ function getPhaseConfig(t: TranslationFunction): Record<
   };
 }
 
-// Legacy export for backwards compatibility
-const phaseConfig = getPhaseConfig((key: string) => key);
+// Legacy export for backwards compatibility in utility tests.
+const phaseConfig = getPhaseConfig((key: string) => {
+  switch (key) {
+    case "tasks.statuses.brainstorming":
+      return "Brainstorming";
+    case "tasks.statuses.planning":
+      return "Planning";
+    case "tasks.statuses.executing":
+      return "Executing";
+    default:
+      return key;
+  }
+});
 
 // Format elapsed time
 function formatElapsedTime(startedAt: string): string {

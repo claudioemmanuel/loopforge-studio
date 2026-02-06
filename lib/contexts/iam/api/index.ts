@@ -7,8 +7,6 @@
 import { getRedis } from "@/lib/queue";
 import { UserService } from "../application/user-service";
 
-export type AIProvider = "anthropic" | "openai" | "gemini";
-
 /**
  * Get UserService instance
  * Stateless service - safe to create per request
@@ -21,3 +19,11 @@ export function getUserService(): UserService {
 // Re-export for convenience
 export { UserService } from "../application/user-service";
 export type { UserState } from "../domain/user-aggregate";
+export {
+  aiProviders,
+  type AiProvider,
+  type SubscriptionTier,
+  type BillingMode,
+  type SubscriptionStatus,
+  type TestGatePolicy,
+} from "../domain/types";

@@ -8,6 +8,7 @@
 import type { Redis } from "ioredis";
 import { EventSubscriber } from "@/lib/contexts/domain-events";
 import type { DomainEvent } from "@/lib/contexts/domain-events/types";
+import { DomainEventTypes } from "@/lib/contexts/domain-events/event-taxonomy";
 import { UsageRepository } from "./usage-repository";
 
 /**
@@ -16,6 +17,7 @@ import { UsageRepository } from "./usage-repository";
 export class BillingEventHandlers {
   private subscriber: EventSubscriber;
   private usageRepository: UsageRepository;
+  private readonly subscriberName = "billing-usage-tracker";
 
   constructor(redis: Redis) {
     this.subscriber = EventSubscriber.getInstance(redis);
@@ -28,9 +30,9 @@ export class BillingEventHandlers {
   async start(): Promise<void> {
     // Subscribe to Execution events
     this.subscriber.subscribe({
-      eventType: "Execution.ExecutionCompleted",
+      eventType: DomainEventTypes.execution.completed,
       handler: this.handleExecutionCompleted.bind(this),
-      subscriberName: "billing-usage-tracker",
+      subscriberName: this.subscriberName,
       priority: 5, // Higher priority than analytics (10)
     });
 
@@ -62,6 +64,17 @@ export class BillingEventHandlers {
     try {
       if (!userId || !model) {
         return;
+      }
+
+      if (executionId) {
+        const alreadyRecorded =
+          await this.usageRepository.hasUsageForExecution(executionId);
+        if (alreadyRecorded) {
+          console.log(
+            `[BillingEventHandlers] Skipping duplicate usage record for execution ${executionId}`,
+          );
+          return;
+        }
       }
 
       // Calculate total tokens if not provided
@@ -116,8 +129,10 @@ export class BillingEventHandlers {
    * Stop event subscriptions
    */
   async stop(): Promise<void> {
-    // EventSubscriber doesn't currently support unsubscribe
-    // This is a placeholder for future implementation
+    this.subscriber.unsubscribe(
+      DomainEventTypes.execution.completed,
+      this.subscriberName,
+    );
     console.log("[BillingEventHandlers] Stopped");
   }
 }

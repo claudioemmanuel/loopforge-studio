@@ -9,9 +9,6 @@ import type { Redis } from "ioredis";
 import { UserRepository } from "../infrastructure/user-repository";
 import { UserAggregate } from "../domain/user-aggregate";
 import { decryptApiKey } from "@/lib/crypto";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema/tables";
-import { eq } from "drizzle-orm";
 
 export class UserService {
   private userRepository: UserRepository;
@@ -261,7 +258,7 @@ export class UserService {
    * Direct DB write because the aggregate does not yet model locale.
    */
   async updateLocale(userId: string, locale: string): Promise<void> {
-    await db.update(users).set({ locale }).where(eq(users.id, userId));
+    await this.userRepository.updateLocale(userId, locale);
   }
 
   /**
@@ -272,10 +269,7 @@ export class UserService {
     userId: string,
     fields: Record<string, unknown>,
   ): Promise<void> {
-    await db
-      .update(users)
-      .set({ ...fields, updatedAt: new Date() } as Record<string, unknown>)
-      .where(eq(users.id, userId));
+    await this.userRepository.updateFields(userId, fields);
   }
 
   /**

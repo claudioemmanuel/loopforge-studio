@@ -10,7 +10,81 @@ import type {
   SkillInvocationContext,
   SkillResult,
 } from "../types";
-import { getSkillsForPhase, getAllSkills } from "../registry";
+import { getAllSkills } from "../registry";
+
+const FALLBACK_SKILLS_BY_PHASE: Record<
+  SkillInvocationContext["phase"],
+  Array<{ id: string; name: string; description: string }>
+> = {
+  todo: [],
+  brainstorming: [
+    {
+      id: "brainstorming",
+      name: "Brainstorming",
+      description: "Scrum-style requirement refinement",
+    },
+  ],
+  planning: [
+    {
+      id: "writing-plans",
+      name: "Writing Plans",
+      description: "Create granular implementation plans",
+    },
+    {
+      id: "prompt-engineering",
+      name: "Prompt Engineering",
+      description: "Apply KERNEL framework to planning prompts",
+    },
+    {
+      id: "context-accumulation",
+      name: "Context Accumulation",
+      description: "Manage conversational token budgets",
+    },
+  ],
+  ready: [],
+  executing: [
+    {
+      id: "test-driven-development",
+      name: "Test-Driven Development",
+      description: "Enforce RED-GREEN-REFACTOR workflow",
+    },
+    {
+      id: "autonomous-code-generation",
+      name: "Autonomous Code Generation",
+      description: "Guide autonomous execution with extraction/recovery checks",
+    },
+    {
+      id: "git-workflow-automation",
+      name: "Git Workflow Automation",
+      description: "Enforce branch, commit, and test-gate conventions",
+    },
+    {
+      id: "verification-before-completion",
+      name: "Verification Before Completion",
+      description: "Require evidence before completion claims",
+    },
+  ],
+  review: [
+    {
+      id: "verification-before-completion",
+      name: "Verification Before Completion",
+      description: "Require evidence before completion claims",
+    },
+    {
+      id: "git-workflow-automation",
+      name: "Git Workflow Automation",
+      description: "Validate commit/test-gate readiness before merge",
+    },
+  ],
+  done: [],
+  stuck: [
+    {
+      id: "systematic-debugging",
+      name: "Systematic Debugging",
+      description: "Investigate root cause before applying fixes",
+    },
+  ],
+};
 
 /**
  * Detect if skills are being bypassed
@@ -24,7 +98,26 @@ function detectSkillBypass(
 } {
   const { previousSkillExecutions = [], phase } = context;
 
-  const phaseSkills = availableSkills.filter((s) =>
+  const effectiveSkills =
+    availableSkills.length > 0
+      ? availableSkills
+      : FALLBACK_SKILLS_BY_PHASE[phase].map((skill) => ({
+          id: skill.id,
+          name: skill.name,
+          description: skill.description,
+          category: "meta",
+          enforcement: "warning",
+          triggerPhases: [phase],
+          systemPrompt: "",
+          executeLogic: async () => ({
+            skillId: skill.id,
+            status: "passed",
+            message: "Fallback skill metadata only",
+            timestamp: new Date(),
+          }),
+        }));
+
+  const phaseSkills = effectiveSkills.filter((s) =>
     s.triggerPhases.includes(phase),
   );
 
@@ -38,7 +131,7 @@ function detectSkillBypass(
     .map((s) => s.id);
 
   const recommendations = bypassedSkills.map((skillId) => {
-    const skill = availableSkills.find((s) => s.id === skillId);
+    const skill = effectiveSkills.find((s) => s.id === skillId);
     return `Consider using ${skill?.name || skillId}: ${skill?.description}`;
   });
 

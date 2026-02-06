@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import type { WorkerJobPhase } from "@/lib/db/schema";
 import { apiLogger } from "@/lib/logger";
 import { handleError, Errors } from "@/lib/errors";
 import { getRepositoryService } from "@/lib/contexts/repository/api";
 import { getTaskService } from "@/lib/contexts/task/api";
-import { getWorkerMonitoringService } from "@/lib/contexts/execution/api";
+import {
+  getWorkerMonitoringService,
+  type WorkerJobPhase,
+} from "@/lib/contexts/execution/api";
 
 export const runtime = "nodejs";
 

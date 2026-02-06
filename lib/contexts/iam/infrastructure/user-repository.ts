@@ -215,4 +215,24 @@ export class UserRepository {
   async delete(userId: string): Promise<void> {
     await db.delete(users).where(eq(users.id, userId));
   }
+
+  /**
+   * Update user locale.
+   */
+  async updateLocale(userId: string, locale: string): Promise<void> {
+    await db.update(users).set({ locale }).where(eq(users.id, userId));
+  }
+
+  /**
+   * Generic user field update helper.
+   */
+  async updateFields(
+    userId: string,
+    fields: Record<string, unknown>,
+  ): Promise<void> {
+    await db
+      .update(users)
+      .set({ ...fields, updatedAt: new Date() } as Record<string, unknown>)
+      .where(eq(users.id, userId));
+  }
 }

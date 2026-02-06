@@ -15,6 +15,27 @@ export type ExecutionStatus =
   | "cancelled";
 
 /**
+ * Processing phase (for UI/SSE updates)
+ */
+export const processingPhases = [
+  "brainstorming",
+  "planning",
+  "executing",
+] as const;
+export type ProcessingPhase = (typeof processingPhases)[number];
+
+/**
+ * Worker job phase (for background jobs)
+ */
+export const workerJobPhases = [
+  "queued",
+  "brainstorming",
+  "planning",
+  "executing",
+] as const;
+export type WorkerJobPhase = (typeof workerJobPhases)[number];
+
+/**
  * Extraction strategy
  */
 export type ExtractionStrategy =

@@ -10,7 +10,7 @@ import {
   getProviderApiKey,
   getPreferredModel,
   findConfiguredProvider,
-} from "@/lib/api";
+} from "@/lib/api/helpers";
 import { decryptApiKey, decryptGithubToken } from "@/lib/crypto";
 import { scanRepoViaGitHub } from "@/lib/github/repo-scanner";
 import {

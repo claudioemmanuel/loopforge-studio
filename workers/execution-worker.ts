@@ -70,7 +70,7 @@ import simpleGit from "simple-git";
 import path from "path";
 import fs from "fs/promises";
 import { workerLogger } from "../lib/logger";
-import { initializeEventHandlers } from "../lib/contexts/event-initialization";
+import { startDomainEventRuntime } from "../lib/contexts/domain-events/runtime";
 import { getUserService } from "../lib/contexts/iam/api";
 import { getTaskService } from "../lib/contexts/task/api";
 import { getRepositoryService } from "../lib/contexts/repository/api";
@@ -86,8 +86,8 @@ const billingService = getBillingService();
 const analyticsService = getAnalyticsService();
 
 // Initialize event handlers on worker startup
-initializeEventHandlers().catch((error) => {
-  console.error("Failed to initialize event handlers in worker:", error);
+startDomainEventRuntime({ role: "worker" }).catch((error) => {
+  console.error("Failed to initialize domain event runtime in worker:", error);
 });
 
 // Determine execution mode from environment or default to multi-agent

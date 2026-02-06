@@ -84,9 +84,11 @@ export function buildCloneFailedFields(now = new Date()): {
 }
 
 export class RepositoryService {
+  private redis: Redis;
   private repository: RepositoryRepository;
 
   constructor(redis: Redis) {
+    this.redis = redis;
     this.repository = new RepositoryRepository(redis);
   }
 
@@ -137,14 +139,8 @@ export class RepositoryService {
     // Convert to DTO
     const repo = this.aggregateToDTO(aggregate);
 
-    // Fetch tasks separately (repository doesn't load relations)
-    const { db } = await import("@/lib/db");
-    const { tasks } = await import("@/lib/db/schema/tables");
-    const { eq } = await import("drizzle-orm");
-
-    const repoTasks = await db.query.tasks.findMany({
-      where: eq(tasks.repoId, repoId),
-    });
+    // Fetch tasks separately (repository aggregate does not load relations)
+    const repoTasks = await this.repository.listTasksByRepoId(repoId);
 
     return { ...repo, tasks: repoTasks };
   }
@@ -172,13 +168,7 @@ export class RepositoryService {
 
   /** Get repository index record by repository ID. */
   async getRepoIndexByRepoId(repoId: string) {
-    const { db } = await import("@/lib/db");
-    const { repoIndex } = await import("@/lib/db/schema/tables");
-    const { eq } = await import("drizzle-orm");
-
-    return db.query.repoIndex.findFirst({
-      where: eq(repoIndex.repoId, repoId),
-    });
+    return this.repository.findRepoIndexByRepoId(repoId);
   }
 
   // =========================================================================
@@ -212,9 +202,6 @@ export class RepositoryService {
     const repoId = crypto.randomUUID();
 
     // Create new repository aggregate
-    const { getRedis } = await import("@/lib/queue");
-    const redis = getRedis();
-
     const aggregate = await RepositoryAggregate.connect(
       {
         id: repoId,
@@ -228,7 +215,7 @@ export class RepositoryService {
           isPrivate: params.isPrivate,
         },
       },
-      redis,
+      this.redis,
     );
 
     await this.repository.save(aggregate);
@@ -253,16 +240,7 @@ export class RepositoryService {
 
   /** Find repository with index metadata for clone/indexing status UIs. */
   async getRepositoryWithIndexByOwner(repoId: string, userId: string) {
-    const { db } = await import("@/lib/db");
-    const { repos } = await import("@/lib/db/schema/tables");
-    const { and, eq } = await import("drizzle-orm");
-
-    return db.query.repos.findFirst({
-      where: and(eq(repos.id, repoId), eq(repos.userId, userId)),
-      with: {
-        index: true,
-      },
-    });
+    return this.repository.findRepositoryWithIndexByOwner(repoId, userId);
   }
 
   /** Mark an existing local clone as verified and ready for indexing. */
@@ -270,47 +248,25 @@ export class RepositoryService {
     repoId: string,
     localPath: string,
   ): Promise<void> {
-    const { db } = await import("@/lib/db");
-    const { repos } = await import("@/lib/db/schema/tables");
-    const { eq } = await import("drizzle-orm");
-
-    await db
-      .update(repos)
-      .set(buildVerifiedCloneFields(localPath))
-      .where(eq(repos.id, repoId));
+    await this.repository.markRepositoryCloneVerified(
+      repoId,
+      buildVerifiedCloneFields(localPath),
+    );
   }
 
   async markCloneStarted(repoId: string): Promise<void> {
-    const { db } = await import("@/lib/db");
-    const { repos } = await import("@/lib/db/schema/tables");
-    const { eq } = await import("drizzle-orm");
-
-    await db
-      .update(repos)
-      .set(buildCloneStartedFields())
-      .where(eq(repos.id, repoId));
+    await this.repository.markCloneStarted(repoId, buildCloneStartedFields());
   }
 
   async markCloneCompleted(repoId: string, localPath: string): Promise<void> {
-    const { db } = await import("@/lib/db");
-    const { repos } = await import("@/lib/db/schema/tables");
-    const { eq } = await import("drizzle-orm");
-
-    await db
-      .update(repos)
-      .set(buildCloneCompletedFields(localPath))
-      .where(eq(repos.id, repoId));
+    await this.repository.markCloneCompleted(
+      repoId,
+      buildCloneCompletedFields(localPath),
+    );
   }
 
   async markCloneFailed(repoId: string): Promise<void> {
-    const { db } = await import("@/lib/db");
-    const { repos } = await import("@/lib/db/schema/tables");
-    const { eq } = await import("drizzle-orm");
-
-    await db
-      .update(repos)
-      .set(buildCloneFailedFields())
-      .where(eq(repos.id, repoId));
+    await this.repository.markCloneFailed(repoId, buildCloneFailedFields());
   }
 
   /** Partial update on a repository row. */
@@ -327,17 +283,47 @@ export class RepositoryService {
     const state = aggregate.getState();
     const updatedState: RepositoryState = {
       ...state,
+      metadata: { ...state.metadata },
+      cloneInfo: { ...state.cloneInfo },
+      testConfig: { ...state.testConfig },
+      prConfig: { ...state.prConfig },
       updatedAt: new Date(),
     };
 
-    // Apply field updates (this is a simple merge for now)
-    // In a full DDD implementation, we'd have specific update methods on the aggregate
-    Object.assign(updatedState, fields);
+    if (typeof fields.name === "string") {
+      updatedState.metadata.name = fields.name;
+    }
+    if (typeof fields.fullName === "string") {
+      updatedState.metadata.fullName = fields.fullName;
+    }
+    if (typeof fields.defaultBranch === "string") {
+      updatedState.metadata.defaultBranch = fields.defaultBranch;
+    }
+    if (typeof fields.cloneUrl === "string") {
+      updatedState.metadata.cloneUrl = fields.cloneUrl;
+    }
+    if (typeof fields.isPrivate === "boolean") {
+      updatedState.metadata.isPrivate = fields.isPrivate;
+    }
+
+    if (typeof fields.localPath === "string" || fields.localPath === null) {
+      updatedState.cloneInfo.path = fields.localPath as string | null;
+    }
+
+    if (typeof fields.testCommand === "string") {
+      updatedState.testConfig.command = fields.testCommand;
+      updatedState.testConfig.enabled = true;
+    }
+    if (typeof fields.testTimeout === "number") {
+      updatedState.testConfig.timeout = fields.testTimeout;
+    }
+    if (typeof fields.testGatePolicy === "string") {
+      updatedState.testConfig.gatePolicy =
+        fields.testGatePolicy as RepositoryState["testConfig"]["gatePolicy"];
+    }
 
     // Save the updated aggregate
-    const { getRedis } = await import("@/lib/queue");
-    const redis = getRedis();
-    const updatedAggregate = new RepositoryAggregate(updatedState, redis);
+    const updatedAggregate = new RepositoryAggregate(updatedState, this.redis);
 
     await this.repository.save(updatedAggregate);
   }

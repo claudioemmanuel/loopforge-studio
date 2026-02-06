@@ -6,7 +6,10 @@ import { contextAccumulation } from "@/lib/skills/loopforge/context-accumulation
 import { promptEngineering } from "@/lib/skills/loopforge/prompt-engineering";
 import type { SkillInvocationContext } from "@/lib/skills/types";
 
-const mockClient: any = {
+const mockClient: {
+  getProvider: () => string;
+  getModel: () => string;
+} = {
   getProvider: () => "anthropic",
   getModel: () => "claude-sonnet-4",
 };
@@ -28,7 +31,7 @@ describe("Autonomous Code Generation Skill", () => {
 
       const result = await autonomousCodeGeneration.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -47,14 +50,14 @@ describe("Autonomous Code Generation Skill", () => {
 
       const result = await autonomousCodeGeneration.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("warning");
       expect(result.recommendations).toBeDefined();
-      expect(result.recommendations!.some((r) => r.includes("extraction"))).toBe(
-        true
-      );
+      expect(
+        result.recommendations!.some((r) => r.includes("extraction")),
+      ).toBe(true);
     });
 
     it("should warn when high iteration count with no commits", async () => {
@@ -66,7 +69,7 @@ describe("Autonomous Code Generation Skill", () => {
 
       const result = await autonomousCodeGeneration.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("warning");
@@ -86,7 +89,7 @@ describe("Autonomous Code Generation Skill", () => {
 
       const result = await autonomousCodeGeneration.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -121,7 +124,7 @@ describe("Multi-Agent Coordination Skill", () => {
 
       const result = await multiAgentCoordination.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -139,7 +142,7 @@ describe("Multi-Agent Coordination Skill", () => {
 
       const result = await multiAgentCoordination.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -158,7 +161,7 @@ describe("Multi-Agent Coordination Skill", () => {
 
       const result = await multiAgentCoordination.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       if (result.metadata?.canParallelize) {
@@ -194,7 +197,7 @@ describe("Git Workflow Automation Skill", () => {
 
       const result = await gitWorkflowAutomation.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -211,12 +214,13 @@ describe("Git Workflow Automation Skill", () => {
 
       const result = await gitWorkflowAutomation.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("warning");
-      expect(result.recommendations!.some((r) => r.includes("loopforge/task-")))
-        .toBe(true);
+      expect(
+        result.recommendations!.some((r) => r.includes("loopforge/task-")),
+      ).toBe(true);
     });
 
     it("should warn when commit message not conventional", async () => {
@@ -231,13 +235,13 @@ describe("Git Workflow Automation Skill", () => {
 
       const result = await gitWorkflowAutomation.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("warning");
-      expect(result.recommendations!.some((r) => r.includes("conventional"))).toBe(
-        true
-      );
+      expect(
+        result.recommendations!.some((r) => r.includes("conventional")),
+      ).toBe(true);
     });
 
     it("should pass when conventions followed", async () => {
@@ -245,7 +249,7 @@ describe("Git Workflow Automation Skill", () => {
         ...baseContext,
         commits: ["abc123"],
         metadata: {
-          branchName: "loopforge/task-123",
+          branchName: "loopforge/task-test-123",
           lastCommitMessage:
             "feat(auth): add JWT validation\n\nCo-Authored-By: Claude",
           testsPass: true,
@@ -255,7 +259,7 @@ describe("Git Workflow Automation Skill", () => {
 
       const result = await gitWorkflowAutomation.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -288,7 +292,7 @@ describe("Context Accumulation Skill", () => {
 
       const result = await contextAccumulation.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -310,7 +314,7 @@ describe("Context Accumulation Skill", () => {
 
       const result = await contextAccumulation.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -332,7 +336,7 @@ describe("Context Accumulation Skill", () => {
 
       const result = await contextAccumulation.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       // Should warn about high token usage

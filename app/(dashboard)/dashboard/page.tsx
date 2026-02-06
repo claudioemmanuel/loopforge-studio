@@ -1,6 +1,4 @@
 import { auth } from "@/lib/auth";
-import { db, repos, tasks } from "@/lib/db";
-import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { Button } from "@/components/ui/button";
@@ -19,6 +17,7 @@ import {
   TrendingUp,
   Sparkles,
 } from "lucide-react";
+import { getDashboardData } from "@/lib/contexts/dashboard/api";
 
 export default async function DashboardPage({
   searchParams,
@@ -37,36 +36,11 @@ export default async function DashboardPage({
   const userId = session.user.id;
   const showWelcome = params.welcome === "true";
 
-  // Fetch user repos with tasks
-  const userRepos = await db.query.repos.findMany({
-    where: eq(repos.userId, userId),
-    orderBy: [desc(repos.updatedAt)],
-    columns: {
-      id: true,
-      name: true,
-      fullName: true,
-      githubRepoId: true,
-      defaultBranch: true,
-      isPrivate: true,
-      updatedAt: true,
-      createdAt: true,
-    },
-  });
-
-  // Get GitHub repo IDs for the AddRepoButton
-  const existingRepoGithubIds = userRepos
-    .map((r) => parseInt(r.githubRepoId, 10))
-    .filter((id) => !isNaN(id));
-
-  // Fetch all tasks for user's repos
-  const repoIds = userRepos.map((r) => r.id);
-  const allTasks =
-    repoIds.length > 0
-      ? await db.query.tasks.findMany({
-          where: (tasks, { inArray }) => inArray(tasks.repoId, repoIds),
-          orderBy: [desc(tasks.updatedAt)],
-        })
-      : [];
+  const {
+    repos: userRepos,
+    allTasks,
+    existingRepoGithubIds,
+  } = await getDashboardData(userId);
 
   // Calculate stats
   const totalTasks = allTasks.length;

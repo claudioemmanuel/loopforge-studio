@@ -279,10 +279,13 @@ const executeLogic = async (
 
   // Provide guidance
   if (issues.length > 0 || recommendations.length > 0) {
+    const issueSummary = issues.length > 0 ? issues.join("; ") : null;
     return {
       skillId: "autonomous-code-generation",
       status: "warning",
-      message: "Autonomous execution issues detected - follow recommendations",
+      message: issueSummary
+        ? `Autonomous execution issues detected: ${issueSummary}`
+        : "Autonomous execution issues detected - follow recommendations",
       augmentedPrompt: AUTONOMOUS_CODE_GENERATION_PROMPT,
       recommendations: [
         ...issues,

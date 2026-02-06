@@ -1,31 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getLocale } from "next-intl/server";
 import { Providers } from "@/components/providers/providers";
 import { WebVitals } from "@/components/providers/web-vitals";
-import { initializeEventHandlers } from "@/lib/contexts/event-initialization";
+import { startDomainEventRuntime } from "@/lib/contexts/domain-events/runtime";
 import "./globals.css";
 
 // Initialize event handlers on server startup
 if (typeof window === "undefined") {
-  initializeEventHandlers().catch((error) => {
-    console.error("Failed to initialize event handlers:", error);
+  startDomainEventRuntime({ role: "web" }).catch((error) => {
+    console.error("Failed to initialize domain event runtime:", error);
   });
 }
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const playfair = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-serif",
-  weight: ["700"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Loopforge Studio - AI-Powered Development",
@@ -51,9 +37,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body
-        className={`${inter.variable} ${playfair.variable} font-sans antialiased`}
-      >
+      <body className="font-sans antialiased">
         <WebVitals />
         <NextIntlClientProvider messages={messages} locale={locale}>
           <Providers>{children}</Providers>
