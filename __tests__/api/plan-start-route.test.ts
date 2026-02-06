@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-const startPlanning = vi.fn();
+const claimExecute = vi.fn().mockResolvedValue({ isFailure: false });
+const clearExecute = vi.fn().mockResolvedValue(undefined);
+const claimPlanningSlot = vi.fn(() => ({ execute: claimExecute }));
+const clearProcessingSlot = vi.fn(() => ({ execute: clearExecute }));
+const updateFields = vi.fn().mockResolvedValue(undefined);
 const queuePlan = vi.fn().mockResolvedValue({ id: "job-2" });
 const publishProcessingEvent = vi.fn();
 const createProcessingEvent = vi.fn(() => ({ type: "processing_start" }));
-const createStatusChangeEvent = vi.fn();
-const createPlanningStartEvent = vi.fn();
+const statusChanged = vi.fn().mockResolvedValue(undefined);
+const planningStarted = vi.fn().mockResolvedValue(undefined);
 
 type TaskContext = {
   user: { id: string };
@@ -31,7 +35,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 vi.mock("@/lib/contexts/task/api", () => ({
-  getTaskService: () => ({ startPlanning }),
+  getTaskService: () => ({ updateFields }),
 }));
 
 vi.mock("@/lib/queue", () => ({
@@ -43,9 +47,18 @@ vi.mock("@/lib/workers/events", () => ({
   createProcessingEvent,
 }));
 
-vi.mock("@/lib/activity", () => ({
-  createStatusChangeEvent,
-  createPlanningStartEvent,
+vi.mock("@/lib/contexts/analytics/api", () => ({
+  getAnalyticsService: () => ({
+    statusChanged,
+    planningStarted,
+  }),
+}));
+
+vi.mock("@/lib/contexts/task/api/use-case-factory", () => ({
+  UseCaseFactory: {
+    claimPlanningSlot,
+    clearProcessingSlot,
+  },
 }));
 
 vi.mock("@/lib/errors", () => ({
@@ -81,7 +94,12 @@ describe("POST /api/tasks/[taskId]/plan/start", () => {
       },
     };
 
-    const response = await POST(new Request("http://localhost"), {
+    const response = await (
+      POST as unknown as (
+        request: Request,
+        context: TaskContext,
+      ) => Promise<Response>
+    )(new Request("http://localhost"), {
       user: { id: "user-1" },
       task,
       taskId: task.id,
@@ -98,13 +116,38 @@ describe("POST /api/tasks/[taskId]/plan/start", () => {
       repoDefaultBranch: task.repo.defaultBranch,
     });
 
-    expect(startPlanning).toHaveBeenCalledWith({
+    expect(claimPlanningSlot).toHaveBeenCalled();
+    expect(claimExecute).toHaveBeenCalledWith({
       taskId: task.id,
-      jobId: "job-2",
+      workerId: "user-1",
     });
 
-    expect(createStatusChangeEvent).not.toHaveBeenCalled();
-    expect(createPlanningStartEvent).not.toHaveBeenCalled();
+    expect(updateFields).toHaveBeenNthCalledWith(1, task.id, {
+      status: "planning",
+      processingStartedAt: expect.any(Date),
+      processingStatusText: "Reviewing brainstorm...",
+      updatedAt: expect.any(Date),
+    });
+    expect(updateFields).toHaveBeenNthCalledWith(2, task.id, {
+      processingJobId: "job-2",
+    });
+
+    expect(statusChanged).toHaveBeenCalledWith({
+      taskId: task.id,
+      repoId: task.repoId,
+      userId: "user-1",
+      taskTitle: task.title,
+      fromStatus: "brainstorming",
+      toStatus: "planning",
+    });
+    expect(planningStarted).toHaveBeenCalledWith({
+      taskId: task.id,
+      repoId: task.repoId,
+      userId: "user-1",
+      taskTitle: task.title,
+    });
+    expect(publishProcessingEvent).toHaveBeenCalled();
+    expect(clearProcessingSlot).not.toHaveBeenCalled();
 
     const body = await response.json();
     expect(body).toEqual({

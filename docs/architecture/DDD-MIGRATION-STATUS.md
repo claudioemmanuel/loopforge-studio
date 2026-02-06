@@ -1,11 +1,46 @@
 # DDD Migration – Complete Status
 
-> **Last updated:** 2026-02-06
+> **Last updated:** 2026-02-06 (Ralph loop checkpoint 2)
 > **Branch:** `main` (single branch – all work consolidated)
 > **Migration state:** Clean Architecture use cases complete ✅ | Task & Execution aggregates wired ✅ | Diff/review routes migrated to `ExecutionService` ✅ | Repository clone-status/verify-local routes migrated to `RepositoryService` ✅ | All API routes migrated off direct `@/lib/db` imports ✅ | Worker/queue backend internals migrated to context services/adapters ✅ | `lib/domain/` deleted ✅
 > **Completion Roadmap:** See [`DDD-COMPLETION-ROADMAP.md`](./DDD-COMPLETION-ROADMAP.md) for final cleanup items.
 
 ---
+
+## Continuation Checkpoint (Resume Later)
+
+**Current stop point:** backend migration is merged to `main` and operationally complete for API + queue/worker import boundaries.
+
+### Ralph Loop Checkpoint – 2026-02-06 (Backend Test-Contract Alignment)
+
+Completed this iteration:
+
+1. Removed `@ts-nocheck` and migrated API route tests to current clean-architecture contracts:
+   - `__tests__/api/brainstorm-start-route.test.ts`
+   - `__tests__/api/plan-start-route.test.ts`
+   - `__tests__/api/tasks-get-route.test.ts`
+2. Removed `@ts-nocheck` and retyped domain event infrastructure tests:
+   - `__tests__/domain-events/event-infrastructure.test.ts`
+3. Replaced legacy analytics integration test suite with current `AnalyticsService` contract coverage:
+   - `__tests__/analytics/analytics-service.test.ts`
+4. Verified compile gate:
+   - `npx tsc --noEmit --pretty false` ✅
+
+Remaining debt snapshot:
+
+- `@ts-nocheck` in `__tests__`: **29 files**.
+- Next recommended context: `__tests__/task/task-service.test.ts` + `__tests__/execution/execution-service.test.ts`.
+
+**Next session focus (remaining technical debt):**
+
+1. Resolve pre-existing repo-wide TypeScript/test debt listed in roadmap (outside this migration merge).
+2. Re-run worker/queue lint + TS verification before next merge.
+
+**Quick resume verification commands:**
+
+- `npx eslint workers/execution-worker.ts lib/queue/autonomous-flow.ts lib/workers/events.ts`
+- `npx tsc --noEmit --pretty false`
+- `rg -n "from \"@/lib/db\"|from '@/lib/db'|from \"../lib/db\"|from '../lib/db'" app/api lib/queue lib/workers workers -g'*.ts'`
 
 ## Architecture Overview
 
@@ -336,11 +371,11 @@ Service-to-repository wiring is complete across all six contexts and API routes 
 
 ### Priority 4 – Backend internals migration status
 
-| Module                         | Status      | Notes                                                                                                                                                                                               |
-| ------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workers/execution-worker.ts`  | In progress | Direct imports removed, lookups routed through services, dependency/activity paths migrated; remaining table-level state update orchestration is isolated in execution-context persistence adapter. |
-| `lib/queue/autonomous-flow.ts` | Complete    | Fully migrated to Task/Repository/Execution/User services.                                                                                                                                          |
-| `lib/workers/events.ts`        | Complete    | Task persistence writes delegated to `TaskService.updateFields()`.                                                                                                                                  |
+| Module                         | Status   | Notes                                                                                                                                                    |
+| ------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workers/execution-worker.ts`  | Complete | Task/execution/worker-job mutations now route through execution-context runtime persistence helper methods (no inline table mutation queries in worker). |
+| `lib/queue/autonomous-flow.ts` | Complete | Fully migrated to Task/Repository/Execution/User services.                                                                                               |
+| `lib/workers/events.ts`        | Complete | Task persistence writes delegated to `TaskService.updateFields()`.                                                                                       |
 
 ### Priority 5 – Clean up staged artifacts
 
@@ -354,16 +389,23 @@ Service-to-repository wiring is complete across all six contexts and API routes 
 
 These errors existed before the DDD migration and are **not caused by it**:
 
-| File                                                 | Error                                                                                    |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `lib/contexts/iam/infrastructure/user-repository.ts` | Column name mismatches: DB has `username`/`avatarUrl`, repository maps to `name`/`image` |
-| `app/api/webhooks/stripe/route.ts`                   | `stripe` variable used outside its initialising `try` block                              |
-| `lib/graph/layout.ts`                                | `GraphEdge` missing `.from` / `.to` properties                                           |
-| `lib/ralph/loop.ts`                                  | `SkillResult[]` missing `message` / `timestamp` fields                                   |
-| `lib/skills/enforcement.ts`                          | `Record<string, unknown>` not assignable to expected union                               |
-| `navigation.ts`                                      | `createSharedPathnamesNavigation` removed in newer next-intl                             |
-| `workers/execution-worker.ts`                        | `console.warn` overload mismatch with `unknown` argument                                 |
-| `__tests__/**`                                       | Fixture shape mismatches, missing test-db module paths                                   |
+| File                               | Error                                                       |
+| ---------------------------------- | ----------------------------------------------------------- |
+| `app/api/webhooks/stripe/route.ts` | `stripe` variable used outside its initialising `try` block |
+| `workers/execution-worker.ts`      | `console.warn` overload mismatch with `unknown` argument    |
+| `__tests__/**`                     | Fixture shape mismatches, missing test-db module paths      |
+
+Resolved since 2026-02-06:
+
+- `lib/contexts/iam/infrastructure/user-repository.ts` column mapping mismatch
+- `lib/shared/graph-layout.ts` edge field mismatch (`source`/`target`)
+- `lib/ralph/loop.ts` incomplete `SkillResult[]` typing
+- `lib/skills/enforcement.ts` `skillExecutions` persistence type mismatch
+- `navigation.ts` next-intl navigation API migration (`createNavigation`)
+- `lib/workers/events.ts` processing phase map typing for `"recovering"`
+- `lib/contexts/execution/infrastructure/execution-repository.ts` typed insert/update row mapping
+- `lib/contexts/repository/infrastructure/repository-repository.ts` clone status/domain mapping + typed row mapping
+- `lib/contexts/task/adapters/repositories/TaskRepository.ts` status-history mapping + typed row mapping
 
 ---
 

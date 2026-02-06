@@ -1,12 +1,28 @@
 # DDD Migration Completion Roadmap
 
-> Current state: ~95% complete
+> Current state: ~97% complete
 > All 6 contexts: WIRED ✅
 > Service-to-repository layer complete ✅
 > Diff/review routes migrated to `ExecutionService` ✅
 > All API routes migrated off direct `@/lib/db` imports ✅
 > Worker/queue backend internals migrated to context services/adapters ✅
-> Next: finish remaining worker orchestration persistence extraction and resolve pre-existing TypeScript errors
+> Next: resolve pre-existing TypeScript/test errors and finalize shared-helper placement notes
+> Latest checkpoint (2026-02-06): API/domain-events/analytics test-contract migration complete; remaining `@ts-nocheck` in `__tests__` = 29
+
+## Resume Checklist (Next Session)
+
+1. ✅ `workers/execution-worker.ts`: extracted remaining `tasks` / `executions` / `workerJobs` mutations into execution-context persistence helpers (`worker-runtime-persistence.ts`).
+2. ✅ `lib/db/status-history.ts`: kept shared for now and documented rationale (currently used by task application service and execution worker runtime adapter).
+3. ✅ `lib/db/transactions.ts`: reviewed consumer footprint (no active consumers); kept as shared utility for future transactional orchestration.
+4. Fix pre-existing repo-wide TS/test issues after migration (not introduced by Phase 12 work).
+5. Re-run verification before any new merge:
+   - `npx eslint workers/execution-worker.ts lib/queue/autonomous-flow.ts lib/workers/events.ts`
+   - `npx tsc --noEmit --pretty false`
+   - targeted `vitest` once local DB is available.
+6. Continue strict test migration in backend order:
+   - `__tests__/task/task-service.test.ts`
+   - `__tests__/execution/execution-service.test.ts`
+   - integration API suites under `__tests__/integration/api/**`
 
 ## ✅ Priority 1: Wire Application Services to Repositories (COMPLETE)
 
@@ -146,19 +162,22 @@ Execution helper absorption is complete. Worker/queue migration progress:
 2. ✅ `lib/workers/events.ts` task persistence delegated to `TaskService`
 3. ✅ `workers/execution-worker.ts` removed direct `lib/db` imports and now uses context services for user/task/repo/execution lookups
 4. ✅ `taskDependencies` reads and `activityEvents` writes moved behind `TaskService` + `AnalyticsService` in `workers/execution-worker.ts`
-5. ⏳ Remaining: move final task/execution/worker-job update mutations in `workers/execution-worker.ts` behind dedicated context service/repository methods
-6. ⏳ Move `status-history.ts` into `lib/contexts/task/infrastructure/` (or keep justified shared)
-7. ⏳ Keep `transactions.ts` shared utility (or inline into repositories where beneficial)
+5. ✅ Final task/execution/worker-job update/insert mutations in `workers/execution-worker.ts` now route through dedicated execution infrastructure helper methods
+6. ✅ `status-history.ts` kept shared with explicit rationale (cross-context helper used by task + execution internals)
+7. ✅ `transactions.ts` reviewed and kept shared; no current consumers to inline
 
 **Estimated effort remaining:** 1-2 hours
 
 ## Priority 5: Fix Pre-existing TS Errors (LOW)
 
-| File                  | Error                   | Fix                                           |
-| --------------------- | ----------------------- | --------------------------------------------- |
-| `user-repository.ts`  | Column mismatches       | Rename `name`→`username`, `image`→`avatarUrl` |
-| `lib/graph/layout.ts` | Missing edge properties | Add `.from` and `.to` to `GraphEdge` type     |
-| `lib/ralph/loop.ts`   | Missing skill fields    | Add `message`, `timestamp` to `SkillResult[]` |
+| File                         | Error                                | Fix                                                   |
+| ---------------------------- | ------------------------------------ | ----------------------------------------------------- | --------------------- |
+| `user-repository.ts`         | Column mismatches                    | ✅ Resolved (`username` / `avatarUrl` mapping)        |
+| `lib/shared/graph-layout.ts` | Graph edge field mismatch            | ✅ Resolved (use `source` / `target`)                 |
+| `lib/ralph/loop.ts`          | Missing skill fields                 | ✅ Resolved (`SkillResult[]` now includes full shape) |
+| `lib/skills/enforcement.ts`  | `skillExecutions` type mismatch      | ✅ Resolved (typed `skillExecutions` persistence)     |
+| `navigation.ts`              | next-intl API change                 | ✅ Resolved (`createNavigation`)                      |
+| `lib/workers/events.ts`      | `recovering` processing phase typing | ✅ Resolved (explicit `ProcessingPhase                | "recovering"` record) |
 
 **Estimated effort:** 2-3 hours
 

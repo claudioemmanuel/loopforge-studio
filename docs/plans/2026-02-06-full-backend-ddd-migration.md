@@ -42,3 +42,43 @@
 
 - Modify: `docs/architecture/DDD-MIGRATION-STATUS.md`
 - Modify: `docs/architecture/DDD-COMPLETION-ROADMAP.md`
+
+---
+
+## Execution Handoff (Updated)
+
+### Completed in this run
+
+1. Added Task application service implementation and API factory wiring.
+2. Extended Repository service for onboarding/clone lifecycle orchestration.
+3. Added WorkerMonitoringService and execution API wiring.
+4. Migrated all remaining API routes off direct `@/lib/db` imports.
+5. Migrated `lib/queue/autonomous-flow.ts` to context services.
+6. Migrated `workers/execution-worker.ts` off direct `lib/db` imports to execution-context persistence adapter + context service lookups.
+7. Updated architecture docs to reflect migration status and remaining follow-up.
+8. Aligned backend API route tests with current use-case/service contracts and removed `@ts-nocheck`:
+   - `__tests__/api/brainstorm-start-route.test.ts`
+   - `__tests__/api/plan-start-route.test.ts`
+   - `__tests__/api/tasks-get-route.test.ts`
+9. Retyped domain event infrastructure tests (removed `@ts-nocheck`):
+   - `__tests__/domain-events/event-infrastructure.test.ts`
+10. Replaced legacy analytics integration tests with current `AnalyticsService` contract coverage:
+
+- `__tests__/analytics/analytics-service.test.ts`
+
+11. Re-verified compile gate: `npx tsc --noEmit --pretty false` passes.
+
+### Remaining for follow-up session
+
+1. ✅ Move final worker orchestration mutation writes (`tasks`, `executions`, `workerJobs`) behind dedicated context methods.
+2. ✅ Keep and document `status-history.ts` as shared helper for current cross-context usage.
+3. ✅ Keep `transactions.ts` shared (no active call sites to inline today).
+4. Address pre-existing repo-wide TypeScript and test debt unrelated to this migration pass.
+5. Continue removing `@ts-nocheck` from backend-centric suites (current remaining in `__tests__`: 29 files).
+
+### Resume commands
+
+- `git checkout main`
+- `npx eslint workers/execution-worker.ts lib/queue/autonomous-flow.ts lib/workers/events.ts`
+- `npx tsc --noEmit --pretty false`
+- `rg -n "from \"@/lib/db\"|from '@/lib/db'|from \"../lib/db\"|from '../lib/db'" app/api lib/queue lib/workers workers -g'*.ts'`

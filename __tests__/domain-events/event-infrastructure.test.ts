@@ -9,11 +9,12 @@ import { Redis } from "ioredis";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { domainEvents } from "@/lib/db/schema/tables";
-import {
-  EventPublisher,
-  EventSubscriber,
-  type DomainEvent,
-} from "@/lib/contexts/domain-events";
+import { EventPublisher, EventSubscriber } from "@/lib/contexts/domain-events";
+
+type EventShape = {
+  eventType: string;
+  data: Record<string, unknown>;
+};
 
 describe("Domain Event Infrastructure", () => {
   let redis: Redis;
@@ -77,14 +78,14 @@ describe("Domain Event Infrastructure", () => {
   });
 
   it("should deliver event to subscriber", async () => {
-    let receivedEvent: DomainEvent | null = null;
+    let receivedEvent: EventShape | null = null;
 
     // Register subscriber
     subscriber.subscribe({
       eventType: "UserRegistered",
       subscriberName: "test-subscriber",
       handler: async (event) => {
-        receivedEvent = event;
+        receivedEvent = event as EventShape;
       },
     });
 
@@ -102,19 +103,21 @@ describe("Domain Event Infrastructure", () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     expect(receivedEvent).not.toBeNull();
-    expect(receivedEvent?.eventType).toBe("UserRegistered");
-    expect(receivedEvent?.data).toEqual({ email: "test@example.com" });
+    expect(receivedEvent as unknown as EventShape).toMatchObject({
+      eventType: "UserRegistered",
+      data: { email: "test@example.com" },
+    });
   });
 
   it("should support wildcard subscriptions", async () => {
-    const receivedEvents: DomainEvent[] = [];
+    const receivedEvents: EventShape[] = [];
 
     // Subscribe to all Task.* events
     subscriber.subscribe({
       eventType: "Task.*",
       subscriberName: "task-wildcard-subscriber",
       handler: async (event) => {
-        receivedEvents.push(event);
+        receivedEvents.push(event as EventShape);
       },
     });
 

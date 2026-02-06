@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-const startBrainstorm = vi.fn();
+const claimExecute = vi.fn().mockResolvedValue({ isFailure: false });
+const clearExecute = vi.fn().mockResolvedValue(undefined);
+const claimBrainstormingSlot = vi.fn(() => ({ execute: claimExecute }));
+const clearProcessingSlot = vi.fn(() => ({ execute: clearExecute }));
+const updateFields = vi.fn().mockResolvedValue(undefined);
 const queueBrainstorm = vi.fn().mockResolvedValue({ id: "job-1" });
 const publishProcessingEvent = vi.fn();
 const createProcessingEvent = vi.fn(() => ({ type: "processing_start" }));
-const createStatusChangeEvent = vi.fn();
-const createBrainstormStartEvent = vi.fn();
+const statusChanged = vi.fn().mockResolvedValue(undefined);
+const brainstormStarted = vi.fn().mockResolvedValue(undefined);
 
 type TaskContext = {
   user: { id: string };
@@ -30,7 +34,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 vi.mock("@/lib/contexts/task/api", () => ({
-  getTaskService: () => ({ startBrainstorm }),
+  getTaskService: () => ({ updateFields }),
 }));
 
 vi.mock("@/lib/queue", () => ({
@@ -42,9 +46,18 @@ vi.mock("@/lib/workers/events", () => ({
   createProcessingEvent,
 }));
 
-vi.mock("@/lib/activity", () => ({
-  createStatusChangeEvent,
-  createBrainstormStartEvent,
+vi.mock("@/lib/contexts/analytics/api", () => ({
+  getAnalyticsService: () => ({
+    statusChanged,
+    brainstormStarted,
+  }),
+}));
+
+vi.mock("@/lib/contexts/task/api/use-case-factory", () => ({
+  UseCaseFactory: {
+    claimBrainstormingSlot,
+    clearProcessingSlot,
+  },
 }));
 
 vi.mock("@/lib/errors", () => ({
@@ -76,7 +89,12 @@ describe("POST /api/tasks/[taskId]/brainstorm/start", () => {
       repo: { name: "test-repo" },
     };
 
-    const response = await POST(new Request("http://localhost"), {
+    const response = await (
+      POST as unknown as (
+        request: Request,
+        context: TaskContext,
+      ) => Promise<Response>
+    )(new Request("http://localhost"), {
       user: { id: "user-1" },
       task,
       taskId: task.id,
@@ -89,13 +107,33 @@ describe("POST /api/tasks/[taskId]/brainstorm/start", () => {
       continueToPlanning: true,
     });
 
-    expect(startBrainstorm).toHaveBeenCalledWith({
+    expect(claimBrainstormingSlot).toHaveBeenCalled();
+    expect(claimExecute).toHaveBeenCalledWith({
       taskId: task.id,
-      jobId: "job-1",
+      workerId: "user-1",
     });
 
-    expect(createStatusChangeEvent).not.toHaveBeenCalled();
-    expect(createBrainstormStartEvent).not.toHaveBeenCalled();
+    expect(statusChanged).toHaveBeenCalledWith({
+      taskId: task.id,
+      repoId: task.repoId,
+      userId: "user-1",
+      taskTitle: task.title,
+      fromStatus: "todo",
+      toStatus: "brainstorming",
+    });
+
+    expect(brainstormStarted).toHaveBeenCalledWith({
+      taskId: task.id,
+      repoId: task.repoId,
+      userId: "user-1",
+      taskTitle: task.title,
+    });
+
+    expect(updateFields).toHaveBeenCalledWith(task.id, {
+      processingJobId: "job-1",
+    });
+    expect(publishProcessingEvent).toHaveBeenCalled();
+    expect(clearProcessingSlot).not.toHaveBeenCalled();
 
     const body = await response.json();
     expect(body).toEqual({

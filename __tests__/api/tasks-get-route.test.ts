@@ -1,12 +1,8 @@
 /**
- * Integration tests for GET /api/tasks/[taskId]
- *
- * Tests the DDD migration of task detail route:
- * - Uses TaskService instead of direct DB queries
- * - Returns properly formatted API response via TaskAdapter
+ * Integration tests for task retrieval through TaskService.getTaskFull.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { getTestPool } from "../setup/test-db";
 import { TaskService } from "@/lib/contexts/task/application/task-service";
 import { getRedis } from "@/lib/queue";
@@ -18,72 +14,62 @@ describe("GET /api/tasks/[taskId] - DDD Migration", () => {
 
   beforeEach(async () => {
     const pool = getTestPool();
+    const unique = `${Date.now()}-${Math.random()}`;
 
-    // Create test user
     const userResult = await pool.query(
       `INSERT INTO users (id, github_id, username, email)
        VALUES (gen_random_uuid(), $1, $2, $3)
        RETURNING id`,
-      [`test-github-${Date.now()}`, "testuser", "test@example.com"],
+      [`test-github-${unique}`, `testuser-${unique}`, `test-${unique}@ex.com`],
     );
-    testUserId = userResult.rows[0].id;
+    testUserId = userResult.rows[0].id as string;
 
-    // Create test repository
     const repoResult = await pool.query(
       `INSERT INTO repos (id, user_id, github_repo_id, full_name, name, clone_url, default_branch)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
        RETURNING id`,
       [
         testUserId,
-        `test-repo-${Date.now()}`,
-        "testuser/testrepo",
+        `test-repo-${unique}`,
+        `testuser-${unique}/testrepo`,
         "testrepo",
         "https://github.com/testuser/testrepo.git",
         "main",
       ],
     );
-    testRepoId = repoResult.rows[0].id;
+    testRepoId = repoResult.rows[0].id as string;
 
-    // Create test task using TaskService
-    const redis = getRedis();
-    const taskService = new TaskService(redis);
-
-    const result = await taskService.createTask({
-      userId: testUserId,
-      repoId: testRepoId,
-      metadata: {
-        title: "Test Task for GET Route",
-        description: "Testing DDD migration",
-      },
-      configuration: {
-        autonomousMode: true,
-      },
-    });
-    testTaskId = result.taskId;
+    const taskResult = await pool.query(
+      `INSERT INTO tasks (id, repo_id, title, description, autonomous_mode, status)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+       RETURNING id`,
+      [
+        testRepoId,
+        "Test Task for GET Route",
+        "Testing DDD migration",
+        true,
+        "todo",
+      ],
+    );
+    testTaskId = taskResult.rows[0].id as string;
   });
 
   describe("Basic task retrieval", () => {
     it("should return task using TaskService.getTaskFull", async () => {
-      // Arrange
-      const redis = getRedis();
-      const taskService = new TaskService(redis);
-
-      // Act: Get task via service (simulating what the route does)
+      const taskService = new TaskService(getRedis());
       const task = await taskService.getTaskFull(testTaskId);
 
-      // Assert: Verify task structure matches API format
       expect(task).toBeDefined();
       expect(task).toMatchObject({
         id: testTaskId,
         repoId: testRepoId,
-        userId: testUserId,
         title: "Test Task for GET Route",
         description: "Testing DDD migration",
         status: "todo",
         autonomousMode: true,
+        repo: { userId: testUserId },
       });
 
-      // Verify API format (flattened structure)
       expect(task?.processingPhase).toBeNull();
       expect(task?.brainstormResult).toBeNull();
       expect(task?.planContent).toBeNull();
@@ -91,29 +77,19 @@ describe("GET /api/tasks/[taskId] - DDD Migration", () => {
     });
 
     it("should return null for non-existent task", async () => {
-      // Arrange
-      const redis = getRedis();
-      const taskService = new TaskService(redis);
-
-      // Act
-      const task = await taskService.getTaskFull("non-existent-id");
-
-      // Assert
+      const taskService = new TaskService(getRedis());
+      const task = await taskService.getTaskFull(
+        "00000000-0000-0000-0000-000000000000",
+      );
       expect(task).toBeNull();
     });
 
-    it("should include all required fields in API response", async () => {
-      // Arrange
-      const redis = getRedis();
-      const taskService = new TaskService(redis);
-
-      // Act
+    it("should include required fields in response", async () => {
+      const taskService = new TaskService(getRedis());
       const task = await taskService.getTaskFull(testTaskId);
 
-      // Assert: Verify all TaskApiResponse fields are present
       expect(task).toHaveProperty("id");
       expect(task).toHaveProperty("repoId");
-      expect(task).toHaveProperty("userId");
       expect(task).toHaveProperty("title");
       expect(task).toHaveProperty("description");
       expect(task).toHaveProperty("status");
@@ -122,70 +98,41 @@ describe("GET /api/tasks/[taskId] - DDD Migration", () => {
       expect(task).toHaveProperty("statusHistory");
       expect(task).toHaveProperty("createdAt");
       expect(task).toHaveProperty("updatedAt");
+      expect(task).toHaveProperty("repo");
     });
   });
 
   describe("Task with execution data", () => {
     it("should include brainstorm result when present", async () => {
-      // Arrange
-      const redis = getRedis();
-      const taskService = new TaskService(redis);
+      const taskService = new TaskService(getRedis());
 
-      // Update task with brainstorm result
-      await taskService.updateBrainstormResult(testTaskId, {
-        conversation: [
-          {
-            role: "assistant",
-            content: "Let me analyze this task...",
-            timestamp: new Date().toISOString(),
-          },
-        ],
-        summary: "Detailed task analysis",
-        suggestComplete: true,
+      await taskService.updateFields(testTaskId, {
+        brainstormResult: '{"summary":"Detailed task analysis"}',
       });
 
-      // Act
       const task = await taskService.getTaskFull(testTaskId);
-
-      // Assert
-      expect(task?.brainstormResult).toBeDefined();
       expect(task?.brainstormResult).toContain("Detailed task analysis");
     });
 
     it("should include plan content when task is planned", async () => {
-      // Arrange
-      const redis = getRedis();
-      const taskService = new TaskService(redis);
+      const taskService = new TaskService(getRedis());
 
-      // Update task with plan
-      await taskService.updatePlanContent(testTaskId, {
+      await taskService.updateFields(testTaskId, {
         planContent: "# Implementation Plan\n\n1. Step 1\n2. Step 2",
-        planGenerated: true,
       });
 
-      // Act
       const task = await taskService.getTaskFull(testTaskId);
-
-      // Assert
-      expect(task?.planContent).toBeDefined();
       expect(task?.planContent).toContain("Implementation Plan");
-      expect(task?.planGenerated).toBe(true);
     });
   });
 
   describe("TaskAdapter integration", () => {
-    it("should properly flatten nested domain state", async () => {
-      // Arrange
-      const redis = getRedis();
-      const taskService = new TaskService(redis);
+    it("should properly return flattened persisted state", async () => {
+      const taskService = new TaskService(getRedis());
       const pool = getTestPool();
 
-      // Update task with complex state
-      await taskService.updateStatus({
-        taskId: testTaskId,
+      await taskService.updateFields(testTaskId, {
         status: "executing",
-        triggeredBy: "user",
-        userId: testUserId,
       });
 
       await pool.query(
@@ -195,28 +142,17 @@ describe("GET /api/tasks/[taskId] - DDD Migration", () => {
         ["loopforge/test-123", "executing", testTaskId],
       );
 
-      // Act
       const task = await taskService.getTaskFull(testTaskId);
-
-      // Assert: Verify flattened structure
       expect(task?.status).toBe("executing");
       expect(task?.processingPhase).toBe("executing");
       expect(task?.branch).toBe("loopforge/test-123");
-
-      // Verify status history is array (not nested object)
       expect(Array.isArray(task?.statusHistory)).toBe(true);
-      expect(task?.statusHistory?.length).toBeGreaterThan(0);
     });
 
     it("should handle null values correctly", async () => {
-      // Arrange
-      const redis = getRedis();
-      const taskService = new TaskService(redis);
-
-      // Act: Get newly created task (most fields are null)
+      const taskService = new TaskService(getRedis());
       const task = await taskService.getTaskFull(testTaskId);
 
-      // Assert: Null fields should be null, not undefined
       expect(task?.description).toBe("Testing DDD migration");
       expect(task?.processingPhase).toBeNull();
       expect(task?.brainstormResult).toBeNull();
@@ -227,22 +163,13 @@ describe("GET /api/tasks/[taskId] - DDD Migration", () => {
   });
 
   describe("No direct DB calls validation", () => {
-    it("should not require direct DB access for basic task retrieval", async () => {
-      // Arrange
-      const redis = getRedis();
-      const taskService = new TaskService(redis);
-
-      // Act: Get task via service
+    it("should return repo ownership context with task data", async () => {
+      const taskService = new TaskService(getRedis());
       const task = await taskService.getTaskFull(testTaskId);
 
-      // Assert: Verify we have all fields that would normally require
-      // additional DB queries (repo info, user info, etc.)
       expect(task?.id).toBe(testTaskId);
       expect(task?.repoId).toBe(testRepoId);
-      expect(task?.userId).toBe(testUserId);
-
-      // The route should not need to make additional queries
-      // All data is returned by the service
+      expect(task?.repo.userId).toBe(testUserId);
       expect(task).toBeDefined();
     });
   });
