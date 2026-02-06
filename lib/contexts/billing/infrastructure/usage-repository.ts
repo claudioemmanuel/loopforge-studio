@@ -7,7 +7,7 @@
 import type { Redis } from "ioredis";
 import { db } from "@/lib/db";
 import { usageRecords } from "@/lib/db/schema";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sum } from "drizzle-orm";
 import {
   UsageTrackingAggregate,
   type UsageState,
@@ -19,6 +19,35 @@ import type { BillingPeriod, UsageSummary } from "../domain/types";
  */
 export class UsageRepository {
   constructor(private redis: Redis) {}
+
+  /**
+   * Record detailed usage with full parameters
+   */
+  async recordUsage(params: {
+    userId: string;
+    taskId?: string | null;
+    executionId?: string | null;
+    periodStart: Date;
+    periodEnd: Date;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    estimatedCost: number;
+  }): Promise<void> {
+    await db.insert(usageRecords).values({
+      userId: params.userId,
+      taskId: params.taskId || null,
+      executionId: params.executionId || null,
+      periodStart: params.periodStart,
+      periodEnd: params.periodEnd,
+      model: params.model,
+      inputTokens: params.inputTokens,
+      outputTokens: params.outputTokens,
+      totalTokens: params.totalTokens,
+      estimatedCost: params.estimatedCost,
+    });
+  }
 
   /**
    * Find usage record by ID
@@ -191,5 +220,28 @@ export class UsageRepository {
     });
 
     return summary.totalTokens;
+  }
+
+  /**
+   * Get estimated cost for user in period
+   */
+  async getEstimatedCost(
+    userId: string,
+    period: BillingPeriod,
+  ): Promise<number> {
+    const result = await db
+      .select({
+        estimatedCost: sum(usageRecords.estimatedCost),
+      })
+      .from(usageRecords)
+      .where(
+        and(
+          eq(usageRecords.userId, userId),
+          gte(usageRecords.periodStart, period.start),
+          lte(usageRecords.periodEnd, period.end),
+        ),
+      );
+
+    return Number(result[0]?.estimatedCost) || 0;
   }
 }

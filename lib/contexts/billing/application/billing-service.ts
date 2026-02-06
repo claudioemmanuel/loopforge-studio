@@ -40,14 +40,11 @@ export class BillingService {
     const totalTokens = inputTokens + outputTokens;
     const estimatedCost = calculateTokenCost(model, inputTokens, outputTokens);
 
-    // Use infrastructure layer for persistence
-    const { db } = await import("@/lib/db");
-    const { usageRecords } = await import("@/lib/db/schema");
-
-    await db.insert(usageRecords).values({
+    // Delegate to repository
+    await this.usageRepository.recordUsage({
       userId,
-      taskId: taskId || null,
-      executionId: executionId || null,
+      taskId,
+      executionId,
       periodStart,
       periodEnd,
       model,
@@ -86,23 +83,11 @@ export class BillingService {
 
     const tokensUsed = usageSummaryData.totalTokens;
 
-    // Get estimated cost from DB for now (UsageRepository doesn't track cost)
-    const { db } = await import("@/lib/db");
-    const { usageRecords } = await import("@/lib/db/schema");
-    const { eq, and, gte, lte, sum } = await import("drizzle-orm");
-
-    const tokenUsage = await db
-      .select({
-        estimatedCost: sum(usageRecords.estimatedCost),
-      })
-      .from(usageRecords)
-      .where(
-        and(
-          eq(usageRecords.userId, userId),
-          gte(usageRecords.periodStart, periodStart),
-          lte(usageRecords.periodEnd, periodEnd),
-        ),
-      );
+    // Get estimated cost from repository
+    const estimatedCost = await this.usageRepository.getEstimatedCost(userId, {
+      start: periodStart,
+      end: periodEnd,
+    });
 
     return {
       currentPeriod: {
@@ -130,7 +115,7 @@ export class BillingService {
         limit: limits.maxRepos,
         percentUsed: Math.min((reposCount / limits.maxRepos) * 100, 100),
       },
-      estimatedCost: Number(tokenUsage[0]?.estimatedCost) || 0,
+      estimatedCost,
       billingMode,
       plan: {
         name: subscriptionState.planTier,
