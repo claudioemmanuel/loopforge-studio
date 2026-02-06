@@ -25,6 +25,33 @@ export class ActivityRepository {
   constructor(private redis: Redis) {}
 
   /**
+   * Record a new activity event
+   */
+  async recordActivity(params: {
+    taskId?: string;
+    repoId?: string;
+    userId: string;
+    executionId?: string;
+    eventType: string;
+    eventCategory: "ai_action" | "git" | "system";
+    title: string;
+    content?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    await db.insert(activityEvents).values({
+      taskId: params.taskId ?? null,
+      repoId: params.repoId ?? null,
+      userId: params.userId,
+      executionId: params.executionId ?? null,
+      eventType: params.eventType,
+      eventCategory: params.eventCategory,
+      title: params.title,
+      content: params.content ?? null,
+      metadata: params.metadata ?? null,
+    });
+  }
+
+  /**
    * Find activity events by filter
    */
   async findActivities(filter: ActivityFilter): Promise<ActivityEvent[]> {

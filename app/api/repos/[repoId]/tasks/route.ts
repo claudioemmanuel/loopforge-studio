@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { db, repos, tasks } from "@/lib/db";
+import { db, repos } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
-import { getAnalyticsService } from "@/lib/contexts/analytics/api";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
+import { ValidationError, NotFoundError } from "@/lib/shared/errors";
 
 export async function GET(
   request: Request,
@@ -27,12 +27,15 @@ export async function GET(
     return handleError(Errors.notFound("Repository"));
   }
 
-  const repoTasks = await db.query.tasks.findMany({
-    where: eq(tasks.repoId, repoId),
-    orderBy: (tasks, { asc }) => [asc(tasks.priority), asc(tasks.createdAt)],
-  });
+  // Execute use case
+  const useCase = UseCaseFactory.listTasksByRepo();
+  const result = await useCase.execute({ repoId });
 
-  return NextResponse.json(repoTasks);
+  if (result.isFailure) {
+    return handleError(result.error);
+  }
+
+  return NextResponse.json(result.value);
 }
 
 export async function POST(
@@ -60,9 +63,8 @@ export async function POST(
   // Validate request body
   const bodySchema = z.object({
     title: z.string().min(1, "Title is required"),
-    description: z.string().optional(),
-    autonomousMode: z.boolean().optional().default(false),
-    autoApprove: z.boolean().optional().default(false),
+    description: z.string().optional().default(""),
+    priority: z.number().min(0).max(10).optional(),
   });
 
   let validatedBody;
@@ -79,26 +81,21 @@ export async function POST(
     return handleError(Errors.invalidRequest("Invalid request body"));
   }
 
-  const { title, description, autonomousMode, autoApprove } = validatedBody;
-
-  const taskService = getTaskService();
-  const newTask = await taskService.createTask({
+  // Execute use case
+  const useCase = UseCaseFactory.createTask();
+  const result = await useCase.execute({
     repoId,
-    title,
-    description: description || null,
-    autonomousMode,
-    autoApprove,
-  });
-  const taskId = newTask.id;
-
-  // Record activity event
-  const analyticsService = getAnalyticsService();
-  await analyticsService.taskCreated({
-    taskId,
-    repoId,
-    userId: session.user.id,
-    taskTitle: title,
+    title: validatedBody.title,
+    description: validatedBody.description,
+    priority: validatedBody.priority,
   });
 
-  return NextResponse.json(newTask);
+  if (result.isFailure) {
+    if (result.error instanceof ValidationError) {
+      return handleError(Errors.invalidRequest(result.error.message));
+    }
+    return handleError(result.error);
+  }
+
+  return NextResponse.json(result.value);
 }

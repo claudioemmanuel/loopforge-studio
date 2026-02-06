@@ -199,4 +199,25 @@ export class RepositoryService {
     const aggregates = await this.repository.findByUser(userId);
     return aggregates.length;
   }
+
+  // =========================================================================
+  // Analytics delegation methods
+  // =========================================================================
+
+  /**
+   * Get repository info for analytics (id, fullName).
+   * Used by AnalyticsService for repo activity metrics.
+   */
+  async getReposForAnalytics(
+    userId: string,
+  ): Promise<Array<{ id: string; fullName: string }>> {
+    const aggregates = await this.repository.findByUser(userId);
+    return aggregates.map((aggregate) => {
+      const state = aggregate.getState();
+      return {
+        id: state.id,
+        fullName: state.metadata.fullName,
+      };
+    });
+  }
 }
