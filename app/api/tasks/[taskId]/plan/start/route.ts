@@ -9,7 +9,6 @@ import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
-import { getTaskService } from "@/lib/contexts/task/api";
 import type { TaskStatus } from "@/lib/contexts/task/entities/value-objects";
 
 function toDomainStatus(status: string): TaskStatus {
@@ -70,14 +69,13 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       );
     }
 
-    const taskService = getTaskService();
-
-    // Update status to planning after slot claim
-    await taskService.updateFields(taskId, {
+    // Update status to planning after slot claim via use case
+    const updateStateUseCase = UseCaseFactory.updateProcessingState();
+    await updateStateUseCase.execute({
+      taskId,
       status: "planning",
       processingStartedAt: startedAt,
       processingStatusText: "Reviewing brainstorm...",
-      updatedAt: startedAt,
     });
 
     // Record activity events
@@ -111,8 +109,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       repoDefaultBranch: task.repo.defaultBranch || "main",
     });
 
-    // Update with the job ID
-    await taskService.updateFields(taskId, {
+    // Update with the job ID via use case
+    const updateJobIdUseCase = UseCaseFactory.updateProcessingState();
+    await updateJobIdUseCase.execute({
+      taskId,
       processingJobId: job.id,
     });
 

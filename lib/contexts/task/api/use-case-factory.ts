@@ -56,6 +56,9 @@ import { CheckTaskTransitionValidUseCase } from "../use-cases/check-task-transit
 import { DeleteTasksByRepoIdsUseCase } from "../use-cases/delete-tasks-by-repo-ids/DeleteTasksByRepoIdsUseCase";
 import { GetTaskIdsByRepoIdsUseCase } from "../use-cases/get-task-ids-by-repo-ids/GetTaskIdsByRepoIdsUseCase";
 
+// Processing State
+import { UpdateProcessingStateUseCase } from "../use-cases/update-processing-state/UpdateProcessingStateUseCase";
+
 /**
  * Shared infrastructure dependencies (singletons)
  */
@@ -215,5 +218,10 @@ export class UseCaseFactory {
 
   static getTaskIdsByRepoIds() {
     return new GetTaskIdsByRepoIdsUseCase(taskRepository);
+  }
+
+  // Processing State
+  static updateProcessingState() {
+    return new UpdateProcessingStateUseCase(taskRepository, eventPublisher);
   }
 }

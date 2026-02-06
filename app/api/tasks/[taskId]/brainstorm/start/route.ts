@@ -9,7 +9,6 @@ import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
-import { getTaskService } from "@/lib/contexts/task/api";
 import type { TaskStatus } from "@/lib/contexts/task/entities/value-objects";
 
 function toDomainStatus(status: string): TaskStatus {
@@ -90,9 +89,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       continueToPlanning: task.autonomousMode,
     });
 
-    // Update with the job ID
-    const taskService = getTaskService();
-    await taskService.updateFields(taskId, {
+    // Update with the job ID via use case
+    const updateStateUseCase = UseCaseFactory.updateProcessingState();
+    await updateStateUseCase.execute({
+      taskId,
       processingJobId: job.id,
     });
 

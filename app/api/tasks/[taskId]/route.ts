@@ -14,7 +14,6 @@ import { buildExecutionGraph } from "@/lib/shared/graph-builder";
 import type { ExecutionData } from "@/lib/shared/graph-types";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { getExecutionService } from "@/lib/contexts/execution/api";
-import { getTaskService } from "@/lib/contexts/task/api";
 
 export const GET = withTask(async (request, { task }) => {
   // Check if graph data is requested via query param
@@ -73,9 +72,12 @@ export const GET = withTask(async (request, { task }) => {
     // Build the execution graph
     const executionGraph = await buildExecutionGraph(executionData);
 
-    // Cache the graph directly through application service.
-    const taskService = getTaskService();
-    await taskService.updateFields(task.id, { executionGraph });
+    // Cache the graph via use case
+    const updateStateUseCase = UseCaseFactory.updateProcessingState();
+    await updateStateUseCase.execute({
+      taskId: task.id,
+      executionGraph,
+    });
 
     return NextResponse.json({
       ...task,
@@ -223,32 +225,39 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
       }
 
       if (Object.keys(resetFields).length > 0) {
-        const updateUseCase = UseCaseFactory.updateTaskFields();
-        await updateUseCase.execute({ taskId, fields: resetFields });
+        const updateStateUseCase = UseCaseFactory.updateProcessingState();
+        await updateStateUseCase.execute({
+          taskId,
+          ...resetFields,
+        });
       }
     }
 
-    const taskService = getTaskService();
-    await taskService.updateFields(taskId, {
-      status: body.status,
+    // Update status via use case
+    const updateStatusUseCase = UseCaseFactory.updateProcessingState();
+    await updateStatusUseCase.execute({
+      taskId,
+      status: body.status as "brainstorming" | "planning" | "executing",
     });
   }
 
   // Handle configuration changes
-  if (
-    body.autonomousMode !== undefined ||
-    body.planContent !== undefined ||
-    body.branch !== undefined
-  ) {
-    const configFields: Record<string, unknown> = {};
-    if (body.autonomousMode !== undefined)
-      configFields.autonomousMode = body.autonomousMode;
-    if (body.planContent !== undefined)
-      configFields.planContent = body.planContent;
-    if (body.branch !== undefined) configFields.branch = body.branch;
+  if (body.autonomousMode !== undefined) {
+    const configUseCase = UseCaseFactory.updateTaskConfiguration();
+    await configUseCase.execute({
+      taskId,
+      config: { autonomousMode: body.autonomousMode },
+    });
+  }
 
-    const taskService = getTaskService();
-    await taskService.updateFields(taskId, configFields);
+  // Handle plan content and branch updates
+  if (body.planContent !== undefined || body.branch !== undefined) {
+    const updateStateUseCase = UseCaseFactory.updateProcessingState();
+    await updateStateUseCase.execute({
+      taskId,
+      planContent: body.planContent,
+      branch: body.branch,
+    });
   }
 
   // Handle brainstorm result
@@ -260,9 +269,10 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
     });
   }
 
-  // Re-fetch the updated task
-  const taskService = getTaskService();
-  const updatedTask = (await taskService.getTaskFull(taskId)) ?? task;
+  // Re-fetch the updated task via use case
+  const getTaskUseCase = UseCaseFactory.getTaskWithRepo();
+  const taskResult = await getTaskUseCase.execute({ taskId });
+  const updatedTask = taskResult.isSuccess ? taskResult.value : task;
 
   // Record activity events
   const analyticsService = getAnalyticsService();
