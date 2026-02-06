@@ -14,7 +14,7 @@ import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { buildExecutionGraph } from "@/lib/shared/graph-builder";
 import type { ExecutionData } from "@/lib/shared/graph-types";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export const GET = withTask(async (request, { task }) => {
@@ -76,9 +76,12 @@ export const GET = withTask(async (request, { task }) => {
     // Build the execution graph
     const executionGraph = await buildExecutionGraph(executionData);
 
-    // Cache the graph in the task record
-    const taskService = getTaskService();
-    await taskService.updateFields(task.id, { executionGraph });
+    // Cache the graph via use case
+    const updateUseCase = UseCaseFactory.updateTaskFields();
+    await updateUseCase.execute({
+      taskId: task.id,
+      fields: { executionGraph },
+    });
 
     return NextResponse.json({
       ...task,
@@ -96,7 +99,6 @@ export const GET = withTask(async (request, { task }) => {
 
 export const PATCH = withTask(async (request, { user, task, taskId }) => {
   const body = await request.json();
-  const taskService = getTaskService();
 
   // Handle backward movement with resetPhases option
   const resetPhases = body.resetPhases === true;
@@ -131,21 +133,35 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
       const branch = `loopforge/${task.id.slice(0, 8)}`;
 
       // Apply any metadata changes before claiming
-      const metaFields: Record<string, unknown> = {};
-      if (body.title !== undefined) metaFields.title = body.title;
-      if (body.description !== undefined)
-        metaFields.description = body.description;
-      if (body.priority !== undefined) metaFields.priority = body.priority;
-      if (body.autonomousMode !== undefined)
-        metaFields.autonomousMode = body.autonomousMode;
-      if (Object.keys(metaFields).length > 0) {
-        await taskService.updateFields(taskId, metaFields);
+      if (body.title || body.description || body.priority !== undefined) {
+        const updateFieldsUseCase = UseCaseFactory.updateTaskFields();
+        await updateFieldsUseCase.execute({
+          taskId,
+          fields: {
+            title: body.title,
+            description: body.description,
+            priority: body.priority,
+          },
+        });
       }
 
-      // ATOMIC: Claim the execution slot – only succeeds if not already executing
-      const claimedTask = await taskService.claimExecutionSlot(taskId, branch);
+      // Handle autonomousMode separately via configuration use case
+      if (body.autonomousMode !== undefined) {
+        const configUseCase = UseCaseFactory.updateTaskConfiguration();
+        await configUseCase.execute({
+          taskId,
+          config: { autonomousMode: body.autonomousMode },
+        });
+      }
 
-      if (!claimedTask) {
+      // ATOMIC: Claim the execution slot
+      const claimUseCase = UseCaseFactory.claimExecutionSlot();
+      const claimResult = await claimUseCase.execute({
+        taskId,
+        workerId: branch,
+      });
+
+      if (claimResult.isFailure) {
         return handleError(Errors.conflict("Task is already executing"));
       }
 
@@ -154,7 +170,7 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
       const executionId = crypto.randomUUID();
       await executionService.createQueued({ id: executionId, taskId });
 
-      // Queue the execution job – worker decrypts API key on demand
+      // Queue the execution job
       const job = await queueExecution({
         executionId,
         taskId: task.id,
@@ -169,53 +185,97 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
       });
 
       return NextResponse.json({
-        ...claimedTask,
+        ...claimResult.value,
         executionId,
         jobId: job.id,
       });
     } catch (error) {
       apiLogger.error({ taskId, error }, "Execution error");
-      await taskService.revertExecutionSlot(taskId, task.status);
+
+      // Revert execution slot on failure
+      const revertUseCase = UseCaseFactory.revertExecutionSlot();
+      await revertUseCase.execute({ taskId });
+
       return handleError(error);
     }
   }
 
   // Standard update (not moving to executing)
-  const fields: Record<string, unknown> = { updatedAt: new Date() };
+  const fields: Record<string, unknown> = {};
   if (body.title !== undefined) fields.title = body.title;
   if (body.description !== undefined) fields.description = body.description;
-  if (body.status !== undefined) fields.status = body.status;
   if (body.priority !== undefined) fields.priority = body.priority;
-  if (body.branch !== undefined) fields.branch = body.branch;
-  if (body.autonomousMode !== undefined)
-    fields.autonomousMode = body.autonomousMode;
-  if (body.planContent !== undefined) fields.planContent = body.planContent;
 
-  // When moving backward with resetPhases, clear phase-dependent data
-  if (resetPhases && body.status) {
-    const targetStatus = body.status as TaskStatus;
-    if (targetStatus === "todo" || targetStatus === "brainstorming") {
-      fields.planContent = null;
-      fields.branch = null;
-      fields.processingPhase = null;
-      fields.processingStatusText = null;
-    }
-    if (targetStatus === "todo") {
-      fields.brainstormSummary = null;
-      fields.brainstormConversation = null;
+  // Update basic fields if any
+  if (Object.keys(fields).length > 0) {
+    const updateUseCase = UseCaseFactory.updateTaskFields();
+    const result = await updateUseCase.execute({ taskId, fields });
+
+    if (result.isFailure) {
+      return handleError(result.error);
     }
   }
 
-  await taskService.updateFields(taskId, fields);
+  // Handle status change
+  if (body.status !== undefined && body.status !== task.status) {
+    // When moving backward with resetPhases, clear phase-dependent data
+    if (resetPhases) {
+      const targetStatus = body.status as TaskStatus;
+      const resetFields: Record<string, unknown> = {};
 
+      if (targetStatus === "todo" || targetStatus === "brainstorming") {
+        resetFields.planContent = null;
+        resetFields.branch = null;
+      }
+
+      if (Object.keys(resetFields).length > 0) {
+        const updateUseCase = UseCaseFactory.updateTaskFields();
+        await updateUseCase.execute({ taskId, fields: resetFields });
+      }
+    }
+
+    // Update status via direct DB update for now
+    // TODO: Create ChangeTaskStatusUseCase for proper status transitions
+    await db
+      .update(tasks)
+      .set({ status: body.status, updatedAt: new Date() })
+      .where(eq(tasks.id, taskId));
+  }
+
+  // Handle configuration changes
+  if (
+    body.autonomousMode !== undefined ||
+    body.planContent !== undefined ||
+    body.branch !== undefined
+  ) {
+    const configFields: Record<string, unknown> = {};
+    if (body.autonomousMode !== undefined)
+      configFields.autonomousMode = body.autonomousMode;
+    if (body.planContent !== undefined)
+      configFields.planContent = body.planContent;
+    if (body.branch !== undefined) configFields.branch = body.branch;
+
+    // Direct DB update for fields not yet in use cases
+    await db
+      .update(tasks)
+      .set({ ...configFields, updatedAt: new Date() })
+      .where(eq(tasks.id, taskId));
+  }
+
+  // Handle brainstorm result
   if (body.brainstormResult !== undefined) {
-    await taskService.saveBrainstormResult(taskId, {
-      brainstormResult: body.brainstormResult,
+    const brainstormUseCase = UseCaseFactory.saveBrainstormResult();
+    await brainstormUseCase.execute({
+      taskId,
+      result: body.brainstormResult,
     });
   }
 
-  // Re-fetch the updated task to return fresh data
-  const updatedTask = await taskService.getTaskFull(taskId);
+  // Re-fetch the updated task
+  const getUseCase = UseCaseFactory.getTaskWithRepo();
+  const taskResult = await getUseCase.execute({ taskId });
+
+  const updatedTask = taskResult.isSuccess ? taskResult.value : task;
 
   // Record activity events
   const analyticsService = getAnalyticsService();
@@ -268,7 +328,12 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
 });
 
 export const DELETE = withTask(async (request, { taskId }) => {
-  await db.delete(tasks).where(eq(tasks.id, taskId));
+  const useCase = UseCaseFactory.deleteTask();
+  const result = await useCase.execute({ taskId });
+
+  if (result.isFailure) {
+    return handleError(result.error);
+  }
 
   return NextResponse.json({ success: true });
 });

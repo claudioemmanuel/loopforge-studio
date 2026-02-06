@@ -3,56 +3,22 @@ import { db, tasks, taskDependencies } from "@/lib/db";
 import { eq, and, notInArray } from "drizzle-orm";
 import { withTask } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 
 // GET - Get task dependencies
 export const GET = withTask(async (request, { task, taskId }) => {
-  // Re-fetch task with dependency relations (withTask only provides { repo })
-  const taskWithDeps = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: true,
-      dependencies: {
-        with: {
-          blockedBy: true,
-        },
-      },
-      dependents: {
-        with: {
-          task: true,
-        },
-      },
-    },
-  });
+  // Use GetTaskDependencyGraphUseCase for the graph structure
+  const graphUseCase = UseCaseFactory.getTaskDependencyGraph();
+  const graphResult = await graphUseCase.execute({ taskId });
 
-  if (!taskWithDeps) {
-    return handleError(Errors.notFound("Task"));
+  if (graphResult.isFailure) {
+    return handleError(graphResult.error);
   }
 
-  // Get tasks that block this one (dependencies)
-  const blockedBy = taskWithDeps.dependencies.map((dep) => ({
-    dependency: {
-      id: dep.id,
-      taskId: dep.taskId,
-      blockedById: dep.blockedById,
-      createdAt: dep.createdAt,
-    },
-    task: dep.blockedBy,
-  }));
-
-  // Get tasks that this task blocks (dependents)
-  const blocks = taskWithDeps.dependents.map((dep) => ({
-    dependency: {
-      id: dep.id,
-      taskId: dep.taskId,
-      blockedById: dep.blockedById,
-      createdAt: dep.createdAt,
-    },
-    task: dep.task,
-  }));
+  const graph = graphResult.value;
 
   // Get available tasks (same repo, not self, not already a dependency)
-  const existingBlockerIds = blockedBy.map((b) => b.task.id);
+  const existingBlockerIds = graph.dependencies.map((d) => d.id);
   const excludeIds = [taskId, ...existingBlockerIds];
 
   const availableTasks = await db.query.tasks.findMany({
@@ -60,9 +26,24 @@ export const GET = withTask(async (request, { task, taskId }) => {
     orderBy: (tasks, { desc }) => [desc(tasks.createdAt)],
   });
 
+  // Format response to match expected structure
   return NextResponse.json({
-    blockedBy,
-    blocks,
+    blockedBy: graph.dependencies.map((dep) => ({
+      task: dep,
+      dependency: {
+        taskId,
+        blockedById: dep.id,
+        createdAt: new Date().toISOString(),
+      },
+    })),
+    blocks: graph.dependents.map((dependent) => ({
+      task: dependent,
+      dependency: {
+        taskId: dependent.id,
+        blockedById: taskId,
+        createdAt: new Date().toISOString(),
+      },
+    })),
     availableTasks,
     autoExecuteWhenUnblocked: task.autoExecuteWhenUnblocked ?? false,
     dependencyPriority: task.dependencyPriority ?? 0,
@@ -133,11 +114,21 @@ export const POST = withTask(async (request, { task, taskId }) => {
     return handleError(Errors.conflict("Dependency already exists"));
   }
 
-  // Create the dependency (join table + denormalized blockedByIds)
-  const taskService = getTaskService();
-  const newDependency = await taskService.addDependency(taskId, blockedById);
+  // Create the dependency via use case
+  const useCase = UseCaseFactory.addTaskDependency();
+  const result = await useCase.execute({
+    taskId,
+    dependsOnId: blockedById,
+  });
 
-  return NextResponse.json(newDependency);
+  if (result.isFailure) {
+    return handleError(result.error);
+  }
+
+  return NextResponse.json({
+    success: true,
+    blockedByIds: result.value.blockedByIds,
+  });
 });
 
 // DELETE - Remove a dependency
@@ -149,9 +140,16 @@ export const DELETE = withTask(async (request, { task, taskId }) => {
     return handleError(Errors.invalidRequest("blockedById is required"));
   }
 
-  // Delete the dependency (join table + denormalized blockedByIds)
-  const taskService = getTaskService();
-  await taskService.removeDependency(taskId, blockedById);
+  // Remove the dependency via use case
+  const useCase = UseCaseFactory.removeTaskDependency();
+  const result = await useCase.execute({
+    taskId,
+    dependsOnId: blockedById,
+  });
+
+  if (result.isFailure) {
+    return handleError(result.error);
+  }
 
   return NextResponse.json({ success: true });
 });
@@ -161,15 +159,21 @@ export const PATCH = withTask(async (request, { task, taskId }) => {
   const body = await request.json();
   const { autoExecuteWhenUnblocked, dependencyPriority } = body;
 
-  const taskService = getTaskService();
-  const updatedTask = await taskService.updateDependencySettings(taskId, {
-    autoExecuteWhenUnblocked,
-    dependencyPriority,
+  const useCase = UseCaseFactory.updateDependencySettings();
+  const result = await useCase.execute({
+    taskId,
+    settings: {
+      strictDependencyOrder: autoExecuteWhenUnblocked,
+      allowParallelExecution: dependencyPriority === 0,
+    },
   });
+
+  if (result.isFailure) {
+    return handleError(result.error);
+  }
 
   return NextResponse.json({
     success: true,
-    autoExecuteWhenUnblocked: updatedTask.autoExecuteWhenUnblocked,
-    dependencyPriority: updatedTask.dependencyPriority,
+    ...result.value.settings,
   });
 });
