@@ -16,3 +16,4 @@ export function getAnalyticsService(): AnalyticsService {
 
 export { AnalyticsService } from "../application/analytics-service";
 export type { RecordActivityEventParams } from "../application/analytics-service";
+export type { DateRange } from "../infrastructure/analytics-query-repository";
