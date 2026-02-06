@@ -26,8 +26,8 @@ export class LoggerAdapter implements ILogger {
     }
   }
 
-  error(message: string, meta?: Record<string, unknown>): void {
-    apiLogger.error(meta || {}, message);
+  error(message: string, error?: Error, meta?: Record<string, unknown>): void {
+    apiLogger.error({ error, ...(meta || {}) }, message);
   }
 
   warn(message: string, meta?: Record<string, unknown>): void {

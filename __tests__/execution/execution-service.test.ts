@@ -1,30 +1,29 @@
 /**
- * Execution Service Integration Tests
- *
- * Tests execution lifecycle, iteration tracking, and recovery.
+ * Execution Service integration tests (current application-layer contract).
  */
 
-import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Redis } from "ioredis";
-import { db } from "@/lib/db";
-import { users, repos, tasks, domainEvents } from "@/lib/db/schema/tables";
-import { eq } from "drizzle-orm";
-import { ExecutionService } from "@/lib/contexts/execution/application/execution-service";
-import type {
-  ExtractionResult,
-  CommitInfo,
-  StuckSignal,
-  RecoveryAttempt,
-  ValidationReport,
-} from "@/lib/contexts/execution/domain/types";
 import { randomUUID } from "crypto";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import {
+  executionCommits,
+  executions,
+  repos,
+  tasks,
+  testRuns,
+  users,
+} from "@/lib/db/schema/tables";
+import { ExecutionService } from "@/lib/contexts/execution/application/execution-service";
 
-describe("Execution Service", () => {
+describe("ExecutionService", () => {
   let redis: Redis;
   let executionService: ExecutionService;
   let userId: string;
-  let repositoryId: string;
+  let repoId: string;
   let taskId: string;
+  let executionId: string;
 
   beforeAll(async () => {
     redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
@@ -32,384 +31,184 @@ describe("Execution Service", () => {
   });
 
   beforeEach(async () => {
-    // Create test user
+    const unique = `${Date.now()}-${Math.random()}`;
     userId = randomUUID();
+
     await db.insert(users).values({
       id: userId,
-      githubId: `github-${userId}`,
-      username: `testuser-${userId.substring(0, 8)}`,
-      email: `test-${userId.substring(0, 8)}@example.com`,
+      githubId: `gh-${unique}`,
+      username: `user-${unique}`,
+      email: `user-${unique}@example.com`,
     });
 
-    // Create test repository
-    repositoryId = randomUUID();
+    repoId = randomUUID();
     await db.insert(repos).values({
-      id: repositoryId,
+      id: repoId,
       userId,
-      githubRepoId: "123456",
-      name: "test-repo",
-      fullName: "testuser/test-repo",
+      githubRepoId: `repo-${unique}`,
+      name: "exec-repo",
+      fullName: `owner/exec-repo-${unique}`,
       defaultBranch: "main",
-      cloneUrl: "https://github.com/testuser/test-repo.git",
-      isPrivate: false,
+      cloneUrl: "https://github.com/owner/exec-repo.git",
     });
 
-    // Create test task
     taskId = randomUUID();
     await db.insert(tasks).values({
       id: taskId,
-      repoId: repositoryId,
-      title: "Test Task",
+      repoId,
+      title: "Execution Task",
       status: "ready",
+    });
+
+    executionId = randomUUID();
+    await executionService.createQueued({
+      id: executionId,
+      taskId,
     });
   });
 
   afterAll(async () => {
-    await db.delete(domainEvents);
-    await db.delete(users);
     await redis.quit();
   });
 
-  it("should start execution and publish ExecutionStarted event", async () => {
-    // Act
-    const { executionId } = await executionService.startExecution({
-      taskId,
-      branchName: "loopforge/task-1",
-    });
+  it("creates queued execution and supports core lifecycle updates", async () => {
+    let row = await executionService.getById(executionId);
+    expect(row?.status).toBe("queued");
 
-    // Assert
-    expect(executionId).toBeDefined();
+    await executionService.markRunning(executionId);
+    row = await executionService.getById(executionId);
+    expect(row?.status).toBe("running");
+    expect(row?.startedAt).toBeTruthy();
 
-    // Verify execution was created
-    const execution = await executionService.getExecution(executionId);
-    expect(execution).not.toBeNull();
-    expect(execution?.taskId).toBe(taskId);
-    expect(execution?.status).toBe("running");
-    expect(execution?.branchName).toBe("loopforge/task-1");
-
-    // Verify ExecutionStarted event was published
-    const events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "ExecutionStarted"));
-
-    expect(events.length).toBeGreaterThan(0);
-    const event = events[0];
-    expect(event.aggregateType).toBe("Execution");
-    expect(event.aggregateId).toBe(executionId);
-    expect(event.data).toMatchObject({
+    await executionService.markCompleted({
       executionId,
-      taskId,
-      branchName: "loopforge/task-1",
+      commits: ["abc123"],
+      prUrl: "https://github.com/owner/repo/pull/1",
+      prNumber: 1,
     });
+    row = await executionService.getById(executionId);
+    expect(row?.status).toBe("completed");
+    expect(row?.commits).toEqual(["abc123"]);
+    expect(row?.prNumber).toBe(1);
   });
 
-  it("should track iteration and extraction events", async () => {
-    // Arrange - Start execution
-    const { executionId } = await executionService.startExecution({
-      taskId,
-      branchName: "loopforge/task-1",
-    });
+  it("handles failed and stuck terminal states", async () => {
+    const failedId = randomUUID();
+    await executionService.create({ id: failedId, taskId, status: "queued" });
+    await executionService.markFailed(failedId, "boom");
+    const failed = await executionService.getById(failedId);
+    expect(failed?.status).toBe("failed");
+    expect(failed?.errorMessage).toBe("boom");
 
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Complete iteration (iteration is auto-started if not exists)
-    await executionService.completeIteration({
-      executionId,
-      thoughts: ["Analyzing code", "Planning changes"],
-      actions: ["Read file", "Edit file"],
-    });
-
-    // Assert - IterationCompleted event
-    let events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "IterationCompleted"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      executionId,
-      iteration: 1,
-      thoughtCount: 2,
-      actionCount: 2,
-    });
-
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Record extraction
-    const extractionResult: ExtractionResult = {
-      files: [
-        {
-          path: "src/index.ts",
-          content: "console.log('hello');",
-          language: "typescript",
-        },
-      ],
-      strategy: "strict",
-      confidence: 0.95,
-      fallbackUsed: false,
-    };
-
-    await executionService.recordExtraction({
-      executionId,
-      result: extractionResult,
-    });
-
-    // Assert - FilesExtracted event
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "FilesExtracted"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      executionId,
-      fileCount: 1,
-      strategy: "strict",
-      confidence: 0.95,
-    });
+    const stuckId = randomUUID();
+    await executionService.create({ id: stuckId, taskId, status: "queued" });
+    await executionService.markStuck(stuckId, [{ type: "loop", count: 3 }]);
+    const stuck = await executionService.getById(stuckId);
+    expect(stuck?.status).toBe("stuck");
   });
 
-  it("should track commits and publish CommitCreated events", async () => {
-    // Arrange - Start execution
-    const { executionId } = await executionService.startExecution({
-      taskId,
-      branchName: "loopforge/task-1",
-    });
+  it("lists latest and task executions", async () => {
+    const secondId = randomUUID();
+    await executionService.create({ id: secondId, taskId, status: "queued" });
 
-    // Clear events
-    await db.delete(domainEvents);
+    const list = await executionService.listByTask(taskId);
+    const latest = await executionService.getLatestForTask(taskId);
 
-    // Act - Record commit
-    const commit: CommitInfo = {
-      hash: "abc123",
-      message: "feat: add new feature",
-      filesChanged: 3,
-      linesAdded: 50,
-      linesDeleted: 10,
-      timestamp: new Date(),
-    };
-
-    await executionService.recordCommit({
-      executionId,
-      commit,
-    });
-
-    // Assert - CommitCreated event
-    const events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "CommitCreated"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      executionId,
-      commitHash: "abc123",
-      filesChanged: 3,
-      message: "feat: add new feature",
-    });
-
-    // Verify commit count updated
-    const execution = await executionService.getExecution(executionId);
-    expect(execution?.commitCount).toBe(1);
+    expect(list.length).toBeGreaterThanOrEqual(2);
+    expect(latest).toBeTruthy();
+    expect(list.some((execution) => execution.id === secondId)).toBe(true);
   });
 
-  it("should handle stuck detection and recovery", async () => {
-    // Arrange - Start execution
-    const { executionId } = await executionService.startExecution({
+  it("updates arbitrary fields and deletes records", async () => {
+    await executionService.updateFields(executionId, {
+      iteration: 5,
+      errorMessage: "transient",
+    });
+
+    const updated = await executionService.getById(executionId);
+    expect(updated?.iteration).toBe(5);
+    expect(updated?.errorMessage).toBe("transient");
+
+    await executionService.deleteById(executionId);
+    const deleted = await executionService.getById(executionId);
+    expect(deleted).toBeNull();
+  });
+
+  it("records and reads execution commits", async () => {
+    const commit = await executionService.recordCommit({
+      executionId,
+      commitSha: "abc123",
+      commitMessage: "feat: add endpoint",
+      filesChanged: ["app/api/route.ts"],
+    });
+
+    expect(commit.executionId).toBe(executionId);
+    const commits = await executionService.getCommits(executionId);
+    expect(commits).toHaveLength(1);
+    expect(commits[0].commitSha).toBe("abc123");
+  });
+
+  it("reports rollback eligibility and performs rollback", async () => {
+    await db
+      .update(executions)
+      .set({ status: "completed", completedAt: new Date() })
+      .where(eq(executions.id, executionId));
+
+    await db.insert(executionCommits).values({
+      id: randomUUID(),
+      executionId,
+      commitSha: "c1",
+      commitMessage: "feat: c1",
+      filesChanged: ["a.ts"],
+      isReverted: false,
+    });
+
+    const eligibility = await executionService.canRollback(executionId);
+    expect(eligibility.canRollback).toBe(true);
+
+    await executionService.rollbackCommits({
+      executionId,
+      revertCommitSha: "revert1",
+      reason: "manual rollback",
+    });
+
+    const commits = await executionService.getCommits(executionId);
+    expect(commits.every((commit) => commit.isReverted)).toBe(true);
+  });
+
+  it("loads latest test-run summary for execution", async () => {
+    await db.insert(testRuns).values({
+      id: randomUUID(),
+      executionId,
       taskId,
-      branchName: "loopforge/task-1",
-    });
-
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Detect stuck signal
-    const stuckSignal: StuckSignal = {
-      type: "consecutive_errors",
-      severity: "high",
-      details: {
-        errorCount: 3,
-        lastError: "Syntax error",
-      },
-      detectedAt: new Date(),
-    };
-
-    await executionService.detectStuckSignal({
-      executionId,
-      signal: stuckSignal,
-    });
-
-    // Assert - StuckSignalDetected event
-    let events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "StuckSignalDetected"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      executionId,
-      signal: "consecutive_errors",
-      severity: "high",
-    });
-
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Start recovery
-    const recoveryAttempt: RecoveryAttempt = {
-      tier: 1,
-      strategy: "format_guidance",
+      command: "npm test",
+      exitCode: 0,
+      stdout: "ok",
+      stderr: "",
+      durationMs: 1200,
+      status: "passed",
       startedAt: new Date(),
-      succeeded: false,
-    };
-
-    await executionService.startRecovery({
-      executionId,
-      attempt: recoveryAttempt,
-      reason: "Consecutive errors detected",
+      completedAt: new Date(),
     });
 
-    // Assert - RecoveryStarted event
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "RecoveryStarted"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      executionId,
-      tier: 1,
-      strategy: "format_guidance",
-    });
-
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Complete recovery successfully
-    await executionService.completeRecovery({
-      executionId,
-      succeeded: true,
-    });
-
-    // Assert - RecoverySucceeded event
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "RecoverySucceeded"));
-
-    expect(events.length).toBe(1);
+    const summary = await executionService.getTestRunForExecution(executionId);
+    expect(summary).toBeTruthy();
+    expect(summary?.command).toBe("npm test");
+    expect(summary?.hasOutput).toBe(true);
   });
 
-  it("should validate completion and publish CompletionValidated event", async () => {
-    // Arrange - Start execution
-    const { executionId } = await executionService.startExecution({
-      taskId,
-      branchName: "loopforge/task-1",
-    });
-
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Validate completion
-    const validationReport: ValidationReport = {
-      score: 85,
-      passed: true,
-      checks: {
-        hasMarker: { passed: true, score: 20, weight: 20 },
-        hasCommits: { passed: true, score: 20, weight: 20 },
-        matchesPlan: { passed: true, score: 25, weight: 30 },
-        qualityThreshold: { passed: true, score: 15, weight: 15 },
-        testsExecuted: { passed: false, score: 0, weight: 5 },
-        noCriticalErrors: { passed: true, score: 10, weight: 10 },
-      },
-      generatedAt: new Date(),
-    };
-
-    await executionService.validateCompletion({
-      executionId,
-      report: validationReport,
-    });
-
-    // Assert - CompletionValidated event
-    const events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "CompletionValidated"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      executionId,
-      score: 85,
-      passed: true,
-    });
-  });
-
-  it("should complete execution and publish ExecutionCompleted event", async () => {
-    // Arrange - Start execution
-    const { executionId } = await executionService.startExecution({
-      taskId,
-      branchName: "loopforge/task-1",
-    });
-
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Complete execution
-    await executionService.completeExecution(executionId);
-
-    // Assert - ExecutionCompleted event
-    const events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "ExecutionCompleted"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
+  it("deletes test runs by execution", async () => {
+    await db.insert(testRuns).values({
+      id: randomUUID(),
       executionId,
       taskId,
+      command: "npm test",
+      status: "failed",
+      startedAt: new Date(),
     });
 
-    // Verify execution status
-    const execution = await executionService.getExecution(executionId);
-    expect(execution?.status).toBe("completed");
-    expect(execution?.isComplete).toBe(true);
-  });
-
-  it("should fail execution and publish ExecutionFailed event", async () => {
-    // Arrange - Start execution
-    const { executionId } = await executionService.startExecution({
-      taskId,
-      branchName: "loopforge/task-1",
-    });
-
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Fail execution
-    await executionService.failExecution({
-      executionId,
-      error: "Max iterations reached",
-    });
-
-    // Assert - ExecutionFailed event
-    const events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "ExecutionFailed"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      executionId,
-      taskId,
-      error: "Max iterations reached",
-    });
-
-    // Verify execution status
-    const execution = await executionService.getExecution(executionId);
-    expect(execution?.status).toBe("failed");
-    expect(execution?.isComplete).toBe(true);
+    const removed =
+      await executionService.deleteTestRunsForExecution(executionId);
+    expect(removed).toBeGreaterThanOrEqual(1);
   });
 });

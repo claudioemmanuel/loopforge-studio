@@ -26,7 +26,13 @@ export interface GraphLegendProps {
 /**
  * Legend items configuration
  */
-const STATUS_ITEMS = [
+const STATUS_ITEMS: Array<{
+  icon: typeof Clock;
+  label: string;
+  color: string;
+  bgColor: string;
+  animated?: boolean;
+}> = [
   {
     icon: Clock,
     label: "Pending",
@@ -58,7 +64,7 @@ const STATUS_ITEMS = [
     color: "text-red-400",
     bgColor: "bg-red-600/20",
   },
-] as const;
+];
 
 const NODE_TYPE_ITEMS = [
   {

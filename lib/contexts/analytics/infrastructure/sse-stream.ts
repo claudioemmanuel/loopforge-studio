@@ -55,8 +55,10 @@ export class SSEStreamManager {
     }
 
     // Subscribe to all events
-    this.subscriber.subscribe("*", this.handleDomainEvent.bind(this), {
-      subscriberId: "sse-stream-manager",
+    this.subscriber.subscribe({
+      eventType: "*",
+      handler: this.handleDomainEvent.bind(this),
+      subscriberName: "sse-stream-manager",
       priority: 5, // Medium priority
     });
 
@@ -71,7 +73,7 @@ export class SSEStreamManager {
       return;
     }
 
-    this.subscriber.unsubscribe("sse-stream-manager", "*");
+    this.subscriber.unsubscribe("*", "sse-stream-manager");
     this.isListening = false;
 
     // Close all connections

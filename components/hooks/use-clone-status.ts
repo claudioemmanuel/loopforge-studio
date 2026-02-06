@@ -55,11 +55,7 @@ export function useCloneStatus(
             }
 
             // Stop polling on terminal states
-            if (
-              newStatus === "completed" ||
-              newStatus === "failed" ||
-              newStatus === "idle"
-            ) {
+            if (newStatus === "completed" || newStatus === "failed") {
               if (intervalId) clearInterval(intervalId);
             }
           }

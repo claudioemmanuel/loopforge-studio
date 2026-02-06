@@ -10,7 +10,17 @@ export * from "./api";
 
 // Domain exports (for advanced usage)
 export * from "./domain/events";
-export * from "./domain/provider-config";
+export type {
+  EncryptedApiKey,
+  ProviderConfig,
+  UserProviderConfiguration,
+} from "./domain/provider-config";
+export {
+  DEFAULT_MODELS,
+  hasValidApiKey,
+  getActiveProviderConfig,
+  hasAtLeastOneProvider,
+} from "./domain/provider-config";
 export { UserAggregate } from "./domain/user-aggregate";
 
 // Application exports

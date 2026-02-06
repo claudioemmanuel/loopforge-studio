@@ -39,7 +39,7 @@ export function getViewportBounds(
   viewport: ViewportState,
   containerWidth: number,
   containerHeight: number,
-  margin = PERFORMANCE_THRESHOLDS.viewportCullingMargin,
+  margin: number = PERFORMANCE_THRESHOLDS.viewportCullingMargin,
 ): ViewportBounds {
   const viewportWidth = containerWidth / viewport.zoom;
   const viewportHeight = containerHeight / viewport.zoom;
@@ -105,7 +105,7 @@ class MemoCache<K, V> {
   private cache = new Map<string, { value: V; timestamp: number }>();
   private ttl: number;
 
-  constructor(ttl = PERFORMANCE_THRESHOLDS.memoizationTTL) {
+  constructor(ttl: number = PERFORMANCE_THRESHOLDS.memoizationTTL) {
     this.ttl = ttl;
   }
 

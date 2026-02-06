@@ -1,23 +1,22 @@
 /**
- * Task Service Integration Tests
- *
- * Tests task lifecycle, state transitions, and dependency management.
+ * Task Service integration tests (current application-layer contract).
  */
 
-import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Redis } from "ioredis";
-import { db } from "@/lib/db";
-import { users, repos, domainEvents } from "@/lib/db/schema/tables";
-import { eq } from "drizzle-orm";
-import { TaskService } from "@/lib/contexts/task/application/task-service";
-import type { TaskMetadata } from "@/lib/contexts/task/domain/types";
 import { randomUUID } from "crypto";
+import { db } from "@/lib/db";
+import { repos, taskDependencies, tasks, users } from "@/lib/db/schema/tables";
+import { TaskService } from "@/lib/contexts/task/application/task-service";
 
-describe("Task Service", () => {
+describe("TaskService", () => {
   let redis: Redis;
   let taskService: TaskService;
+
   let userId: string;
-  let repositoryId: string;
+  let repoId: string;
+  let taskId: string;
+  let blockerTaskId: string;
 
   beforeAll(async () => {
     redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
@@ -25,406 +24,135 @@ describe("Task Service", () => {
   });
 
   beforeEach(async () => {
-    // Create test user
+    const unique = `${Date.now()}-${Math.random()}`;
     userId = randomUUID();
+
     await db.insert(users).values({
       id: userId,
-      githubId: `github-${userId}`,
-      username: `testuser-${userId.substring(0, 8)}`,
-      email: `test-${userId.substring(0, 8)}@example.com`,
+      githubId: `gh-${unique}`,
+      username: `user-${unique}`,
+      email: `user-${unique}@example.com`,
     });
 
-    // Create test repository
-    repositoryId = randomUUID();
+    repoId = randomUUID();
     await db.insert(repos).values({
-      id: repositoryId,
+      id: repoId,
       userId,
-      githubRepoId: "123456",
-      name: "test-repo",
-      fullName: "testuser/test-repo",
+      githubRepoId: `repo-${unique}`,
+      name: "task-repo",
+      fullName: `owner/task-repo-${unique}`,
       defaultBranch: "main",
-      cloneUrl: "https://github.com/testuser/test-repo.git",
-      isPrivate: false,
+      cloneUrl: "https://github.com/owner/task-repo.git",
+    });
+
+    taskId = randomUUID();
+    blockerTaskId = randomUUID();
+    await db.insert(tasks).values([
+      {
+        id: taskId,
+        repoId,
+        title: "Main task",
+        description: "Main task description",
+        status: "todo",
+        autonomousMode: true,
+      },
+      {
+        id: blockerTaskId,
+        repoId,
+        title: "Blocker task",
+        status: "done",
+      },
+    ]);
+
+    await db.insert(taskDependencies).values({
+      id: randomUUID(),
+      taskId,
+      blockedById: blockerTaskId,
     });
   });
 
   afterAll(async () => {
-    await db.delete(domainEvents);
-    await db.delete(users);
     await redis.quit();
   });
 
-  it("should create task and publish TaskCreated event", async () => {
-    // Arrange
-    const metadata: TaskMetadata = {
-      title: "Test Task",
-      description: "Test description",
-      priority: 1,
-    };
+  it("returns task with repo ownership context", async () => {
+    const task = await taskService.getTaskFull(taskId);
 
-    // Act
-    const { taskId } = await taskService.createTask({
-      repositoryId,
-      metadata,
-      configuration: {
-        autonomousMode: true,
-      },
-    });
-
-    // Assert
-    expect(taskId).toBeDefined();
-
-    // Verify task was created
-    const task = await taskService.getTask(taskId);
-    expect(task).not.toBeNull();
-    expect(task?.title).toBe("Test Task");
-    expect(task?.status).toBe("todo");
-    expect(task?.priority).toBe(1);
-
-    // Verify TaskCreated event was published
-    const events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "TaskCreated"));
-
-    expect(events.length).toBeGreaterThan(0);
-    const event = events[0];
-    expect(event.aggregateType).toBe("Task");
-    expect(event.aggregateId).toBe(taskId);
-    expect(event.data).toMatchObject({
-      taskId,
-      repositoryId,
-      title: "Test Task",
-      priority: 1,
-      autonomousMode: true,
-    });
+    expect(task).toBeDefined();
+    expect(task?.id).toBe(taskId);
+    expect(task?.repoId).toBe(repoId);
+    expect(task?.repo.userId).toBe(userId);
   });
 
-  it("should handle full task lifecycle with events", async () => {
-    // Arrange - Create task
-    const metadata: TaskMetadata = {
-      title: "Lifecycle Test",
-      priority: 0,
-    };
+  it("lists tasks by repo and user", async () => {
+    const byRepo = await taskService.listByRepo(repoId);
+    const byUser = await taskService.listByUserId(userId);
 
-    const { taskId } = await taskService.createTask({
-      repositoryId,
-      metadata,
-    });
-
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act & Assert - Brainstorm phase
-    await taskService.startBrainstorm({
-      taskId,
-      jobId: "brainstorm-job-1",
-    });
-
-    let events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "BrainstormingStarted"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      taskId,
-      jobId: "brainstorm-job-1",
-    });
-
-    // Complete brainstorm
-    await db.delete(domainEvents);
-    await taskService.completeBrainstorm({
-      taskId,
-      result: {
-        summary: "Brainstorm summary",
-        conversation: [
-          {
-            role: "user",
-            content: "Let's discuss",
-            timestamp: new Date(),
-          },
-        ],
-        messageCount: 1,
-      },
-    });
-
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "BrainstormingCompleted"));
-
-    expect(events.length).toBe(1);
-
-    // Act & Assert - Planning phase
-    await db.delete(domainEvents);
-    await taskService.startPlanning({
-      taskId,
-      jobId: "plan-job-1",
-    });
-
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "PlanningStarted"));
-
-    expect(events.length).toBe(1);
-
-    // Complete planning
-    await db.delete(domainEvents);
-    await taskService.completePlanning({
-      taskId,
-      planContent: "# Plan\n1. Do this\n2. Do that",
-    });
-
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "PlanningCompleted"));
-
-    expect(events.length).toBe(1);
-
-    // Verify status is now "ready"
-    let task = await taskService.getTask(taskId);
-    expect(task?.status).toBe("ready");
-    expect(task?.canExecute).toBe(true);
-
-    // Act & Assert - Execution phase
-    await db.delete(domainEvents);
-    await taskService.startExecution({
-      taskId,
-      executionId: "exec-1",
-      branchName: "loopforge/task-1",
-    });
-
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "ExecutionStarted"));
-
-    expect(events.length).toBe(1);
-
-    // Complete execution
-    await db.delete(domainEvents);
-    await taskService.completeExecution({
-      taskId,
-      result: {
-        executionId: "exec-1",
-        branchName: "loopforge/task-1",
-        commitCount: 3,
-        prUrl: "https://github.com/test/repo/pull/1",
-        prNumber: 1,
-      },
-    });
-
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "ExecutionCompleted"));
-
-    expect(events.length).toBe(1);
-
-    // Verify status is now "review" (because PR was created)
-    task = await taskService.getTask(taskId);
-    expect(task?.status).toBe("review");
+    expect(byRepo.length).toBeGreaterThanOrEqual(2);
+    expect(byUser.some((task) => task.id === taskId)).toBe(true);
+    expect(await taskService.countByUser(userId)).toBeGreaterThanOrEqual(2);
   });
 
-  it("should handle task dependencies and blocking", async () => {
-    // Arrange - Create two tasks
-    const task1Metadata: TaskMetadata = {
-      title: "Task 1 (Blocker)",
-      priority: 1,
-    };
-
-    const task2Metadata: TaskMetadata = {
-      title: "Task 2 (Blocked)",
-      priority: 0,
-    };
-
-    const { taskId: task1Id } = await taskService.createTask({
-      repositoryId,
-      metadata: task1Metadata,
+  it("updates fields and supports status-guarded updates", async () => {
+    await taskService.updateFields(taskId, {
+      title: "Main task updated",
+      processingStatusText: "Queued",
     });
 
-    const { taskId: task2Id } = await taskService.createTask({
-      repositoryId,
-      metadata: task2Metadata,
-    });
+    const updated = await taskService.getTaskFull(taskId);
+    expect(updated?.title).toBe("Main task updated");
+    expect(updated?.processingStatusText).toBe("Queued");
 
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Add dependency (task2 is blocked by task1)
-    await taskService.addDependency({
-      taskId: task2Id,
-      blockedById: task1Id,
+    const ok = await taskService.updateIfStatus(taskId, ["todo"], {
+      status: "planning",
     });
+    expect(ok).toBe(true);
 
-    // Assert - DependencyAdded event
-    let events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "DependencyAdded"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      taskId: task2Id,
-      blockedById: task1Id,
+    const denied = await taskService.updateIfStatus(taskId, ["todo"], {
+      status: "done",
     });
-
-    // Verify task2 is blocked
-    let task2 = await taskService.getTask(task2Id);
-    expect(task2?.isBlocked).toBe(true);
-    expect(task2?.canExecute).toBe(false);
-
-    // Act - Advance task2 to ready status (but still blocked)
-    await taskService.startBrainstorm({
-      taskId: task2Id,
-      jobId: "brainstorm-job",
-    });
-    await taskService.completeBrainstorm({
-      taskId: task2Id,
-      result: {
-        summary: "Summary",
-        conversation: [],
-        messageCount: 0,
-      },
-    });
-    await taskService.startPlanning({
-      taskId: task2Id,
-      jobId: "plan-job",
-    });
-    await taskService.completePlanning({
-      taskId: task2Id,
-      planContent: "Plan",
-    });
-
-    // Verify task2 is ready but blocked
-    task2 = await taskService.getTask(task2Id);
-    expect(task2?.status).toBe("ready");
-    expect(task2?.canExecute).toBe(false); // Still blocked!
-
-    // Act - Try to execute task2 (should fail)
-    await expect(
-      taskService.startExecution({
-        taskId: task2Id,
-        executionId: "exec-1",
-        branchName: "branch-1",
-      }),
-    ).rejects.toThrow("blocked");
-
-    // Act - Complete task1 (unblocks task2)
-    // Fast-forward task1 to done
-    await taskService.startBrainstorm({
-      taskId: task1Id,
-      jobId: "brainstorm-job",
-    });
-    await taskService.completeBrainstorm({
-      taskId: task1Id,
-      result: {
-        summary: "Summary",
-        conversation: [],
-        messageCount: 0,
-      },
-    });
-    await taskService.startPlanning({
-      taskId: task1Id,
-      jobId: "plan-job",
-    });
-    await taskService.completePlanning({
-      taskId: task1Id,
-      planContent: "Plan",
-    });
-    await taskService.startExecution({
-      taskId: task1Id,
-      executionId: "exec-1",
-      branchName: "branch-1",
-    });
-
-    await db.delete(domainEvents);
-    await taskService.completeExecution({
-      taskId: task1Id,
-      result: {
-        executionId: "exec-1",
-        branchName: "branch-1",
-        commitCount: 1,
-      },
-    });
-
-    // Assert - TaskUnblocked event for task2
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "TaskUnblocked"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].aggregateId).toBe(task2Id);
-
-    // Verify task2 is now unblocked and can execute
-    task2 = await taskService.getTask(task2Id);
-    expect(task2?.isBlocked).toBe(false);
-    expect(task2?.canExecute).toBe(true);
+    expect(denied).toBe(false);
   });
 
-  it("should handle stuck tasks", async () => {
-    // Arrange - Create task
-    const metadata: TaskMetadata = {
-      title: "Stuck Task",
-      priority: 0,
-    };
-
-    const { taskId } = await taskService.createTask({
-      repositoryId,
-      metadata,
-    });
-
-    // Advance to executing
-    await taskService.startBrainstorm({
+  it("claims and clears processing slot", async () => {
+    const claimed = await taskService.claimProcessingSlot(
       taskId,
-      jobId: "job-1",
-    });
-    await taskService.completeBrainstorm({
-      taskId,
-      result: {
-        summary: "Summary",
-        conversation: [],
-        messageCount: 0,
-      },
-    });
-    await taskService.startPlanning({
-      taskId,
-      jobId: "job-2",
-    });
-    await taskService.completePlanning({
-      taskId,
-      planContent: "Plan",
-    });
-    await taskService.startExecution({
-      taskId,
-      executionId: "exec-1",
-      branchName: "branch-1",
-    });
+      "brainstorming",
+      "Analyzing task...",
+      "brainstorming",
+    );
 
-    // Clear events
-    await db.delete(domainEvents);
+    expect(claimed).toBeTruthy();
+    expect(claimed?.status).toBe("brainstorming");
+    expect(claimed?.processingPhase).toBe("brainstorming");
 
-    // Act - Fail execution
-    await taskService.failExecution({
-      taskId,
-      executionId: "exec-1",
-      error: "Something went wrong",
-    });
+    await taskService.clearProcessingSlot(taskId, { status: "ready" });
+    const cleared = await taskService.getTaskFull(taskId);
+    expect(cleared?.processingPhase).toBeNull();
+    expect(cleared?.processingJobId).toBeNull();
+    expect(cleared?.status).toBe("ready");
+  });
 
-    // Assert - ExecutionFailed event
-    const events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "ExecutionFailed"));
+  it("provides dependency lookup helpers", async () => {
+    const blockers = await taskService.listBlockersForTask(taskId);
+    const dependents = await taskService.listDependentsByBlocker(blockerTaskId);
+    const dependentsWithRepo =
+      await taskService.listDependentsByBlockerWithRepo(blockerTaskId);
 
-    expect(events.length).toBe(1);
+    expect(blockers.length).toBe(1);
+    expect(blockers[0].blockedBy.id).toBe(blockerTaskId);
+    expect(dependents.length).toBe(1);
+    expect(dependents[0].task.id).toBe(taskId);
+    expect(dependentsWithRepo[0].task.repo.id).toBe(repoId);
+  });
 
-    // Assert - TaskStuck status
-    const task = await taskService.getTask(taskId);
-    expect(task?.status).toBe("stuck");
+  it("supports bulk IDs and deletion by repo IDs", async () => {
+    const ids = await taskService.getIdsByRepoIds([repoId]);
+    expect(ids).toContain(taskId);
+    expect(ids).toContain(blockerTaskId);
+
+    await taskService.deleteByRepoIds([repoId]);
+    const remaining = await taskService.listByRepo(repoId);
+    expect(remaining).toHaveLength(0);
   });
 });

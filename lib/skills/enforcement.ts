@@ -61,10 +61,8 @@ export async function persistSkillExecution(
     await db
       .update(executions)
       .set({
-        skillExecutions: updatedExecutions as unknown as Record<
-          string,
-          unknown
-        >,
+        skillExecutions:
+          updatedExecutions as typeof executions.$inferInsert.skillExecutions,
       })
       .where(eq(executions.id, executionId));
 

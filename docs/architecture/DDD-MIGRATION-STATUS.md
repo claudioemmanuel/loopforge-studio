@@ -1,6 +1,6 @@
 # DDD Migration – Complete Status
 
-> **Last updated:** 2026-02-06 (Ralph loop checkpoint 2)
+> **Last updated:** 2026-02-06 (Ralph loop checkpoint 3)
 > **Branch:** `main` (single branch – all work consolidated)
 > **Migration state:** Clean Architecture use cases complete ✅ | Task & Execution aggregates wired ✅ | Diff/review routes migrated to `ExecutionService` ✅ | Repository clone-status/verify-local routes migrated to `RepositoryService` ✅ | All API routes migrated off direct `@/lib/db` imports ✅ | Worker/queue backend internals migrated to context services/adapters ✅ | `lib/domain/` deleted ✅
 > **Completion Roadmap:** See [`DDD-COMPLETION-ROADMAP.md`](./DDD-COMPLETION-ROADMAP.md) for final cleanup items.
@@ -28,13 +28,29 @@ Completed this iteration:
 
 Remaining debt snapshot:
 
-- `@ts-nocheck` in `__tests__`: **29 files**.
-- Next recommended context: `__tests__/task/task-service.test.ts` + `__tests__/execution/execution-service.test.ts`.
+- `@ts-nocheck` in `__tests__`: **0 files**.
+- `npx tsc --noEmit --pretty false`: ✅ passing after migration rewrites.
+
+### Ralph Loop Checkpoint – 2026-02-06 (Backend Test Migration Completion)
+
+Completed this iteration:
+
+1. Removed final `@ts-nocheck` debt in component/backend suites:
+   - `__tests__/unit/components/usage-indicator.test.tsx` (rewritten for current `UsageDashboard`)
+   - `__tests__/unit/components/kanban-card-blocked.test.tsx` (rewritten for current `KanbanCard` contract)
+   - `__tests__/unit/components/{dependency-editor,dependency-highlight-context,dependency-lines,task-dependencies,task-orchestration,activity-events,cascading-failure-handler}.*`
+2. Removed obsolete tests for deleted UI modules:
+   - `__tests__/unit/components/experiments/variant-node.test.tsx`
+   - `__tests__/unit/components/experiments/generate-wizard.test.tsx`
+3. Aligned unit DB-backed tests to shared setup import path:
+   - `../../setup/test-db`
+4. Re-verified compile gate:
+   - `npx tsc --noEmit --pretty false` ✅
 
 **Next session focus (remaining technical debt):**
 
-1. Resolve pre-existing repo-wide TypeScript/test debt listed in roadmap (outside this migration merge).
-2. Re-run worker/queue lint + TS verification before next merge.
+1. Execute runtime verification pass (`vitest` targeted backend + integration suites with local DB).
+2. Address any behavioral regressions discovered at runtime (compile-only debt now cleared).
 
 **Quick resume verification commands:**
 

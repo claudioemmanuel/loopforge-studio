@@ -20,7 +20,13 @@ export const POST = withTask(async (request, { taskId }) => {
       summary: conversation.currentPreview
         ? JSON.stringify(conversation.currentPreview)
         : "No summary available",
-      conversation: conversation.messages || [],
+      conversation: (conversation.messages || []).map((message) => ({
+        role: (message.role === "user" ? "user" : "assistant") as
+          | "user"
+          | "assistant",
+        content: message.content,
+        timestamp: new Date(),
+      })),
       messageCount: conversation.messages?.length || 0,
       compactedAt: null,
     };

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { getTestPool } from "./setup/test-db";
+import { readFileSync } from "fs";
+import { join } from "path";
+import { getTestPool } from "../../setup/test-db";
 
 describe("Migration Automation", () => {
   const pool = getTestPool();
@@ -45,9 +47,6 @@ describe("Migration Automation", () => {
   });
 
   it("should have all journal migrations applied", async () => {
-    const { readFileSync } = require("fs");
-    const { join } = require("path");
-
     const journalPath = join(
       __dirname,
       "..",

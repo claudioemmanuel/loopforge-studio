@@ -59,7 +59,9 @@ export function ConfirmDialog({
   // Determine if confirm button should be disabled
   const isConfirmDisabled =
     disabled ||
-    (requireTextConfirmation && confirmationInput !== requireTextConfirmation);
+    Boolean(
+      requireTextConfirmation && confirmationInput !== requireTextConfirmation,
+    );
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>

@@ -1,295 +1,140 @@
-/**
- * Integration tests for Billing Context
- */
-
-import { describe, it, expect, beforeEach } from "vitest";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { Redis } from "ioredis";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BillingService } from "@/lib/contexts/billing/application/billing-service";
-import { UsageService } from "@/lib/contexts/billing/application/usage-service";
-import { randomUUID } from "crypto";
+import type { PlanTier } from "@/lib/contexts/billing/domain/types";
+import type { PlanLimits } from "@/lib/db/schema";
 
-describe("Billing Context Integration Tests", () => {
-  let redis: Redis;
+function createLimits(overrides?: Partial<PlanLimits>): PlanLimits {
+  return {
+    maxRepos: 1,
+    maxTasksPerMonth: 10,
+    maxTokensPerMonth: 100_000,
+    ...overrides,
+  };
+}
+
+describe("BillingService", () => {
+  let subscriptionRepository: {
+    findByUserId: ReturnType<typeof vi.fn>;
+    save: ReturnType<typeof vi.fn>;
+  };
+  let usageRepository: {
+    recordUsage: ReturnType<typeof vi.fn>;
+    getSummary: ReturnType<typeof vi.fn>;
+    getEstimatedCost: ReturnType<typeof vi.fn>;
+    getCurrentMonthlyUsage: ReturnType<typeof vi.fn>;
+  };
+  let taskService: { countByUser: ReturnType<typeof vi.fn> };
+  let repositoryService: { countByUser: ReturnType<typeof vi.fn> };
   let billingService: BillingService;
-  let usageService: UsageService;
-  let testUserId: string;
 
-  beforeEach(async () => {
-    // Get Redis client
-    redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
+  beforeEach(() => {
+    subscriptionRepository = {
+      findByUserId: vi.fn(),
+      save: vi.fn(),
+    };
 
-    // Create services
-    billingService = new BillingService(redis);
-    usageService = new UsageService(redis);
+    usageRepository = {
+      recordUsage: vi.fn(),
+      getSummary: vi.fn(),
+      getEstimatedCost: vi.fn(),
+      getCurrentMonthlyUsage: vi.fn(),
+    };
 
-    // Create test user
-    testUserId = randomUUID();
-    await db.insert(users).values({
-      id: testUserId,
-      githubId: 12345,
-      username: "testuser",
-      email: "test@example.com",
-      avatarUrl: "https://example.com/avatar.jpg",
-      githubAccessToken: "encrypted_token",
-      planTier: "free",
-      billingMode: "byok",
-      subscriptionStatus: "active",
-      maxRepos: 1,
-      maxTasks: 5,
-      maxTokensPerMonth: 100000,
-    });
+    taskService = { countByUser: vi.fn() };
+    repositoryService = { countByUser: vi.fn() };
+
+    billingService = new BillingService(
+      subscriptionRepository as never,
+      usageRepository as never,
+      taskService as never,
+      repositoryService as never,
+    );
   });
 
-  describe("Subscription Management", () => {
-    it("should get user subscription", async () => {
-      const subscription = await billingService.getSubscription(testUserId);
-
-      expect(subscription).toBeDefined();
-      expect(subscription?.userId).toBe(testUserId);
-      expect(subscription?.planTier).toBe("free");
-      expect(subscription?.billingMode).toBe("byok");
-      expect(subscription?.status).toBe("active");
-      expect(subscription?.isActive).toBe(true);
-      expect(subscription?.isByok).toBe(true);
-      expect(subscription?.limits).toEqual({
-        maxRepos: 1,
-        maxTasks: 5,
-        maxTokensPerMonth: 100000,
-      });
+  it("builds usage summary with limits and percentages", async () => {
+    const limits = createLimits({
+      maxRepos: 20,
+      maxTasksPerMonth: 100,
+      maxTokensPerMonth: 5_000_000,
     });
 
-    it("should upgrade subscription", async () => {
-      await billingService.upgradeSubscription({
-        userId: testUserId,
-        newTier: "pro",
-      });
-
-      const subscription = await billingService.getSubscription(testUserId);
-
-      expect(subscription?.planTier).toBe("pro");
-      expect(subscription?.limits).toEqual({
-        maxRepos: 20,
-        maxTasks: 100,
-        maxTokensPerMonth: 5000000,
-      });
+    subscriptionRepository.findByUserId.mockResolvedValue({
+      getState: () => ({
+        planTier: "pro",
+        billingMode: "managed",
+        limits,
+      }),
     });
 
-    it("should downgrade subscription", async () => {
-      // First upgrade to pro
-      await billingService.upgradeSubscription({
-        userId: testUserId,
-        newTier: "pro",
-      });
-
-      // Then downgrade back to free
-      await billingService.downgradeSubscription({
-        userId: testUserId,
-        newTier: "free",
-      });
-
-      const subscription = await billingService.getSubscription(testUserId);
-
-      expect(subscription?.planTier).toBe("free");
-      expect(subscription?.limits).toEqual({
-        maxRepos: 1,
-        maxTasks: 5,
-        maxTokensPerMonth: 100000,
-      });
+    usageRepository.getSummary.mockResolvedValue({
+      totalTokens: 1_250_000,
+      totalExecutions: 0,
+      byProvider: {},
+      byModel: {},
     });
+    usageRepository.getEstimatedCost.mockResolvedValue(4500);
+    taskService.countByUser.mockResolvedValue(25);
+    repositoryService.countByUser.mockResolvedValue(5);
 
-    it("should prevent invalid upgrade (downgrade with upgrade method)", async () => {
-      await expect(
-        billingService.upgradeSubscription({
-          userId: testUserId,
-          newTier: "free", // Already on free
+    const summary = await billingService.getUsageSummary("user-1");
+
+    expect(summary.tokens.used).toBe(1_250_000);
+    expect(summary.tokens.limit).toBe(5_000_000);
+    expect(summary.tasks.created).toBe(25);
+    expect(summary.tasks.limit).toBe(100);
+    expect(summary.repos.count).toBe(5);
+    expect(summary.repos.limit).toBe(20);
+    expect(summary.billingMode).toBe("managed");
+    expect(summary.plan).toEqual({ name: "Pro", tier: "pro" });
+  });
+
+  it("upgrades and persists subscription", async () => {
+    const upgrade = vi.fn().mockResolvedValue(undefined);
+    const subscription = { upgrade };
+    subscriptionRepository.findByUserId.mockResolvedValue(subscription);
+
+    await billingService.upgradeSubscription("user-1", "pro");
+
+    expect(upgrade).toHaveBeenCalledWith("pro");
+    expect(subscriptionRepository.save).toHaveBeenCalledWith(subscription);
+  });
+
+  it("checks limits using delegated services", async () => {
+    subscriptionRepository.findByUserId.mockResolvedValue({
+      getLimits: () =>
+        createLimits({
+          maxRepos: 2,
+          maxTasksPerMonth: 3,
+          maxTokensPerMonth: 1000,
         }),
-      ).rejects.toThrow(/Cannot upgrade/);
     });
 
-    it("should cancel subscription", async () => {
-      await billingService.cancelSubscription({
-        userId: testUserId,
-        reason: "User requested cancellation",
-      });
+    taskService.countByUser.mockResolvedValue(4);
+    repositoryService.countByUser.mockResolvedValue(1);
+    usageRepository.getCurrentMonthlyUsage.mockResolvedValue(500);
 
-      const subscription = await billingService.getSubscription(testUserId);
+    const result = await billingService.checkLimits("user-1");
 
-      expect(subscription?.status).toBe("canceled");
-      expect(subscription?.isActive).toBe(false);
-    });
+    expect(result.withinLimits).toBe(false);
+    expect(result.usage.tasks).toBe(4);
+    expect(result.usage.repos).toBe(1);
+    expect(result.usage.tokens).toBe(500);
   });
 
-  describe("Limit Checking", () => {
-    it("should detect when limit exceeded", async () => {
-      const exceeded = await billingService.checkLimit({
-        userId: testUserId,
-        limitType: "maxRepos",
-        currentValue: 2, // Free plan allows only 1
-      });
+  it.each<[PlanTier, PlanTier]>([
+    ["pro", "free"],
+    ["enterprise", "pro"],
+  ])("downgrades to %s from %s and saves", async (nextTier, currentTier) => {
+    const downgrade = vi.fn().mockResolvedValue(undefined);
+    const subscription = {
+      getState: () => ({ planTier: currentTier }),
+      downgrade,
+    };
+    subscriptionRepository.findByUserId.mockResolvedValue(subscription);
 
-      expect(exceeded).toBe(true);
-    });
+    await billingService.downgradeSubscription("user-1", nextTier);
 
-    it("should allow when under limit", async () => {
-      const exceeded = await billingService.checkLimit({
-        userId: testUserId,
-        limitType: "maxRepos",
-        currentValue: 0, // Free plan allows 1, so 0 is under limit
-      });
-
-      expect(exceeded).toBe(false);
-    });
-
-    it("should handle unlimited limits", async () => {
-      // Upgrade to enterprise (unlimited)
-      await billingService.upgradeSubscription({
-        userId: testUserId,
-        newTier: "enterprise",
-      });
-
-      const exceeded = await billingService.checkLimit({
-        userId: testUserId,
-        limitType: "maxRepos",
-        currentValue: 1000000, // Enterprise is unlimited
-      });
-
-      expect(exceeded).toBe(false);
-    });
-  });
-
-  describe("Usage Tracking", () => {
-    it("should record usage", async () => {
-      const result = await usageService.recordUsage({
-        userId: testUserId,
-        executionId: "", // No execution for this test
-        tokensUsed: 1000,
-        provider: "anthropic",
-        model: "claude-sonnet-4",
-      });
-
-      expect(result.usageId).toBeDefined();
-    });
-
-    it("should get usage summary", async () => {
-      // Record multiple usage entries
-      await usageService.recordUsage({
-        userId: testUserId,
-        executionId: "",
-        tokensUsed: 1000,
-        provider: "anthropic",
-        model: "claude-sonnet-4",
-      });
-
-      await usageService.recordUsage({
-        userId: testUserId,
-        executionId: "",
-        tokensUsed: 2000,
-        provider: "openai",
-        model: "gpt-4o",
-      });
-
-      const summary = await usageService.getUsageSummary({
-        userId: testUserId,
-      });
-
-      expect(summary.totalTokens).toBe(3000);
-      expect(summary.totalExecutions).toBe(2);
-      expect(summary.byProvider).toEqual({
-        anthropic: 1000,
-        openai: 2000,
-      });
-      expect(summary.byModel).toEqual({
-        "claude-sonnet-4": 1000,
-        "gpt-4o": 2000,
-      });
-    });
-
-    it("should get current monthly usage", async () => {
-      await usageService.recordUsage({
-        userId: testUserId,
-        executionId: "",
-        tokensUsed: 5000,
-        provider: "anthropic",
-        model: "claude-sonnet-4",
-      });
-
-      const monthlyUsage =
-        await usageService.getCurrentMonthlyUsage(testUserId);
-
-      expect(monthlyUsage).toBe(5000);
-    });
-
-    it("should prevent invalid token counts", async () => {
-      await expect(
-        usageService.recordUsage({
-          userId: testUserId,
-          executionId: "",
-          tokensUsed: -100, // Negative tokens
-          provider: "anthropic",
-          model: "claude-sonnet-4",
-        }),
-      ).rejects.toThrow(/Invalid token count/);
-    });
-
-    it("should prevent invalid provider", async () => {
-      await expect(
-        usageService.recordUsage({
-          userId: testUserId,
-          executionId: "",
-          tokensUsed: 1000,
-          provider: "invalid-provider",
-          model: "some-model",
-        }),
-      ).rejects.toThrow(/Invalid provider/);
-    });
-  });
-
-  describe("Integration: Limits and Usage", () => {
-    it("should detect when monthly token limit exceeded", async () => {
-      // Record usage that exceeds free tier limit (100K tokens)
-      await usageService.recordUsage({
-        userId: testUserId,
-        executionId: "",
-        tokensUsed: 150000,
-        provider: "anthropic",
-        model: "claude-sonnet-4",
-      });
-
-      // Check if limit exceeded
-      const monthlyUsage =
-        await usageService.getCurrentMonthlyUsage(testUserId);
-
-      const exceeded = await billingService.checkLimit({
-        userId: testUserId,
-        limitType: "maxTokensPerMonth",
-        currentValue: monthlyUsage,
-      });
-
-      expect(exceeded).toBe(true);
-    });
-
-    it("should allow usage under limit", async () => {
-      // Record usage under free tier limit
-      await usageService.recordUsage({
-        userId: testUserId,
-        executionId: "",
-        tokensUsed: 50000,
-        provider: "anthropic",
-        model: "claude-sonnet-4",
-      });
-
-      const monthlyUsage =
-        await usageService.getCurrentMonthlyUsage(testUserId);
-
-      const exceeded = await billingService.checkLimit({
-        userId: testUserId,
-        limitType: "maxTokensPerMonth",
-        currentValue: monthlyUsage,
-      });
-
-      expect(exceeded).toBe(false);
-    });
+    expect(downgrade).toHaveBeenCalledWith(nextTier);
+    expect(subscriptionRepository.save).toHaveBeenCalledWith(subscription);
   });
 });

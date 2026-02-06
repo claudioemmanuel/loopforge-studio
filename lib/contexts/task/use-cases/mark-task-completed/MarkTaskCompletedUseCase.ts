@@ -83,7 +83,7 @@ export class MarkTaskCompletedUseCase {
       id: input.taskId,
       status: "done",
       branchName: input.result.branchName,
-      prUrl: input.result.prUrl,
+      prUrl: input.result.prUrl ?? undefined,
     };
 
     return Result.ok(output);

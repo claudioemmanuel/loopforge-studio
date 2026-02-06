@@ -411,7 +411,7 @@ export class Task {
       aggregateId: this.state.id,
       occurredAt: now,
       data: {
-        prUrl: result.prUrl,
+        prUrl: result.prUrl ?? undefined,
       },
     };
 

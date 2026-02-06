@@ -15,10 +15,13 @@ export interface BrainstormJobResult {
   completedAt: Date;
 }
 
+type BrainstormJobName = "brainstorm";
+
 // Queue for brainstorm jobs
 export const brainstormQueue = new Queue<
   BrainstormJobData,
-  BrainstormJobResult
+  BrainstormJobResult,
+  BrainstormJobName
 >("brainstorm", {
   connection: connectionOptions,
   defaultJobOptions: {
@@ -27,14 +30,13 @@ export const brainstormQueue = new Queue<
       type: "exponential",
       delay: 2000,
     },
-    timeout: 10 * 60 * 1000, // 10 minute timeout - auto-fail stuck jobs
   },
 });
 
 // Add a job to the queue
 export async function queueBrainstorm(
   data: BrainstormJobData,
-): Promise<Job<BrainstormJobData, BrainstormJobResult>> {
+): Promise<Job<BrainstormJobData, BrainstormJobResult, BrainstormJobName>> {
   return brainstormQueue.add("brainstorm", data, {
     removeOnComplete: {
       count: 100, // Keep last 100 completed jobs
@@ -66,7 +68,7 @@ export async function getBrainstormJobStatus(jobId: string) {
 // Create worker (to be used in separate process)
 export function createBrainstormWorker(
   processor: (
-    job: Job<BrainstormJobData, BrainstormJobResult>,
+    job: Job<BrainstormJobData, BrainstormJobResult, string>,
   ) => Promise<BrainstormJobResult>,
 ) {
   return new Worker<BrainstormJobData, BrainstormJobResult>(

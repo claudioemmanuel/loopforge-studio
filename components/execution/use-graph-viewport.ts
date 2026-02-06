@@ -43,7 +43,7 @@ const DEBOUNCE_MS = 16; // 60fps
  * Custom hook for managing graph viewport state (pan/zoom)
  */
 export function useGraphViewport(
-  containerRef: React.RefObject<HTMLElement>,
+  containerRef: React.RefObject<HTMLElement | null>,
 ): UseGraphViewportReturn {
   // Initialize viewport from sessionStorage or defaults
   const [viewport, setViewportState] = useState<ViewportState>(() => {

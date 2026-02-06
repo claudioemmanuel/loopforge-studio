@@ -1,62 +1,85 @@
 /**
  * Event System Initialization
  *
- * Bootstraps all event handlers and subscribers for the domain event system.
- * Call this once at application startup (server-side only).
+ * Bootstraps event subscribers/handlers for DDD cross-context workflows.
  */
 
 import { getRedis } from "@/lib/queue";
-import { getEventPublisher } from "./domain-events";
 import { BillingEventHandlers } from "./billing/infrastructure/event-handlers";
 import { AnalyticsEventSubscriber } from "./analytics/infrastructure/event-subscribers";
-import { TaskEventHandlers } from "./task/infrastructure/event-handlers";
+
+export interface HandlerHealth {
+  name: string;
+  initialized: boolean;
+  healthy: boolean;
+  error?: string;
+}
 
 let initialized = false;
 let handlers: {
   billing?: BillingEventHandlers;
   analytics?: AnalyticsEventSubscriber;
-  task?: TaskEventHandlers;
 } = {};
 
-/**
- * Initialize all event handlers and subscribers
- */
+let health: HandlerHealth[] = [
+  { name: "BillingEventHandlers", initialized: false, healthy: false },
+  { name: "AnalyticsEventSubscriber", initialized: false, healthy: false },
+];
+
 export async function initializeEventHandlers(): Promise<void> {
   if (initialized) {
-    console.log("⚠️  Event handlers already initialized");
     return;
   }
 
+  const redis = getRedis();
+
+  const nextHealth: HandlerHealth[] = [
+    { name: "BillingEventHandlers", initialized: false, healthy: false },
+    { name: "AnalyticsEventSubscriber", initialized: false, healthy: false },
+  ];
+
+  handlers = {};
+
   try {
-    const redis = getRedis();
-    const publisher = getEventPublisher();
-
-    // Initialize Billing event handlers
-    handlers.billing = new BillingEventHandlers(publisher, redis);
-    await handlers.billing.start();
-    console.log("✅ BillingEventHandlers initialized");
-
-    // Initialize Analytics event subscriber
-    handlers.analytics = new AnalyticsEventSubscriber(publisher, redis);
-    await handlers.analytics.start();
-    console.log("✅ AnalyticsEventSubscriber initialized");
-
-    // Initialize Task event handlers
-    handlers.task = new TaskEventHandlers(publisher, redis);
-    await handlers.task.start();
-    console.log("✅ TaskEventHandlers initialized");
-
-    initialized = true;
-    console.log("✅ Event system initialized successfully");
+    const billing = new BillingEventHandlers(redis);
+    await billing.start();
+    handlers.billing = billing;
+    nextHealth[0] = {
+      name: "BillingEventHandlers",
+      initialized: true,
+      healthy: true,
+    };
   } catch (error) {
-    console.error("❌ Failed to initialize event handlers:", error);
-    throw error;
+    nextHealth[0] = {
+      name: "BillingEventHandlers",
+      initialized: true,
+      healthy: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
+
+  try {
+    const analytics = new AnalyticsEventSubscriber(redis);
+    await analytics.start();
+    handlers.analytics = analytics;
+    nextHealth[1] = {
+      name: "AnalyticsEventSubscriber",
+      initialized: true,
+      healthy: true,
+    };
+  } catch (error) {
+    nextHealth[1] = {
+      name: "AnalyticsEventSubscriber",
+      initialized: true,
+      healthy: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+
+  health = nextHealth;
+  initialized = true;
 }
 
-/**
- * Gracefully shutdown event handlers
- */
 export async function shutdownEventHandlers(): Promise<void> {
   if (!initialized) {
     return;
@@ -69,29 +92,29 @@ export async function shutdownEventHandlers(): Promise<void> {
     if (handlers.analytics) {
       await handlers.analytics.stop();
     }
-    if (handlers.task) {
-      await handlers.task.stop();
-    }
-
+  } finally {
     initialized = false;
     handlers = {};
-    console.log("✅ Event handlers shut down successfully");
-  } catch (error) {
-    console.error("❌ Error shutting down event handlers:", error);
-    throw error;
+    health = health.map((item) => ({
+      name: item.name,
+      initialized: false,
+      healthy: false,
+    }));
   }
 }
 
-/**
- * Check if event system is initialized
- */
 export function isEventSystemInitialized(): boolean {
   return initialized;
 }
 
-/**
- * Get initialized handlers (for testing)
- */
 export function getHandlers() {
   return handlers;
+}
+
+export function getHandlerHealthStatus(): HandlerHealth[] {
+  return [...health];
+}
+
+export function areAllHandlersHealthy(): boolean {
+  return health.length > 0 && health.every((h) => h.healthy);
 }

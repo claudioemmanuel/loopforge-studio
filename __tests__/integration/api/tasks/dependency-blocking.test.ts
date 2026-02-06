@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import * as schema from "@/lib/db/schema";
-import { getTestDb, getTestPool } from "./setup/test-db";
+import { getTestDb } from "../../../setup/test-db";
 
 const TEST_PREFIX = `dep-blocking-${Date.now()}`;
 
@@ -98,7 +98,7 @@ describe("Dependency Blocking Enforcement API", () => {
       });
 
       const incompleteBlockers = blockerTasks.filter(
-        (blocker) => blocker.status !== "done",
+        (blocker: { status: string }) => blocker.status !== "done",
       );
 
       expect(incompleteBlockers.length).toBe(0);
@@ -114,7 +114,7 @@ describe("Dependency Blocking Enforcement API", () => {
       });
 
       const incompleteBlockers = blockerTasks.filter(
-        (blocker) => blocker.status !== "done",
+        (blocker: { status: string }) => blocker.status !== "done",
       );
 
       expect(incompleteBlockers.length).toBeGreaterThan(0);
@@ -129,17 +129,19 @@ describe("Dependency Blocking Enforcement API", () => {
       });
 
       const incompleteBlockers = blockerTasks.filter(
-        (blocker) => blocker.status !== "done",
+        (blocker: { status: string }) => blocker.status !== "done",
       );
 
       // Simulate error response format
       const errorResponse = {
         error: "Task is blocked by incomplete dependencies",
-        blockedBy: incompleteBlockers.map((blocker) => ({
-          id: blocker.id,
-          title: blocker.title,
-          status: blocker.status,
-        })),
+        blockedBy: incompleteBlockers.map(
+          (blocker: { id: string; title: string; status: string }) => ({
+            id: blocker.id,
+            title: blocker.title,
+            status: blocker.status,
+          }),
+        ),
       };
 
       expect(errorResponse.error).toBe(
@@ -218,7 +220,7 @@ describe("Dependency Blocking Enforcement API", () => {
       });
 
       const incompleteBlockers = blockerTasks.filter(
-        (blocker) => blocker.status !== "done",
+        (blocker: { status: string }) => blocker.status !== "done",
       );
 
       expect(incompleteBlockers.length).toBe(2);
@@ -254,7 +256,7 @@ describe("Dependency Blocking Enforcement API", () => {
       });
 
       const incompleteBlockers = blockerTasks.filter(
-        (blocker) => blocker.status !== "done",
+        (blocker: { status: string }) => blocker.status !== "done",
       );
 
       // Still blocked because one blocker is incomplete

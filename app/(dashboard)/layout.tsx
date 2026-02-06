@@ -5,6 +5,20 @@ import { db } from "@/lib/db";
 import { repos, tasks } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 
+function toSidebarCloneStatus(
+  value: string | null,
+): "pending" | "cloning" | "completed" | "failed" | undefined {
+  if (
+    value === "pending" ||
+    value === "cloning" ||
+    value === "completed" ||
+    value === "failed"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -40,8 +54,13 @@ export default async function DashboardLayout({
     )
     .orderBy(repos.name);
 
+  const sidebarRepos = userRepos.map((repo) => ({
+    ...repo,
+    cloneStatus: toSidebarCloneStatus(repo.cloneStatus),
+  }));
+
   return (
-    <DashboardLayoutClient user={session.user} repos={userRepos}>
+    <DashboardLayoutClient user={session.user} repos={sidebarRepos}>
       {children}
     </DashboardLayoutClient>
   );

@@ -8,6 +8,25 @@ import { handleError, Errors } from "@/lib/errors";
 import { withTask, getAIClientConfig } from "@/lib/api";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { apiLogger } from "@/lib/logger";
+import type { TaskStatus } from "@/lib/contexts/task/entities/value-objects";
+
+function toDomainStatus(status: string): TaskStatus {
+  const allowed: TaskStatus[] = [
+    "todo",
+    "brainstorming",
+    "planning",
+    "ready",
+    "executing",
+    "done",
+    "stuck",
+  ];
+
+  if (allowed.includes(status as TaskStatus)) {
+    return status as TaskStatus;
+  }
+
+  return "todo";
+}
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   const config = getAIClientConfig(user);
@@ -62,7 +81,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
 
     // Clear processing slot after successful save
     const clearUseCase = UseCaseFactory.clearProcessingSlot();
-    await clearUseCase.execute({ taskId, revertToStatus: task.status });
+    await clearUseCase.execute({
+      taskId,
+      revertToStatus: toDomainStatus(task.status),
+    });
 
     // Fetch updated task
     const getTaskUseCase = UseCaseFactory.getTaskWithRepo();

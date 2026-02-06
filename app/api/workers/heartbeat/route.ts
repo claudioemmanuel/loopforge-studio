@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error recording worker heartbeat:", error);
-    return handleError(Errors.internal("Failed to record heartbeat"));
+    return handleError(Errors.serverError(error));
   }
 }
 
@@ -69,6 +69,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Error retrieving heartbeat:", error);
-    return handleError(Errors.internal("Failed to retrieve heartbeat"));
+    return handleError(Errors.serverError(error));
   }
 }

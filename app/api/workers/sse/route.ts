@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Helper to get default status text for a processing phase
-function getDefaultStatusText(phase: ProcessingPhase): string {
+function getDefaultStatusText(phase: ProcessingPhase | "recovering"): string {
   switch (phase) {
     case "brainstorming":
       return "Starting brainstorm...";
@@ -17,6 +17,8 @@ function getDefaultStatusText(phase: ProcessingPhase): string {
       return "Starting plan generation...";
     case "executing":
       return "Starting execution...";
+    case "recovering":
+      return "Recovering task...";
     default:
       return "Processing...";
   }

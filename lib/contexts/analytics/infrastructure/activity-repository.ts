@@ -70,7 +70,12 @@ export class ActivityRepository {
       conditions.push(eq(activityEvents.executionId, filter.executionId));
     }
     if (filter.category) {
-      conditions.push(eq(activityEvents.eventCategory, filter.category));
+      conditions.push(
+        eq(
+          activityEvents.eventCategory,
+          filter.category as "ai_action" | "git" | "system",
+        ),
+      );
     }
     if (filter.startDate) {
       conditions.push(gte(activityEvents.createdAt, filter.startDate));

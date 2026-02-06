@@ -22,26 +22,28 @@ export interface ExecutionJobResult {
   completedAt: Date;
 }
 
+type ExecutionJobName = "execution";
+
 // Queue for execution jobs
-export const executionQueue = new Queue<ExecutionJobData, ExecutionJobResult>(
-  "execution",
-  {
-    connection: connectionOptions,
-    defaultJobOptions: {
-      attempts: 2,
-      backoff: {
-        type: "exponential",
-        delay: 2000,
-      },
-      timeout: 30 * 60 * 1000, // 30 minute timeout for execution (longer than brainstorm/plan)
+export const executionQueue = new Queue<
+  ExecutionJobData,
+  ExecutionJobResult,
+  ExecutionJobName
+>("execution", {
+  connection: connectionOptions,
+  defaultJobOptions: {
+    attempts: 2,
+    backoff: {
+      type: "exponential",
+      delay: 2000,
     },
   },
-);
+});
 
 // Add a job to the queue
 export async function queueExecution(
   data: ExecutionJobData,
-): Promise<Job<ExecutionJobData, ExecutionJobResult>> {
+): Promise<Job<ExecutionJobData, ExecutionJobResult, ExecutionJobName>> {
   return executionQueue.add("execution", data, {
     removeOnComplete: {
       count: 100, // Keep last 100 completed jobs
@@ -73,7 +75,7 @@ export async function getJobStatus(jobId: string) {
 // Create worker (to be used in separate process)
 export function createExecutionWorker(
   processor: (
-    job: Job<ExecutionJobData, ExecutionJobResult>,
+    job: Job<ExecutionJobData, ExecutionJobResult, string>,
   ) => Promise<ExecutionJobResult>,
 ) {
   return new Worker<ExecutionJobData, ExecutionJobResult>(

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import * as schema from "@/lib/db/schema";
-import { getTestDb, getTestPool } from "./setup/test-db";
+import { getTestDb, getTestPool } from "../../setup/test-db";
 
 const TEST_PREFIX = `orchestration-${Date.now()}`;
 

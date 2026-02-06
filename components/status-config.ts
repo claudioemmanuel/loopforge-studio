@@ -94,3 +94,27 @@ export function getStatusConfig(
     },
   };
 }
+
+const fallbackT = (key: string): string => {
+  const map: Record<string, string> = {
+    "tasks.statuses.todo": "To Do",
+    "tasks.statuses.brainstorming": "Brainstorming",
+    "tasks.statuses.planning": "Planning",
+    "tasks.statuses.ready": "Ready",
+    "tasks.statuses.executing": "Executing",
+    "tasks.statuses.review": "Review",
+    "tasks.statuses.done": "Done",
+    "tasks.statuses.stuck": "Stuck",
+    "tasks.statusDescriptions.todo": "Task created and waiting to start",
+    "tasks.statusDescriptions.brainstorming": "Analyzing and refining the task",
+    "tasks.statusDescriptions.planning": "Preparing an execution plan",
+    "tasks.statusDescriptions.ready": "Plan approved and ready to run",
+    "tasks.statusDescriptions.executing": "Implementation in progress",
+    "tasks.statusDescriptions.review": "Awaiting final review",
+    "tasks.statusDescriptions.done": "Successfully completed",
+    "tasks.statusDescriptions.stuck": "Blocked and needs intervention",
+  };
+  return map[key] ?? key;
+};
+
+export const STATUS_CONFIG = getStatusConfig(fallbackT);

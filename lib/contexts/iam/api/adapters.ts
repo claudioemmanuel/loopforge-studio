@@ -6,11 +6,7 @@
  */
 
 import type { UserState } from "../domain/user-aggregate";
-import type {
-  AIProvider,
-  EncryptedApiKey,
-  UserProviderConfiguration,
-} from "../domain/provider-config";
+import type { AIProvider } from "../domain/provider-config";
 
 /**
  * API response format for user
@@ -105,8 +101,6 @@ export class UserAdapter {
       subscriptionTier?: string | null;
     },
   ): UserApiResponse {
-    const config = state.providerConfiguration;
-
     return {
       // Identity
       id: state.id,
@@ -116,22 +110,23 @@ export class UserAdapter {
       avatarUrl: state.avatarUrl ?? null,
 
       // Anthropic API key (legacy flat structure)
-      encryptedApiKey: config.anthropic.apiKey?.encryptedValue ?? null,
-      apiKeyIv: config.anthropic.apiKey?.iv ?? null,
+      encryptedApiKey: state.encryptedApiKey ?? null,
+      apiKeyIv: state.apiKeyIv ?? null,
 
       // OpenAI API key (flat structure)
-      openaiEncryptedApiKey: config.openai.apiKey?.encryptedValue ?? null,
-      openaiApiKeyIv: config.openai.apiKey?.iv ?? null,
+      openaiEncryptedApiKey: state.openaiEncryptedApiKey ?? null,
+      openaiApiKeyIv: state.openaiApiKeyIv ?? null,
 
       // Gemini API key (flat structure)
-      geminiEncryptedApiKey: config.gemini.apiKey?.encryptedValue ?? null,
-      geminiApiKeyIv: config.gemini.apiKey?.iv ?? null,
+      geminiEncryptedApiKey: state.geminiEncryptedApiKey ?? null,
+      geminiApiKeyIv: state.geminiApiKeyIv ?? null,
 
       // Preferred models (flattened)
-      preferredAnthropicModel: config.anthropic.preferredModel,
-      preferredOpenaiModel: config.openai.preferredModel,
-      preferredGeminiModel: config.gemini.preferredModel,
-      preferredProvider: config.preferredProvider,
+      preferredAnthropicModel:
+        state.preferredAnthropicModel ?? "claude-sonnet-4-20250514",
+      preferredOpenaiModel: state.preferredOpenaiModel ?? "gpt-4o",
+      preferredGeminiModel: state.preferredGeminiModel ?? "gemini-2.5-pro",
+      preferredProvider: state.preferredProvider ?? "anthropic",
 
       // GitHub token (from additional data)
       encryptedGithubToken: additionalData?.encryptedGithubToken ?? null,
@@ -163,11 +158,17 @@ export class UserAdapter {
    */
   static fromSettingsRequest(body: UserSettingsRequest): {
     locale?: string;
-    providerConfiguration?: Partial<UserProviderConfiguration>;
+    preferredProvider?: AIProvider;
+    preferredAnthropicModel?: string;
+    preferredOpenaiModel?: string;
+    preferredGeminiModel?: string;
   } {
     const result: {
       locale?: string;
-      providerConfiguration?: Partial<UserProviderConfiguration>;
+      preferredProvider?: AIProvider;
+      preferredAnthropicModel?: string;
+      preferredOpenaiModel?: string;
+      preferredGeminiModel?: string;
     } = {};
 
     // Locale
@@ -176,45 +177,19 @@ export class UserAdapter {
     }
 
     // Provider configuration updates
-    const providerUpdates: Partial<UserProviderConfiguration> = {};
-
     if (body.preferredProvider !== undefined) {
-      providerUpdates.preferredProvider = body.preferredProvider;
+      result.preferredProvider = body.preferredProvider;
     }
 
     // Model updates (partial)
-    if (
-      body.preferredAnthropicModel !== undefined ||
-      body.preferredOpenaiModel !== undefined ||
-      body.preferredGeminiModel !== undefined
-    ) {
-      if (body.preferredAnthropicModel !== undefined) {
-        providerUpdates.anthropic = {
-          provider: "anthropic",
-          apiKey: null, // Don't update key here
-          preferredModel: body.preferredAnthropicModel,
-        };
-      }
-
-      if (body.preferredOpenaiModel !== undefined) {
-        providerUpdates.openai = {
-          provider: "openai",
-          apiKey: null,
-          preferredModel: body.preferredOpenaiModel,
-        };
-      }
-
-      if (body.preferredGeminiModel !== undefined) {
-        providerUpdates.gemini = {
-          provider: "gemini",
-          apiKey: null,
-          preferredModel: body.preferredGeminiModel,
-        };
-      }
+    if (body.preferredAnthropicModel !== undefined) {
+      result.preferredAnthropicModel = body.preferredAnthropicModel;
     }
-
-    if (Object.keys(providerUpdates).length > 0) {
-      result.providerConfiguration = providerUpdates;
+    if (body.preferredOpenaiModel !== undefined) {
+      result.preferredOpenaiModel = body.preferredOpenaiModel;
+    }
+    if (body.preferredGeminiModel !== undefined) {
+      result.preferredGeminiModel = body.preferredGeminiModel;
     }
 
     return result;
@@ -242,61 +217,49 @@ export class UserAdapter {
     preferredOpenaiModel?: string | null;
     preferredGeminiModel?: string | null;
     preferredProvider?: AIProvider;
+    encryptedGithubToken?: string | null;
+    githubTokenIv?: string | null;
+    defaultCloneDirectory?: string | null;
+    defaultTestCommand?: string | null;
+    defaultTestTimeout?: number | null;
+    defaultTestGatePolicy?: "strict" | "warn" | "skip" | "autoApprove" | null;
+    subscriptionTier?: "free" | "pro" | "enterprise" | null;
+    billingMode?: "byok" | "managed" | null;
+    subscriptionStatus?: "active" | "canceled" | "past_due" | null;
+    subscriptionPeriodEnd?: Date | null;
+    stripeCustomerId?: string | null;
     onboardingCompleted?: boolean;
     locale?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }): UserState {
-    // Build encrypted API keys
-    const anthropicKey: EncryptedApiKey | null =
-      row.encryptedApiKey && row.apiKeyIv
-        ? { encryptedValue: row.encryptedApiKey, iv: row.apiKeyIv }
-        : null;
-
-    const openaiKey: EncryptedApiKey | null =
-      row.openaiEncryptedApiKey && row.openaiApiKeyIv
-        ? {
-            encryptedValue: row.openaiEncryptedApiKey,
-            iv: row.openaiApiKeyIv,
-          }
-        : null;
-
-    const geminiKey: EncryptedApiKey | null =
-      row.geminiEncryptedApiKey && row.geminiApiKeyIv
-        ? {
-            encryptedValue: row.geminiEncryptedApiKey,
-            iv: row.geminiApiKeyIv,
-          }
-        : null;
-
-    // Build provider configuration
-    const providerConfiguration: UserProviderConfiguration = {
-      anthropic: {
-        provider: "anthropic",
-        apiKey: anthropicKey,
-        preferredModel:
-          row.preferredAnthropicModel ?? "claude-sonnet-4-20250514",
-      },
-      openai: {
-        provider: "openai",
-        apiKey: openaiKey,
-        preferredModel: row.preferredOpenaiModel ?? "gpt-4o",
-      },
-      gemini: {
-        provider: "gemini",
-        apiKey: geminiKey,
-        preferredModel: row.preferredGeminiModel ?? "gemini-2.5-pro",
-      },
-      preferredProvider: row.preferredProvider ?? "anthropic",
-    };
-
     return {
       id: row.id,
       githubId: row.githubId,
       username: row.username,
-      email: row.email ?? undefined,
-      avatarUrl: row.avatarUrl ?? undefined,
-      providerConfiguration,
+      email: row.email ?? null,
+      avatarUrl: row.avatarUrl ?? null,
+      encryptedGithubToken: row.encryptedGithubToken ?? null,
+      githubTokenIv: row.githubTokenIv ?? null,
+      preferredProvider: row.preferredProvider ?? null,
+      encryptedApiKey: row.encryptedApiKey ?? null,
+      apiKeyIv: row.apiKeyIv ?? null,
+      preferredAnthropicModel: row.preferredAnthropicModel ?? null,
+      openaiEncryptedApiKey: row.openaiEncryptedApiKey ?? null,
+      openaiApiKeyIv: row.openaiApiKeyIv ?? null,
+      preferredOpenaiModel: row.preferredOpenaiModel ?? null,
+      geminiEncryptedApiKey: row.geminiEncryptedApiKey ?? null,
+      geminiApiKeyIv: row.geminiApiKeyIv ?? null,
+      preferredGeminiModel: row.preferredGeminiModel ?? null,
+      defaultCloneDirectory: row.defaultCloneDirectory ?? null,
+      defaultTestCommand: row.defaultTestCommand ?? null,
+      defaultTestTimeout: row.defaultTestTimeout ?? null,
+      defaultTestGatePolicy: row.defaultTestGatePolicy ?? null,
+      subscriptionTier: row.subscriptionTier ?? "free",
+      billingMode: row.billingMode ?? "byok",
+      subscriptionStatus: row.subscriptionStatus ?? "active",
+      subscriptionPeriodEnd: row.subscriptionPeriodEnd ?? null,
+      stripeCustomerId: row.stripeCustomerId ?? null,
       onboardingCompleted: row.onboardingCompleted ?? false,
       locale: row.locale ?? "en",
       createdAt: row.createdAt,

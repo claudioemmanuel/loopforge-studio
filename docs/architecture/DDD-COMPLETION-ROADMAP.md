@@ -1,28 +1,29 @@
 # DDD Migration Completion Roadmap
 
-> Current state: ~97% complete
+> Current state: ~99% complete
 > All 6 contexts: WIRED ✅
 > Service-to-repository layer complete ✅
 > Diff/review routes migrated to `ExecutionService` ✅
 > All API routes migrated off direct `@/lib/db` imports ✅
 > Worker/queue backend internals migrated to context services/adapters ✅
-> Next: resolve pre-existing TypeScript/test errors and finalize shared-helper placement notes
-> Latest checkpoint (2026-02-06): API/domain-events/analytics test-contract migration complete; remaining `@ts-nocheck` in `__tests__` = 29
+> Next: run full runtime verification (`vitest` + targeted integration suites) and finalize shared-helper placement notes
+> Latest checkpoint (2026-02-06): backend/unit/integration test-contract migration complete; remaining `@ts-nocheck` in `__tests__` = 0
 
 ## Resume Checklist (Next Session)
 
 1. ✅ `workers/execution-worker.ts`: extracted remaining `tasks` / `executions` / `workerJobs` mutations into execution-context persistence helpers (`worker-runtime-persistence.ts`).
 2. ✅ `lib/db/status-history.ts`: kept shared for now and documented rationale (currently used by task application service and execution worker runtime adapter).
 3. ✅ `lib/db/transactions.ts`: reviewed consumer footprint (no active consumers); kept as shared utility for future transactional orchestration.
-4. Fix pre-existing repo-wide TS/test issues after migration (not introduced by Phase 12 work).
+4. ✅ Fix pre-existing repo-wide TS test-contract typing issues in backend-oriented suites (`npx tsc --noEmit --pretty false` passing).
 5. Re-run verification before any new merge:
    - `npx eslint workers/execution-worker.ts lib/queue/autonomous-flow.ts lib/workers/events.ts`
    - `npx tsc --noEmit --pretty false`
    - targeted `vitest` once local DB is available.
-6. Continue strict test migration in backend order:
+6. ✅ Continue strict test migration in backend order (completed):
    - `__tests__/task/task-service.test.ts`
    - `__tests__/execution/execution-service.test.ts`
    - integration API suites under `__tests__/integration/api/**`
+   - unit component suites under `__tests__/unit/components/**`
 
 ## ✅ Priority 1: Wire Application Services to Repositories (COMPLETE)
 

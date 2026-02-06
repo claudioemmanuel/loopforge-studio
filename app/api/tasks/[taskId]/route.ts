@@ -73,12 +73,9 @@ export const GET = withTask(async (request, { task }) => {
     // Build the execution graph
     const executionGraph = await buildExecutionGraph(executionData);
 
-    // Cache the graph via use case
-    const updateUseCase = UseCaseFactory.updateTaskFields();
-    await updateUseCase.execute({
-      taskId: task.id,
-      fields: { executionGraph },
-    });
+    // Cache the graph directly through application service.
+    const taskService = getTaskService();
+    await taskService.updateFields(task.id, { executionGraph });
 
     return NextResponse.json({
       ...task,

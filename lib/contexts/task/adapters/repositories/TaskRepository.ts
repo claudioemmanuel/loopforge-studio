@@ -8,6 +8,7 @@
 import { db } from "@/lib/db";
 import { tasks, repos } from "@/lib/db/schema/tables";
 import { eq, and, inArray } from "drizzle-orm";
+import type { StatusHistoryEntry as DbStatusHistoryEntry } from "@/lib/db/schema";
 import type { ITaskRepository } from "../../use-cases/ports/ITaskRepository";
 import {
   Task,
@@ -148,7 +149,16 @@ export class TaskRepository implements ITaskRepository {
   /**
    * Map domain TaskState to database row
    */
-  private toDbRow(state: TaskState): Record<string, unknown> {
+  private toDbRow(state: TaskState): typeof tasks.$inferInsert {
+    const mappedStatusHistory: DbStatusHistoryEntry[] = state.statusHistory.map(
+      (entry, index) => ({
+        from: index > 0 ? state.statusHistory[index - 1].status : null,
+        to: entry.status,
+        timestamp: entry.timestamp.toISOString(),
+        triggeredBy: "worker",
+      }),
+    );
+
     return {
       id: state.id,
       repoId: state.repositoryId,
@@ -171,7 +181,7 @@ export class TaskRepository implements ITaskRepository {
       processingStartedAt: null,
       processingStatusText: null,
       processingProgress: null,
-      statusHistory: state.statusHistory,
+      statusHistory: mappedStatusHistory,
       prUrl: state.executionResult?.prUrl ?? null,
       prNumber: state.executionResult?.prNumber ?? null,
       prTargetBranch: state.executionResult?.prTargetBranch ?? null,
@@ -185,7 +195,7 @@ export class TaskRepository implements ITaskRepository {
   /**
    * Map database row to domain TaskState
    */
-  private toDomain(row: Record<string, unknown>): Task {
+  private toDomain(row: typeof tasks.$inferSelect): Task {
     const state: TaskState = {
       id: row.id as string,
       repositoryId: row.repoId as string,
@@ -221,7 +231,12 @@ export class TaskRepository implements ITaskRepository {
         autoApprove: row.autoApprove as boolean,
       },
       blockedByIds: (row.blockedByIds as string[]) ?? [],
-      statusHistory: (row.statusHistory as StatusHistoryEntry[]) ?? [],
+      statusHistory: (
+        (row.statusHistory as DbStatusHistoryEntry[] | null) ?? []
+      ).map((entry) => ({
+        status: entry.to,
+        timestamp: new Date(entry.timestamp),
+      })) as StatusHistoryEntry[],
       createdAt: row.createdAt as Date,
       updatedAt: row.updatedAt as Date,
     };

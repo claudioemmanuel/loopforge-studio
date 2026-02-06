@@ -5,8 +5,8 @@
  */
 
 import type { PlanLimits } from "@/lib/db/schema";
-import type { UsageSummary, PlanTier, BillingPeriod } from "../domain/types";
-import { calculateTokenCost } from "../domain/types";
+import type { BillingUsageSummary, PlanTier } from "../domain/types";
+import { calculateTokenCost, getPlanConfig } from "../domain/types";
 import { SubscriptionRepository } from "../infrastructure/subscription-repository";
 import { UsageRepository } from "../infrastructure/usage-repository";
 import type { TaskService } from "../../task/application/task-service";
@@ -56,7 +56,7 @@ export class BillingService {
   }
 
   /** Get the current-period usage summary for a user. */
-  async getUsageSummary(userId: string): Promise<UsageSummary> {
+  async getUsageSummary(userId: string): Promise<BillingUsageSummary> {
     const { periodStart, periodEnd } = getCurrentBillingPeriod();
 
     // Get subscription from repository
@@ -118,7 +118,7 @@ export class BillingService {
       estimatedCost,
       billingMode,
       plan: {
-        name: subscriptionState.planTier,
+        name: getPlanConfig(subscriptionState.planTier).name,
         tier: subscriptionState.planTier,
       },
     };

@@ -22,23 +22,27 @@ export interface PlanJobResult {
   completedAt: Date;
 }
 
+type PlanJobName = "plan";
+
 // Queue for plan jobs
-export const planQueue = new Queue<PlanJobData, PlanJobResult>("plan", {
-  connection: connectionOptions,
-  defaultJobOptions: {
-    attempts: 2,
-    backoff: {
-      type: "exponential",
-      delay: 2000,
+export const planQueue = new Queue<PlanJobData, PlanJobResult, PlanJobName>(
+  "plan",
+  {
+    connection: connectionOptions,
+    defaultJobOptions: {
+      attempts: 2,
+      backoff: {
+        type: "exponential",
+        delay: 2000,
+      },
     },
-    timeout: 10 * 60 * 1000, // 10 minute timeout - auto-fail stuck jobs
   },
-});
+);
 
 // Add a job to the queue
 export async function queuePlan(
   data: PlanJobData,
-): Promise<Job<PlanJobData, PlanJobResult>> {
+): Promise<Job<PlanJobData, PlanJobResult, PlanJobName>> {
   return planQueue.add("plan", data, {
     removeOnComplete: {
       count: 100, // Keep last 100 completed jobs
@@ -69,7 +73,9 @@ export async function getPlanJobStatus(jobId: string) {
 
 // Create worker (to be used in separate process)
 export function createPlanWorker(
-  processor: (job: Job<PlanJobData, PlanJobResult>) => Promise<PlanJobResult>,
+  processor: (
+    job: Job<PlanJobData, PlanJobResult, string>,
+  ) => Promise<PlanJobResult>,
 ) {
   return new Worker<PlanJobData, PlanJobResult>("plan", processor, {
     connection: createConnectionOptions(),

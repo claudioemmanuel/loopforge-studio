@@ -34,11 +34,11 @@ type RepositoryRow = {
   defaultBranch: string;
   cloneUrl: string;
   isPrivate: boolean;
-  cloneStatus: string;
+  cloneStatus: string | null;
   clonePath: string | null;
   cloneStartedAt: Date | null;
   cloneCompletedAt: Date | null;
-  indexingStatus: string;
+  indexingStatus: string | null;
   indexedAt: Date | null;
   testCommand: string | null;
   testTimeout: number | null;
@@ -53,6 +53,38 @@ type RepositoryRow = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+function mapDbCloneStatusToDomain(status: string | null): CloneStatus {
+  switch (status) {
+    case "cloning":
+      return "cloning";
+    case "completed":
+      return "cloned";
+    case "failed":
+      return "failed";
+    case "updating":
+      return "updating";
+    case "pending":
+    default:
+      return "not_cloned";
+  }
+}
+
+function mapDomainCloneStatusToDb(status: CloneStatus): string {
+  switch (status) {
+    case "cloning":
+      return "cloning";
+    case "cloned":
+      return "completed";
+    case "failed":
+      return "failed";
+    case "updating":
+      return "updating";
+    case "not_cloned":
+    default:
+      return "pending";
+  }
+}
 
 /**
  * Repository repository for database operations
@@ -316,13 +348,14 @@ export class RepositoryRepository {
       userId: row.userId,
       metadata,
       cloneInfo: {
-        status: row.cloneStatus as CloneStatus,
+        status: mapDbCloneStatusToDomain(row.cloneStatus),
         path: row.clonePath,
         startedAt: row.cloneStartedAt,
         completedAt: row.cloneCompletedAt,
         error: null, // Not stored in DB yet
       },
-      indexingStatus: row.indexingStatus as IndexingStatus,
+      indexingStatus:
+        (row.indexingStatus as IndexingStatus | null) ?? "pending",
       indexedAt: row.indexedAt,
       testConfig,
       prConfig,
@@ -334,7 +367,7 @@ export class RepositoryRepository {
   /**
    * Map domain state to database row
    */
-  private mapStateToRow(state: RepositoryState): Record<string, unknown> {
+  private mapStateToRow(state: RepositoryState): typeof repos.$inferInsert {
     return {
       id: state.id,
       userId: state.userId,
@@ -344,7 +377,7 @@ export class RepositoryRepository {
       defaultBranch: state.metadata.defaultBranch,
       cloneUrl: state.metadata.cloneUrl,
       isPrivate: state.metadata.isPrivate,
-      cloneStatus: state.cloneInfo.status,
+      cloneStatus: mapDomainCloneStatusToDb(state.cloneInfo.status),
       clonePath: state.cloneInfo.path,
       cloneStartedAt: state.cloneInfo.startedAt,
       cloneCompletedAt: state.cloneInfo.completedAt,

@@ -20,10 +20,12 @@ export interface GetTaskWithRepoInput {
 
 export interface RepoDetails {
   id: string;
+  userId: string;
   name: string;
   owner: string;
   fullName: string;
   defaultBranch: string;
+  cloneUrl: string;
 }
 
 export interface GetTaskWithRepoOutput {
@@ -103,10 +105,12 @@ export class GetTaskWithRepoUseCase {
         updatedAt: state.updatedAt.toISOString(),
         repo: {
           id: repo.id,
+          userId: repo.userId,
           name: repo.name,
-          owner: repo.owner,
+          owner: repo.fullName.split("/")[0] || repo.name,
           fullName: repo.fullName,
           defaultBranch: repo.defaultBranch ?? "main",
+          cloneUrl: repo.cloneUrl,
         },
       };
 

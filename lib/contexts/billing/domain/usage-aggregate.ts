@@ -7,7 +7,6 @@
 
 import { EventPublisher } from "@/lib/contexts/domain-events";
 import type { Redis } from "ioredis";
-import type { UsageRecord } from "./types";
 import type { UsageRecordedEvent } from "./events";
 
 /**

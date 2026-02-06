@@ -9,7 +9,6 @@ import type { Redis } from "ioredis";
 import { EventSubscriber } from "@/lib/contexts/domain-events";
 import type { DomainEvent } from "@/lib/contexts/domain-events/types";
 import { UsageRepository } from "./usage-repository";
-import { UsageTrackingAggregate } from "../domain/usage-aggregate";
 
 /**
  * Billing event handlers for automatic usage tracking
@@ -17,10 +16,8 @@ import { UsageTrackingAggregate } from "../domain/usage-aggregate";
 export class BillingEventHandlers {
   private subscriber: EventSubscriber;
   private usageRepository: UsageRepository;
-  private redis: Redis;
 
   constructor(redis: Redis) {
-    this.redis = redis;
     this.subscriber = EventSubscriber.getInstance(redis);
     this.usageRepository = new UsageRepository(redis);
   }
@@ -33,7 +30,7 @@ export class BillingEventHandlers {
     this.subscriber.subscribe({
       eventType: "Execution.ExecutionCompleted",
       handler: this.handleExecutionCompleted.bind(this),
-      subscriberId: "billing-usage-tracker",
+      subscriberName: "billing-usage-tracker",
       priority: 5, // Higher priority than analytics (10)
     });
 
@@ -46,26 +43,29 @@ export class BillingEventHandlers {
    * When an execution completes, automatically record token usage.
    */
   private async handleExecutionCompleted(event: DomainEvent): Promise<void> {
-    const {
-      executionId,
-      userId,
-      tokensUsed,
-      model,
-      inputTokens,
-      outputTokens,
-    } = event.data;
+    const executionId =
+      typeof event.data.executionId === "string" ? event.data.executionId : "";
+    const userId =
+      typeof event.data.userId === "string" ? event.data.userId : "";
+    const model = typeof event.data.model === "string" ? event.data.model : "";
+    const inputTokens =
+      typeof event.data.inputTokens === "number" ? event.data.inputTokens : 0;
+    const outputTokens =
+      typeof event.data.outputTokens === "number" ? event.data.outputTokens : 0;
+    const tokensUsed =
+      typeof event.data.tokensUsed === "number" ? event.data.tokensUsed : 0;
 
     console.log(
       `[BillingEventHandlers] ExecutionCompleted: ${executionId}, tokens: ${tokensUsed || inputTokens + outputTokens}`,
     );
 
     try {
-      // Extract provider from model name
-      const provider = this.extractProviderFromModel(model);
+      if (!userId || !model) {
+        return;
+      }
 
       // Calculate total tokens if not provided
-      const totalTokens =
-        tokensUsed || (inputTokens ?? 0) + (outputTokens ?? 0);
+      const totalTokens = tokensUsed || inputTokens + outputTokens;
 
       if (totalTokens === 0) {
         console.warn(
@@ -74,21 +74,31 @@ export class BillingEventHandlers {
         return;
       }
 
-      // Create usage tracking aggregate
-      const usageAggregate = await UsageTrackingAggregate.create(
-        {
-          id: crypto.randomUUID(),
-          userId,
-          executionId,
-          tokensUsed: totalTokens,
-          provider,
-          model,
-        },
-        this.redis,
+      const now = new Date();
+      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const periodEnd = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
       );
+      const estimatedCost = 0;
 
-      // Save to database (this will also publish UsageRecorded event)
-      await this.usageRepository.save(usageAggregate);
+      await this.usageRepository.recordUsage({
+        userId,
+        taskId: null,
+        executionId: executionId || null,
+        periodStart,
+        periodEnd,
+        model,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        estimatedCost,
+      });
 
       console.log(
         `[BillingEventHandlers] Recorded usage: ${totalTokens} tokens for user ${userId}`,
@@ -100,17 +110,6 @@ export class BillingEventHandlers {
       );
       // Don't throw - event processing should be resilient
     }
-  }
-
-  /**
-   * Extract provider from model name
-   */
-  private extractProviderFromModel(model: string): string {
-    const lowerModel = model.toLowerCase();
-    if (lowerModel.includes("claude")) return "anthropic";
-    if (lowerModel.includes("gpt")) return "openai";
-    if (lowerModel.includes("gemini")) return "gemini";
-    return "unknown";
   }
 
   /**

@@ -21,7 +21,7 @@ export interface GraphNodeTooltipProps {
   node: GraphNode | null;
   mouseX: number;
   mouseY: number;
-  containerRef: React.RefObject<HTMLElement>;
+  containerRef: React.RefObject<HTMLElement | null>;
 }
 
 /**

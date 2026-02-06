@@ -49,7 +49,10 @@ export interface ProcessingEvent {
 }
 
 // Status messages for each processing phase
-export const phaseStatusMessages: Record<ProcessingPhase, string[]> = {
+export const phaseStatusMessages: Record<
+  ProcessingPhase | "recovering",
+  string[]
+> = {
   brainstorming: [
     "Analyzing task...",
     "Generating ideas...",

@@ -106,7 +106,7 @@ export class ExecutionRepository {
     if (row.stuckSignals) {
       try {
         stuckSignals = row.stuckSignals as StuckSignal[];
-      } catch (e) {
+      } catch {
         stuckSignals = [];
       }
     }
@@ -116,7 +116,7 @@ export class ExecutionRepository {
     if (row.recoveryAttempts) {
       try {
         recoveryAttempts = row.recoveryAttempts as RecoveryAttempt[];
-      } catch (e) {
+      } catch {
         recoveryAttempts = [];
       }
     }
@@ -126,7 +126,7 @@ export class ExecutionRepository {
     if (row.validationReport) {
       try {
         validationReport = row.validationReport as ValidationReport;
-      } catch (e) {
+      } catch {
         validationReport = null;
       }
     }
@@ -159,7 +159,7 @@ export class ExecutionRepository {
   /**
    * Map domain state to database row
    */
-  private mapStateToRow(state: ExecutionState): Record<string, unknown> {
+  private mapStateToRow(state: ExecutionState): typeof executions.$inferInsert {
     return {
       id: state.id,
       taskId: state.taskId,
@@ -168,7 +168,7 @@ export class ExecutionRepository {
       startedAt: state.startedAt,
       completedAt: state.completedAt,
       errorMessage: state.error,
-      branch: state.branchName,
+      branch: state.branchName || null,
       commits: state.commits.map((c) => c.hash),
       stuckSignals: state.stuckSignals,
       recoveryAttempts: state.recoveryAttempts,

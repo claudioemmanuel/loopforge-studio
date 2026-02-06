@@ -67,14 +67,20 @@
 - `__tests__/analytics/analytics-service.test.ts`
 
 11. Re-verified compile gate: `npx tsc --noEmit --pretty false` passes.
+12. Completed remaining backend/unit component test-contract migration:
+
+- Removed final `@ts-nocheck` in `__tests__/unit/components/**`
+- Rewrote stale tests to current component contracts and removed obsolete experiment-component tests
+- Fixed shared test DB fixture imports in DB-backed unit suites
 
 ### Remaining for follow-up session
 
 1. ✅ Move final worker orchestration mutation writes (`tasks`, `executions`, `workerJobs`) behind dedicated context methods.
 2. ✅ Keep and document `status-history.ts` as shared helper for current cross-context usage.
 3. ✅ Keep `transactions.ts` shared (no active call sites to inline today).
-4. Address pre-existing repo-wide TypeScript and test debt unrelated to this migration pass.
-5. Continue removing `@ts-nocheck` from backend-centric suites (current remaining in `__tests__`: 29 files).
+4. ✅ Address pre-existing repo-wide TypeScript and backend test-contract typing debt for migrated suites (`tsc` pass).
+5. ✅ Remove all remaining `@ts-nocheck` from `__tests__` (current remaining: 0 files).
+6. Run runtime verification pass (targeted vitest + integration suites with local DB/Redis) before final release tagging.
 
 ### Resume commands
 

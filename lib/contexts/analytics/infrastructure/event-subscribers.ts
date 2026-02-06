@@ -41,8 +41,10 @@ export class AnalyticsEventSubscriber {
     ];
 
     for (const pattern of eventPatterns) {
-      this.subscriber.subscribe(pattern, this.handleDomainEvent.bind(this), {
-        subscriberId: `analytics-subscriber-${pattern}`,
+      this.subscriber.subscribe({
+        eventType: pattern,
+        handler: this.handleDomainEvent.bind(this),
+        subscriberName: `analytics-subscriber-${pattern}`,
         priority: 10, // Lower priority - process after critical subscribers
       });
     }
@@ -62,7 +64,7 @@ export class AnalyticsEventSubscriber {
     ];
 
     for (const pattern of eventPatterns) {
-      this.subscriber.unsubscribe(`analytics-subscriber-${pattern}`, pattern);
+      this.subscriber.unsubscribe(pattern, `analytics-subscriber-${pattern}`);
     }
   }
 
@@ -87,13 +89,12 @@ export class AnalyticsEventSubscriber {
 
       // Persist to database
       await db.insert(activityEvents).values({
-        id: crypto.randomUUID(),
         userId: activity.userId || null,
         taskId: activity.taskId || null,
         repoId: activity.repoId || null,
         executionId: activity.executionId || null,
         eventType: event.eventType,
-        eventCategory: activity.category,
+        eventCategory: activity.category as "ai_action" | "git" | "system",
         title: activity.title,
         content: activity.content || null,
         metadata: activity.metadata || null,

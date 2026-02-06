@@ -1,20 +1,16 @@
 /**
- * Repository Service Integration Tests
- *
- * Tests repository operations and event publishing.
+ * Repository Service integration tests (current application-layer contract).
  */
 
-import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Redis } from "ioredis";
+import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
-import { users, domainEvents } from "@/lib/db/schema/tables";
-import { eq } from "drizzle-orm";
+import { repos, users } from "@/lib/db/schema/tables";
 import { RepositoryService } from "@/lib/contexts/repository/application/repository-service";
 import { IndexingService } from "@/lib/contexts/repository/application/indexing-service";
-import type { RepositoryMetadata } from "@/lib/contexts/repository/domain/types";
-import { randomUUID } from "crypto";
 
-describe("Repository Service", () => {
+describe("RepositoryService", () => {
   let redis: Redis;
   let repositoryService: RepositoryService;
   let indexingService: IndexingService;
@@ -27,250 +23,167 @@ describe("Repository Service", () => {
   });
 
   beforeEach(async () => {
-    // Generate test user ID and create user in DB
+    const unique = `${Date.now()}-${Math.random()}`;
     userId = randomUUID();
+
     await db.insert(users).values({
       id: userId,
-      githubId: `github-${userId}`,
-      username: `testuser-${userId.substring(0, 8)}`,
-      email: `test-${userId.substring(0, 8)}@example.com`,
+      githubId: `gh-${unique}`,
+      username: `user-${unique}`,
+      email: `user-${unique}@example.com`,
     });
   });
 
   afterAll(async () => {
-    await db.delete(domainEvents);
-    await db.delete(users);
     await redis.quit();
   });
 
-  it("should connect repository and publish RepositoryConnected event", async () => {
-    // Arrange
-    const metadata: RepositoryMetadata = {
-      githubRepoId: "123456",
-      name: "test-repo",
-      fullName: "testuser/test-repo",
+  it("connects repository and prevents duplicates for same user/github pair", async () => {
+    const githubRepoId = `${Date.now()}`;
+
+    const repoId = await repositoryService.connectRepository({
+      userId,
+      githubRepoId,
+      name: "repo-a",
+      fullName: "owner/repo-a",
       defaultBranch: "main",
-      cloneUrl: "https://github.com/testuser/test-repo.git",
-      isPrivate: false,
-    };
-
-    // Act
-    const { repositoryId } = await repositoryService.connectRepository({
-      userId,
-      metadata,
-    });
-
-    // Assert
-    expect(repositoryId).toBeDefined();
-
-    // Verify repository was created
-    const repo = await repositoryService.getRepository(repositoryId);
-    expect(repo).not.toBeNull();
-    expect(repo?.metadata.fullName).toBe("testuser/test-repo");
-    expect(repo?.cloneStatus).toBe("not_cloned");
-    expect(repo?.indexingStatus).toBe("pending");
-
-    // Verify RepositoryConnected event was published
-    const events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "RepositoryConnected"));
-
-    expect(events.length).toBeGreaterThan(0);
-    const event = events[0];
-    expect(event.aggregateType).toBe("Repository");
-    expect(event.aggregateId).toBe(repositoryId);
-    expect(event.data).toMatchObject({
-      repositoryId,
-      userId,
-      githubRepoId: "123456",
-      fullName: "testuser/test-repo",
+      cloneUrl: "https://github.com/owner/repo-a.git",
       isPrivate: false,
     });
+
+    expect(repoId).toBeTruthy();
+
+    const duplicate = await repositoryService.connectRepository({
+      userId,
+      githubRepoId,
+      name: "repo-a",
+      fullName: "owner/repo-a",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/owner/repo-a.git",
+      isPrivate: false,
+    });
+    expect(duplicate).toBeNull();
   });
 
-  it("should handle clone lifecycle with events", async () => {
-    // Arrange - Connect repository first
-    const metadata: RepositoryMetadata = {
-      githubRepoId: "789012",
-      name: "clone-test-repo",
-      fullName: "testuser/clone-test-repo",
-      defaultBranch: "main",
-      cloneUrl: "https://github.com/testuser/clone-test-repo.git",
-      isPrivate: true,
-    };
-
-    const { repositoryId } = await repositoryService.connectRepository({
+  it("supports ownership lookups and listing", async () => {
+    const repoId = await repositoryService.connectRepository({
       userId,
-      metadata,
+      githubRepoId: `${Date.now()}-owned`,
+      name: "repo-owned",
+      fullName: "owner/repo-owned",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/owner/repo-owned.git",
+      isPrivate: true,
     });
+    expect(repoId).toBeTruthy();
 
-    // Clear events
-    await db.delete(domainEvents);
+    const found = await repositoryService.findByOwner(repoId!, userId);
+    expect(found?.id).toBe(repoId);
+    expect(found?.fullName).toBe("owner/repo-owned");
 
-    // Act - Start clone
-    await repositoryService.startClone({
-      repositoryId,
-      clonePath: "/tmp/test-clone",
+    const list = await repositoryService.listUserRepositories(userId);
+    expect(list.some((repo) => repo.id === repoId)).toBe(true);
+    expect(await repositoryService.countByUser(userId)).toBeGreaterThanOrEqual(
+      1,
+    );
+  });
+
+  it("tracks clone lifecycle and verification fields", async () => {
+    const repoId = await repositoryService.connectRepository({
+      userId,
+      githubRepoId: `${Date.now()}-clone`,
+      name: "repo-clone",
+      fullName: "owner/repo-clone",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/owner/repo-clone.git",
+      isPrivate: false,
     });
+    expect(repoId).toBeTruthy();
 
-    // Assert - CloneStarted event
-    let events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "CloneStarted"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      repositoryId,
-      clonePath: "/tmp/test-clone",
-    });
-
-    // Verify status updated
-    let repo = await repositoryService.getRepository(repositoryId);
+    await repositoryService.markCloneStarted(repoId!);
+    let repo = await repositoryService.getById(repoId!);
     expect(repo?.cloneStatus).toBe("cloning");
 
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Complete clone
-    await repositoryService.completeClone(repositoryId);
-
-    // Assert - CloneCompleted event
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "CloneCompleted"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      repositoryId,
-      clonePath: "/tmp/test-clone",
-    });
-
-    // Verify status updated
-    repo = await repositoryService.getRepository(repositoryId);
+    await repositoryService.markCloneCompleted(repoId!, "/tmp/repo-clone");
+    repo = await repositoryService.getById(repoId!);
     expect(repo?.cloneStatus).toBe("cloned");
-    expect(repo?.isCloned).toBe(true);
+    expect(repo?.localPath).toBe("/tmp/repo-clone");
+
+    await repositoryService.markCloneFailed(repoId!);
+    repo = await repositoryService.getById(repoId!);
+    expect(repo?.cloneStatus).toBe("failed");
+
+    await repositoryService.markRepositoryCloneVerified(
+      repoId!,
+      "/tmp/verified",
+    );
+    repo = await repositoryService.getById(repoId!);
+    expect(repo?.cloneStatus).toBe("cloned");
+    expect(repo?.localPath).toBe("/tmp/verified");
   });
 
-  it("should handle indexing lifecycle with events", async () => {
-    // Arrange - Connect and clone repository first
-    const metadata: RepositoryMetadata = {
-      githubRepoId: "345678",
-      name: "index-test-repo",
-      fullName: "testuser/index-test-repo",
-      defaultBranch: "main",
-      cloneUrl: "https://github.com/testuser/index-test-repo.git",
-      isPrivate: false,
-    };
-
-    const { repositoryId } = await repositoryService.connectRepository({
+  it("updates repository fields and returns full repository payload", async () => {
+    const repoId = await repositoryService.connectRepository({
       userId,
-      metadata,
+      githubRepoId: `${Date.now()}-cfg`,
+      name: "repo-cfg",
+      fullName: "owner/repo-cfg",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/owner/repo-cfg.git",
+      isPrivate: false,
+    });
+    expect(repoId).toBeTruthy();
+
+    await repositoryService.updateRepository(repoId!, {
+      testCommand: "npm test",
+      testTimeout: 120000,
     });
 
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Start indexing
-    const { indexId } = await indexingService.startIndexing(repositoryId);
-
-    // Assert - IndexingStarted event
-    let events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "IndexingStarted"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      repositoryId,
-    });
-
-    // Clear events
-    await db.delete(domainEvents);
-
-    // Act - Complete indexing
-    await indexingService.completeIndexing({
-      repositoryId,
-      metadata: {
-        fileCount: 42,
-        symbolCount: 123,
-        techStack: {
-          languages: ["TypeScript", "JavaScript"],
-          frameworks: ["Next.js", "React"],
-          packageManagers: ["npm"],
-        },
-        entryPoints: [
-          {
-            path: "src/index.ts",
-            type: "main",
-            description: "Main entry point",
-          },
-        ],
-        dependencies: [
-          {
-            name: "react",
-            version: "19.0.0",
-            type: "production",
-          },
-        ],
-      },
-    });
-
-    // Assert - IndexingCompleted event
-    events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "IndexingCompleted"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      repositoryId,
-      fileCount: 42,
-      symbolCount: 123,
-    });
+    const full = await repositoryService.getRepositoryFull(repoId!);
+    expect(full?.id).toBe(repoId);
+    expect(full?.testCommand).toBe("npm test");
+    expect(full?.testTimeout).toBe(120000);
+    expect(Array.isArray(full?.tasks)).toBe(true);
   });
 
-  it("should update test configuration and publish event", async () => {
-    // Arrange - Connect repository first
-    const metadata: RepositoryMetadata = {
-      githubRepoId: "901234",
-      name: "test-config-repo",
-      fullName: "testuser/test-config-repo",
-      defaultBranch: "main",
-      cloneUrl: "https://github.com/testuser/test-config-repo.git",
-      isPrivate: false,
-    };
-
-    const { repositoryId } = await repositoryService.connectRepository({
+  it("starts indexing and deletes repositories by user", async () => {
+    const repoId = await repositoryService.connectRepository({
       userId,
-      metadata,
+      githubRepoId: `${Date.now()}-index`,
+      name: "repo-index",
+      fullName: "owner/repo-index",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/owner/repo-index.git",
+      isPrivate: false,
     });
+    expect(repoId).toBeTruthy();
 
-    // Clear events
-    await db.delete(domainEvents);
+    const { indexId } = await indexingService.startIndexing(repoId!);
+    expect(indexId).toBeTruthy();
 
-    // Act - Update test config
-    await repositoryService.updateTestConfig({
-      repositoryId,
-      config: {
-        command: "npm test",
-        timeout: 60000,
-        enabled: true,
-        gatePolicy: "strict",
-      },
+    await repositoryService.deleteAllByUser(userId);
+    const rows = await db.query.repos.findMany({
+      where: (table, { eq }) => eq(table.userId, userId),
     });
+    expect(rows).toHaveLength(0);
+  });
 
-    // Assert - TestConfigurationUpdated event
-    const events = await db
-      .select()
-      .from(domainEvents)
-      .where(eq(domainEvents.eventType, "TestConfigurationUpdated"));
-
-    expect(events.length).toBe(1);
-    expect(events[0].data).toMatchObject({
-      repositoryId,
+  it("gets repository with index by owner shape", async () => {
+    const repoId = await repositoryService.connectRepository({
+      userId,
+      githubRepoId: `${Date.now()}-idx-shape`,
+      name: "repo-idx-shape",
+      fullName: "owner/repo-idx-shape",
+      defaultBranch: "main",
+      cloneUrl: "https://github.com/owner/repo-idx-shape.git",
+      isPrivate: false,
     });
+    expect(repoId).toBeTruthy();
+
+    const withIndex = await repositoryService.getRepositoryWithIndexByOwner(
+      repoId!,
+      userId,
+    );
+    expect(withIndex?.id).toBe(repoId);
   });
 });

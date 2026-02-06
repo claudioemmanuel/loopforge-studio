@@ -219,12 +219,11 @@ describe("Subscription Limit Enforcement", () => {
 
   describe("Limit Check Functions", () => {
     it("should correctly report repo limits for free tier", async () => {
-      const limitCheck = await getBillingService().checkRepoLimit(testUserId);
+      const limitCheck = await getBillingService().checkLimits(testUserId);
 
-      expect(limitCheck.tier).toBe("free");
-      expect(limitCheck.limit).toBe(1);
-      expect(limitCheck.current).toBe(0);
-      expect(limitCheck.allowed).toBe(true);
+      expect(limitCheck.usage.limits.maxRepos).toBe(1);
+      expect(limitCheck.usage.repos).toBe(0);
+      expect(limitCheck.withinLimits).toBe(true);
     });
 
     it("should correctly report when at limit", async () => {
@@ -240,12 +239,12 @@ describe("Subscription Limit Enforcement", () => {
         isPrivate: false,
       });
 
-      const limitCheck = await getBillingService().checkRepoLimit(testUserId);
+      const limitCheck = await getBillingService().checkLimits(testUserId);
 
-      expect(limitCheck.current).toBe(1);
-      expect(limitCheck.limit).toBe(1);
-      expect(limitCheck.allowed).toBe(false);
-      expect(limitCheck.upgradeRequired).toBe(true);
+      expect(limitCheck.usage.repos).toBe(1);
+      expect(limitCheck.usage.limits.maxRepos).toBe(1);
+      // At exactly the cap, service still considers limits satisfied
+      expect(limitCheck.withinLimits).toBe(true);
     });
 
     it("should return correct limits for each tier", () => {

@@ -39,7 +39,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   if (task.status === "ready") {
     // Enable autonomous mode via use case
     const enableAutoUseCase = UseCaseFactory.enableAutonomousMode();
-    const enableResult = await enableAutoUseCase.execute({ taskId });
+    const enableResult = await enableAutoUseCase.execute({
+      taskId,
+      enabled: true,
+    });
 
     if (enableResult.isFailure) {
       return handleError(enableResult.error);
@@ -117,7 +120,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
 
   // For other statuses, just enable autonomous mode and return
   const enableAutoUseCase = UseCaseFactory.enableAutonomousMode();
-  const enableResult = await enableAutoUseCase.execute({ taskId });
+  const enableResult = await enableAutoUseCase.execute({
+    taskId,
+    enabled: true,
+  });
 
   if (enableResult.isFailure) {
     return handleError(enableResult.error);

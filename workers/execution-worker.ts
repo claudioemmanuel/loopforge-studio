@@ -1,13 +1,13 @@
 import { Job } from "bullmq";
 import {
-  db,
-  tasks,
-  executions,
-  workerJobs,
   buildStatusHistoryAppend,
-  eq,
+  createExecutionRecord,
+  createWorkerJobRecord,
   insertExecutionEvent,
   insertWorkerEvent,
+  updateExecutionRecord,
+  updateTaskRecord,
+  updateWorkerJobRecord,
 } from "../lib/contexts/execution/infrastructure/worker-runtime-persistence";
 import type {
   WorkerEventMetadata,
@@ -129,43 +129,34 @@ async function handleExecutionFailure(
   );
 
   // Update execution status
-  await db
-    .update(executions)
-    .set({
-      status: "failed",
-      completedAt: new Date(),
-      errorMessage,
-    })
-    .where(eq(executions.id, context.executionId));
+  await updateExecutionRecord(context.executionId, {
+    status: "failed",
+    completedAt: new Date(),
+    errorMessage,
+  });
 
   // Update task status with history
-  await db
-    .update(tasks)
-    .set({
-      status: "stuck",
-      statusHistory: buildStatusHistoryAppend({
-        fromStatus: "executing",
-        toStatus: "stuck",
-        triggeredBy: "worker",
-      }),
-      processingPhase: null,
-      processingJobId: null,
-      processingStartedAt: null,
-      processingStatusText: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(tasks.id, context.taskId));
+  await updateTaskRecord(context.taskId, {
+    status: "stuck",
+    statusHistory: buildStatusHistoryAppend({
+      fromStatus: "executing",
+      toStatus: "stuck",
+      triggeredBy: "worker",
+    }),
+    processingPhase: null,
+    processingJobId: null,
+    processingStartedAt: null,
+    processingStatusText: null,
+    updatedAt: new Date(),
+  });
 
   // Update worker job if we have one
   if (context.workerJobId) {
-    await db
-      .update(workerJobs)
-      .set({
-        status: "failed",
-        completedAt: new Date(),
-        errorMessage,
-      })
-      .where(eq(workerJobs.id, context.workerJobId));
+    await updateWorkerJobRecord(context.workerJobId, {
+      status: "failed",
+      completedAt: new Date(),
+      errorMessage,
+    });
 
     // Emit error event to worker_events
     await insertWorkerEvent({
@@ -749,18 +740,15 @@ async function handleTaskOrchestration(
       ) {
         // Task isn't ready for execution yet - update to ready if it has a plan
         if (task.planContent) {
-          await db
-            .update(tasks)
-            .set({
-              status: "ready",
-              statusHistory: buildStatusHistoryAppend({
-                fromStatus: task.status,
-                toStatus: "ready",
-                triggeredBy: "autonomous",
-              }),
-              updatedAt: new Date(),
-            })
-            .where(eq(tasks.id, task.id));
+          await updateTaskRecord(task.id, {
+            status: "ready",
+            statusHistory: buildStatusHistoryAppend({
+              fromStatus: task.status,
+              toStatus: "ready",
+              triggeredBy: "autonomous",
+            }),
+            updatedAt: new Date(),
+          });
 
           workerLogger.info(
             { taskId: task.id },
@@ -796,32 +784,26 @@ async function handleTaskOrchestration(
         }
 
         // Create execution record
-        const [execution] = await db
-          .insert(executions)
-          .values({
-            taskId: task.id,
-            status: "queued",
-            iteration: 0,
-          })
-          .returning();
+        const execution = await createExecutionRecord({
+          taskId: task.id,
+          status: "queued",
+          iteration: 0,
+        });
 
         // Update task to executing
-        await db
-          .update(tasks)
-          .set({
-            status: "executing",
-            statusHistory: buildStatusHistoryAppend({
-              fromStatus: "ready",
-              toStatus: "executing",
-              triggeredBy: "autonomous",
-            }),
-            processingPhase: "executing",
-            processingJobId: execution.id,
-            processingStartedAt: new Date(),
-            processingStatusText: "Auto-execution starting...",
-            updatedAt: new Date(),
-          })
-          .where(eq(tasks.id, task.id));
+        await updateTaskRecord(task.id, {
+          status: "executing",
+          statusHistory: buildStatusHistoryAppend({
+            fromStatus: "ready",
+            toStatus: "executing",
+            triggeredBy: "autonomous",
+          }),
+          processingPhase: "executing",
+          processingJobId: execution.id,
+          processingStartedAt: new Date(),
+          processingStatusText: "Auto-execution starting...",
+          updatedAt: new Date(),
+        });
 
         // Build dependency context for the AI agent
         let enhancedPlan = task.planContent!;
@@ -999,10 +981,10 @@ async function processExecution(
   );
 
   // Update execution status to running
-  await db
-    .update(executions)
-    .set({ status: "running", startedAt: new Date() })
-    .where(eq(executions.id, executionId));
+  await updateExecutionRecord(executionId, {
+    status: "running",
+    startedAt: new Date(),
+  });
 
   // Get task details
   const task = await taskService.getTaskFull(taskId);
@@ -1012,16 +994,13 @@ async function processExecution(
   }
 
   // Create worker job record for execution phase
-  const [workerJob] = await db
-    .insert(workerJobs)
-    .values({
-      taskId,
-      phase: "executing",
-      status: "running",
-      startedAt: new Date(),
-      jobId: job.id,
-    })
-    .returning();
+  const workerJob = await createWorkerJobRecord({
+    taskId,
+    phase: "executing",
+    status: "running",
+    startedAt: new Date(),
+    jobId: job.id,
+  });
 
   // Track stats for result summary
   let filesWritten = 0;
@@ -1640,36 +1619,30 @@ async function processExecution(
         }
 
         // Update execution status (completed but not yet approved)
-        await db
-          .update(executions)
-          .set({
-            status: "completed",
-            iteration: result.iterations,
-            completedAt: new Date(),
-            commits: [], // No commits yet - will be set after approval
-            errorMessage: null,
-            branch,
-          })
-          .where(eq(executions.id, executionId));
+        await updateExecutionRecord(executionId, {
+          status: "completed",
+          iteration: result.iterations,
+          completedAt: new Date(),
+          commits: [], // No commits yet - will be set after approval
+          errorMessage: null,
+          branch,
+        });
 
         // Update task status to REVIEW (not done)
         const taskStatus: TaskStatus = "review";
-        await db
-          .update(tasks)
-          .set({
-            status: taskStatus,
-            statusHistory: buildStatusHistoryAppend({
-              fromStatus: "executing",
-              toStatus: taskStatus,
-              triggeredBy: "worker",
-            }),
-            processingPhase: null,
-            processingJobId: null,
-            processingStartedAt: null,
-            processingStatusText: null,
-            updatedAt: new Date(),
-          })
-          .where(eq(tasks.id, taskId));
+        await updateTaskRecord(taskId, {
+          status: taskStatus,
+          statusHistory: buildStatusHistoryAppend({
+            fromStatus: "executing",
+            toStatus: taskStatus,
+            triggeredBy: "worker",
+          }),
+          processingPhase: null,
+          processingJobId: null,
+          processingStartedAt: null,
+          processingStatusText: null,
+          updatedAt: new Date(),
+        });
 
         // === AUTO PR CREATION (OPTIONAL) ===
         // Create PR automatically if feature flag is enabled
@@ -1736,13 +1709,10 @@ async function processExecution(
                 });
 
                 // Update execution with commit info
-                await db
-                  .update(executions)
-                  .set({
-                    commits: [commitResult.sha],
-                    branch: finalBranch,
-                  })
-                  .where(eq(executions.id, executionId));
+                await updateExecutionRecord(executionId, {
+                  commits: [commitResult.sha],
+                  branch: finalBranch,
+                });
 
                 // Create PR
                 const testRun = await getLatestTestRun(taskId);
@@ -1769,14 +1739,11 @@ async function processExecution(
                 });
 
                 // Update task with PR info (but keep in review status)
-                await db
-                  .update(tasks)
-                  .set({
-                    prUrl: pr.html_url,
-                    prNumber: pr.number,
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(tasks.id, taskId));
+                await updateTaskRecord(taskId, {
+                  prUrl: pr.html_url,
+                  prNumber: pr.number,
+                  updatedAt: new Date(),
+                });
 
                 workerLogger.info(
                   { prUrl: pr.html_url, prNumber: pr.number },
@@ -1824,14 +1791,11 @@ async function processExecution(
         });
 
         // Update worker job as completed
-        await db
-          .update(workerJobs)
-          .set({
-            status: "completed",
-            completedAt: new Date(),
-            resultSummary: `${fileChanges.length} file${fileChanges.length !== 1 ? "s" : ""} ready for review${testsPassed !== null ? (testsPassed ? ", tests passed" : ", tests failed") : ""}`,
-          })
-          .where(eq(workerJobs.id, workerJob.id));
+        await updateWorkerJobRecord(workerJob.id, {
+          status: "completed",
+          completedAt: new Date(),
+          resultSummary: `${fileChanges.length} file${fileChanges.length !== 1 ? "s" : ""} ready for review${testsPassed !== null ? (testsPassed ? ", tests passed" : ", tests failed") : ""}`,
+        });
 
         // Publish review event to Redis for SSE
         const reviewEvent = createWorkerUpdateEvent(
@@ -1901,13 +1865,10 @@ async function processExecution(
                   });
 
                   // Update task with test gate failure info
-                  await db
-                    .update(tasks)
-                    .set({
-                      processingStatusText: `Tests failed: ${testGateReason}`,
-                      updatedAt: new Date(),
-                    })
-                    .where(eq(tasks.id, taskId));
+                  await updateTaskRecord(taskId, {
+                    processingStatusText: `Tests failed: ${testGateReason}`,
+                    updatedAt: new Date(),
+                  });
                 }
 
                 // Log warnings even if not blocking
@@ -1991,14 +1952,11 @@ async function processExecution(
                 });
 
                 // Update execution with commit info
-                await db
-                  .update(executions)
-                  .set({
-                    commits: [commitResult.sha],
-                    completedAt: new Date(),
-                    status: "completed",
-                  })
-                  .where(eq(executions.id, executionId));
+                await updateExecutionRecord(executionId, {
+                  commits: [commitResult.sha],
+                  completedAt: new Date(),
+                  status: "completed",
+                });
 
                 // Create PR
                 const testRun = await getLatestTestRun(taskId);
@@ -2025,20 +1983,17 @@ async function processExecution(
                 });
 
                 // Update task to done
-                await db
-                  .update(tasks)
-                  .set({
-                    status: "done" as TaskStatus,
-                    prUrl: pr.html_url,
-                    prNumber: pr.number,
-                    statusHistory: buildStatusHistoryAppend({
-                      fromStatus: "review",
-                      toStatus: "done",
-                      triggeredBy: "worker",
-                    }),
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(tasks.id, taskId));
+                await updateTaskRecord(taskId, {
+                  status: "done" as TaskStatus,
+                  prUrl: pr.html_url,
+                  prNumber: pr.number,
+                  statusHistory: buildStatusHistoryAppend({
+                    fromStatus: "review",
+                    toStatus: "done",
+                    triggeredBy: "worker",
+                  }),
+                  updatedAt: new Date(),
+                });
 
                 // Clean up pending changes
                 await deletePendingChangesByTask(taskId);
@@ -2075,35 +2030,29 @@ async function processExecution(
     // Handle failed/stuck executions (no changes to this path)
     if (result.status !== "complete") {
       // Update execution status
-      await db
-        .update(executions)
-        .set({
-          status: "failed",
-          iteration: result.iterations,
-          completedAt: new Date(),
-          commits: result.commits,
-          errorMessage: result.error || null,
-        })
-        .where(eq(executions.id, executionId));
+      await updateExecutionRecord(executionId, {
+        status: "failed",
+        iteration: result.iterations,
+        completedAt: new Date(),
+        commits: result.commits,
+        errorMessage: result.error || null,
+      });
 
       // Update task status to stuck
       const taskStatus: TaskStatus = "stuck";
-      await db
-        .update(tasks)
-        .set({
-          status: taskStatus,
-          statusHistory: buildStatusHistoryAppend({
-            fromStatus: "executing",
-            toStatus: taskStatus,
-            triggeredBy: "worker",
-          }),
-          processingPhase: null,
-          processingJobId: null,
-          processingStartedAt: null,
-          processingStatusText: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(tasks.id, taskId));
+      await updateTaskRecord(taskId, {
+        status: taskStatus,
+        statusHistory: buildStatusHistoryAppend({
+          fromStatus: "executing",
+          toStatus: taskStatus,
+          triggeredBy: "worker",
+        }),
+        processingPhase: null,
+        processingJobId: null,
+        processingStartedAt: null,
+        processingStatusText: null,
+        updatedAt: new Date(),
+      });
 
       // Emit stuck event to worker_events
       await insertWorkerEvent({
@@ -2119,15 +2068,12 @@ async function processExecution(
       });
 
       // Update worker job as failed
-      await db
-        .update(workerJobs)
-        .set({
-          status: "failed",
-          completedAt: new Date(),
-          resultSummary: `Failed after ${result.iterations} iteration${result.iterations !== 1 ? "s" : ""}`,
-          errorMessage: result.error || null,
-        })
-        .where(eq(workerJobs.id, workerJob.id));
+      await updateWorkerJobRecord(workerJob.id, {
+        status: "failed",
+        completedAt: new Date(),
+        resultSummary: `Failed after ${result.iterations} iteration${result.iterations !== 1 ? "s" : ""}`,
+        errorMessage: result.error || null,
+      });
 
       // Publish stuck event to Redis for SSE
       const stuckEvent = createWorkerUpdateEvent(
@@ -2184,38 +2130,29 @@ async function processExecution(
       error instanceof Error ? error.message : "Unknown error";
 
     // Update execution status
-    await db
-      .update(executions)
-      .set({
-        status: "failed",
-        completedAt: new Date(),
-        errorMessage,
-      })
-      .where(eq(executions.id, executionId));
+    await updateExecutionRecord(executionId, {
+      status: "failed",
+      completedAt: new Date(),
+      errorMessage,
+    });
 
     // Update task status with history
-    await db
-      .update(tasks)
-      .set({
-        status: "stuck",
-        statusHistory: buildStatusHistoryAppend({
-          fromStatus: "executing",
-          toStatus: "stuck",
-          triggeredBy: "worker",
-        }),
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      status: "stuck",
+      statusHistory: buildStatusHistoryAppend({
+        fromStatus: "executing",
+        toStatus: "stuck",
+        triggeredBy: "worker",
+      }),
+      updatedAt: new Date(),
+    });
 
     // Update worker job as failed
-    await db
-      .update(workerJobs)
-      .set({
-        status: "failed",
-        completedAt: new Date(),
-        errorMessage,
-      })
-      .where(eq(workerJobs.id, workerJob.id));
+    await updateWorkerJobRecord(workerJob.id, {
+      status: "failed",
+      completedAt: new Date(),
+      errorMessage,
+    });
 
     // Emit error event to worker_events
     await insertWorkerEvent({
@@ -2258,16 +2195,13 @@ async function processBrainstorm(
   workerLogger.info({ taskId }, "Starting brainstorm");
 
   // Create worker job record
-  const [workerJob] = await db
-    .insert(workerJobs)
-    .values({
-      taskId,
-      phase: "brainstorming",
-      status: "running",
-      startedAt: new Date(),
-      jobId: job.id,
-    })
-    .returning();
+  const workerJob = await createWorkerJobRecord({
+    taskId,
+    phase: "brainstorming",
+    status: "running",
+    startedAt: new Date(),
+    jobId: job.id,
+  });
 
   try {
     // Get task details
@@ -2305,10 +2239,9 @@ async function processBrainstorm(
     });
 
     // Update status: Scanning repository...
-    await db
-      .update(tasks)
-      .set({ processingStatusText: "Scanning repository..." })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      processingStatusText: "Scanning repository...",
+    });
 
     await publishProcessingEvent(
       userId,
@@ -2361,10 +2294,9 @@ async function processBrainstorm(
     }
 
     // Update status: Analyzing task...
-    await db
-      .update(tasks)
-      .set({ processingStatusText: phaseStatusMessages.brainstorming[0] })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      processingStatusText: phaseStatusMessages.brainstorming[0],
+    });
 
     await publishProcessingEvent(
       userId,
@@ -2392,10 +2324,9 @@ async function processBrainstorm(
     });
 
     // Update status: Generating ideas...
-    await db
-      .update(tasks)
-      .set({ processingStatusText: phaseStatusMessages.brainstorming[1] })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      processingStatusText: phaseStatusMessages.brainstorming[1],
+    });
 
     await publishProcessingEvent(
       userId,
@@ -2429,10 +2360,9 @@ async function processBrainstorm(
     };
 
     // Update status: Finalizing brainstorm...
-    await db
-      .update(tasks)
-      .set({ processingStatusText: phaseStatusMessages.brainstorming[3] })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      processingStatusText: phaseStatusMessages.brainstorming[3],
+    });
 
     await publishProcessingEvent(
       userId,
@@ -2465,27 +2395,21 @@ async function processBrainstorm(
     });
 
     // Update worker job as completed
-    await db
-      .update(workerJobs)
-      .set({
-        status: "completed",
-        completedAt: new Date(),
-        resultSummary: `Generated ${requirementsCount} requirement${requirementsCount !== 1 ? "s" : ""}`,
-      })
-      .where(eq(workerJobs.id, workerJob.id));
+    await updateWorkerJobRecord(workerJob.id, {
+      status: "completed",
+      completedAt: new Date(),
+      resultSummary: `Generated ${requirementsCount} requirement${requirementsCount !== 1 ? "s" : ""}`,
+    });
 
     // Update task with result and clear processing state
-    await db
-      .update(tasks)
-      .set({
-        brainstormResult: brainstormResultJson,
-        processingPhase: null,
-        processingJobId: null,
-        processingStartedAt: null,
-        processingStatusText: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      brainstormResult: brainstormResultJson,
+      processingPhase: null,
+      processingJobId: null,
+      processingStartedAt: null,
+      processingStatusText: null,
+      updatedAt: new Date(),
+    });
 
     // Publish completion event
     await publishProcessingEvent(
@@ -2537,22 +2461,19 @@ async function processBrainstorm(
       });
 
       // Update task to planning phase with history
-      await db
-        .update(tasks)
-        .set({
-          status: "planning",
-          statusHistory: buildStatusHistoryAppend({
-            fromStatus: "brainstorming",
-            toStatus: "planning",
-            triggeredBy: "autonomous",
-          }),
-          processingPhase: "planning",
-          processingJobId: planJob.id,
-          processingStartedAt: new Date(),
-          processingStatusText: phaseStatusMessages.planning[0],
-          updatedAt: new Date(),
-        })
-        .where(eq(tasks.id, taskId));
+      await updateTaskRecord(taskId, {
+        status: "planning",
+        statusHistory: buildStatusHistoryAppend({
+          fromStatus: "brainstorming",
+          toStatus: "planning",
+          triggeredBy: "autonomous",
+        }),
+        processingPhase: "planning",
+        processingJobId: planJob.id,
+        processingStartedAt: new Date(),
+        processingStatusText: phaseStatusMessages.planning[0],
+        updatedAt: new Date(),
+      });
 
       // Publish processing_start for planning
       await publishProcessingEvent(
@@ -2587,14 +2508,11 @@ async function processBrainstorm(
     );
 
     // Update worker job as failed
-    await db
-      .update(workerJobs)
-      .set({
-        status: "failed",
-        completedAt: new Date(),
-        errorMessage,
-      })
-      .where(eq(workerJobs.id, workerJob.id));
+    await updateWorkerJobRecord(workerJob.id, {
+      status: "failed",
+      completedAt: new Date(),
+      errorMessage,
+    });
 
     // Emit error event to worker_events
     await insertWorkerEvent({
@@ -2609,22 +2527,19 @@ async function processBrainstorm(
     const startedAt = failedTask?.processingStartedAt || new Date();
 
     // Clear processing state and revert status with history
-    await db
-      .update(tasks)
-      .set({
-        status: "todo",
-        statusHistory: buildStatusHistoryAppend({
-          fromStatus: "brainstorming",
-          toStatus: "todo",
-          triggeredBy: "worker",
-        }),
-        processingPhase: null,
-        processingJobId: null,
-        processingStartedAt: null,
-        processingStatusText: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      status: "todo",
+      statusHistory: buildStatusHistoryAppend({
+        fromStatus: "brainstorming",
+        toStatus: "todo",
+        triggeredBy: "worker",
+      }),
+      processingPhase: null,
+      processingJobId: null,
+      processingStartedAt: null,
+      processingStatusText: null,
+      updatedAt: new Date(),
+    });
 
     // Publish error event
     if (failedTask) {
@@ -2672,16 +2587,13 @@ async function processPlan(
   workerLogger.info({ taskId }, "Starting plan");
 
   // Create worker job record
-  const [workerJob] = await db
-    .insert(workerJobs)
-    .values({
-      taskId,
-      phase: "planning",
-      status: "running",
-      startedAt: new Date(),
-      jobId: job.id,
-    })
-    .returning();
+  const workerJob = await createWorkerJobRecord({
+    taskId,
+    phase: "planning",
+    status: "running",
+    startedAt: new Date(),
+    jobId: job.id,
+  });
 
   try {
     // Get task details
@@ -2719,10 +2631,9 @@ async function processPlan(
     });
 
     // Update status: Reviewing brainstorm...
-    await db
-      .update(tasks)
-      .set({ processingStatusText: phaseStatusMessages.planning[0] })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      processingStatusText: phaseStatusMessages.planning[0],
+    });
 
     await publishProcessingEvent(
       userId,
@@ -2750,10 +2661,9 @@ async function processPlan(
     });
 
     // Update status: Designing plan...
-    await db
-      .update(tasks)
-      .set({ processingStatusText: phaseStatusMessages.planning[1] })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      processingStatusText: phaseStatusMessages.planning[1],
+    });
 
     await publishProcessingEvent(
       userId,
@@ -2787,10 +2697,9 @@ async function processPlan(
     );
 
     // Update status: Finalizing plan...
-    await db
-      .update(tasks)
-      .set({ processingStatusText: phaseStatusMessages.planning[3] })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      processingStatusText: phaseStatusMessages.planning[3],
+    });
 
     await publishProcessingEvent(
       userId,
@@ -2824,35 +2733,29 @@ async function processPlan(
     });
 
     // Update worker job as completed
-    await db
-      .update(workerJobs)
-      .set({
-        status: "completed",
-        completedAt: new Date(),
-        resultSummary: `Created ${stepsCount}-step plan`,
-      })
-      .where(eq(workerJobs.id, workerJob.id));
+    await updateWorkerJobRecord(workerJob.id, {
+      status: "completed",
+      completedAt: new Date(),
+      resultSummary: `Created ${stepsCount}-step plan`,
+    });
 
     // Update task with result and clear processing state with history
     const newStatus: TaskStatus = continueToExecution ? "ready" : "planning";
-    await db
-      .update(tasks)
-      .set({
-        planContent: planContentJson,
-        branch: branchName,
-        status: newStatus,
-        statusHistory: buildStatusHistoryAppend({
-          fromStatus: "planning",
-          toStatus: newStatus,
-          triggeredBy: continueToExecution ? "autonomous" : "worker",
-        }),
-        processingPhase: null,
-        processingJobId: null,
-        processingStartedAt: null,
-        processingStatusText: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      planContent: planContentJson,
+      branch: branchName,
+      status: newStatus,
+      statusHistory: buildStatusHistoryAppend({
+        fromStatus: "planning",
+        toStatus: newStatus,
+        triggeredBy: continueToExecution ? "autonomous" : "worker",
+      }),
+      processingPhase: null,
+      processingJobId: null,
+      processingStartedAt: null,
+      processingStatusText: null,
+      updatedAt: new Date(),
+    });
 
     // Publish completion event
     await publishProcessingEvent(
@@ -2900,32 +2803,26 @@ async function processPlan(
       }
 
       // Create execution record
-      const [execution] = await db
-        .insert(executions)
-        .values({
-          taskId,
-          status: "queued",
-          iteration: 0,
-        })
-        .returning();
+      const execution = await createExecutionRecord({
+        taskId,
+        status: "queued",
+        iteration: 0,
+      });
 
       // Update task to executing with history
-      await db
-        .update(tasks)
-        .set({
-          status: "executing",
-          statusHistory: buildStatusHistoryAppend({
-            fromStatus: "ready",
-            toStatus: "executing",
-            triggeredBy: "autonomous",
-          }),
-          processingPhase: "executing",
-          processingJobId: execution.id,
-          processingStartedAt: new Date(),
-          processingStatusText: phaseStatusMessages.executing[0],
-          updatedAt: new Date(),
-        })
-        .where(eq(tasks.id, taskId));
+      await updateTaskRecord(taskId, {
+        status: "executing",
+        statusHistory: buildStatusHistoryAppend({
+          fromStatus: "ready",
+          toStatus: "executing",
+          triggeredBy: "autonomous",
+        }),
+        processingPhase: "executing",
+        processingJobId: execution.id,
+        processingStartedAt: new Date(),
+        processingStatusText: phaseStatusMessages.executing[0],
+        updatedAt: new Date(),
+      });
 
       // Queue execution
       // Worker will decrypt API key on demand using userId
@@ -2970,14 +2867,11 @@ async function processPlan(
     workerLogger.error({ taskId, error: errorMessage }, "Plan worker error");
 
     // Update worker job as failed
-    await db
-      .update(workerJobs)
-      .set({
-        status: "failed",
-        completedAt: new Date(),
-        errorMessage,
-      })
-      .where(eq(workerJobs.id, workerJob.id));
+    await updateWorkerJobRecord(workerJob.id, {
+      status: "failed",
+      completedAt: new Date(),
+      errorMessage,
+    });
 
     // Emit error event to worker_events
     await insertWorkerEvent({
@@ -2992,22 +2886,19 @@ async function processPlan(
     const startedAt = failedTask?.processingStartedAt || new Date();
 
     // Clear processing state and revert status with history
-    await db
-      .update(tasks)
-      .set({
-        status: "brainstorming",
-        statusHistory: buildStatusHistoryAppend({
-          fromStatus: "planning",
-          toStatus: "brainstorming",
-          triggeredBy: "worker",
-        }),
-        processingPhase: null,
-        processingJobId: null,
-        processingStartedAt: null,
-        processingStatusText: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await updateTaskRecord(taskId, {
+      status: "brainstorming",
+      statusHistory: buildStatusHistoryAppend({
+        fromStatus: "planning",
+        toStatus: "brainstorming",
+        triggeredBy: "worker",
+      }),
+      processingPhase: null,
+      processingJobId: null,
+      processingStartedAt: null,
+      processingStatusText: null,
+      updatedAt: new Date(),
+    });
 
     // Publish error event
     if (failedTask) {

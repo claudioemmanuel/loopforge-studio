@@ -14,8 +14,14 @@ interface TaskNodeData {
   onToggleExpand?: () => void;
 }
 
-export const TaskGraphNode = memo(({ data }: NodeProps<TaskNodeData>) => {
-  const { task, isExpanded = false, isSelected = false, onToggleExpand } = data;
+export const TaskGraphNode = memo(({ data }: NodeProps) => {
+  const typedData = data as unknown as TaskNodeData;
+  const {
+    task,
+    isExpanded = false,
+    isSelected = false,
+    onToggleExpand,
+  } = typedData;
 
   const statusColors: Record<string, string> = {
     todo: "border-gray-500 bg-gray-50 dark:bg-gray-900",
@@ -127,7 +133,7 @@ export const TaskGraphNode = memo(({ data }: NodeProps<TaskNodeData>) => {
       </Badge>
 
       {/* Processing Progress */}
-      {task.processingProgress !== undefined && task.processingProgress > 0 && (
+      {task.processingProgress != null && task.processingProgress > 0 && (
         <div className="mt-2">
           <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
             <span>Progress</span>

@@ -10,6 +10,25 @@ import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { getTaskService } from "@/lib/contexts/task/api";
+import type { TaskStatus } from "@/lib/contexts/task/entities/value-objects";
+
+function toDomainStatus(status: string): TaskStatus {
+  const allowed: TaskStatus[] = [
+    "todo",
+    "brainstorming",
+    "planning",
+    "ready",
+    "executing",
+    "done",
+    "stuck",
+  ];
+
+  if (allowed.includes(status as TaskStatus)) {
+    return status as TaskStatus;
+  }
+
+  return "todo";
+}
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   // Find a configured provider
@@ -99,7 +118,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   } catch (error) {
     // Revert brainstorming slot on error via use case
     const clearUseCase = UseCaseFactory.clearProcessingSlot();
-    await clearUseCase.execute({ taskId, revertToStatus: task.status });
+    await clearUseCase.execute({
+      taskId,
+      revertToStatus: toDomainStatus(task.status),
+    });
 
     apiLogger.error(
       { taskId, provider: aiProvider, error },

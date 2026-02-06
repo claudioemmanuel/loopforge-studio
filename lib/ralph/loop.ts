@@ -25,11 +25,12 @@ import {
   CompletionValidator,
   LegacyCompletionChecker,
 } from "./completion-validator";
-import { getFeatureFlag, areReliabilityFeaturesEnabled } from "./feature-flags";
+import { getFeatureFlag } from "./feature-flags";
 import {
   createRecoveryEvent,
   publishRecoveryEvent,
 } from "@/lib/workers/events";
+import type { SkillResult } from "@/lib/skills/types";
 
 export type ExecutionMode = "classic" | "multi-agent";
 
@@ -217,7 +218,7 @@ async function runClassicLoop(
 
     // Skills Framework Integration - Invoke applicable skills at iteration start
     const skillsEnabled = process.env.ENABLE_SKILLS_SYSTEM !== "false";
-    let skillResults: Array<{ skillId: string; status: string }> = [];
+    let skillResults: SkillResult[] = [];
 
     if (skillsEnabled) {
       try {
@@ -276,7 +277,7 @@ async function runClassicLoop(
         const { combineAugmentedPrompts } =
           await import("@/lib/skills/enforcement");
         prompt = combineAugmentedPrompts(prompt, skillResults);
-      } catch (error) {
+      } catch {
         // Ignore if enforcement module not available
       }
     }

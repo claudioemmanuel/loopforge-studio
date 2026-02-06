@@ -4,9 +4,10 @@
  */
 
 import { TaskRepository } from "../adapters/repositories/TaskRepository";
-import { EventPublisher } from "../../domain-events/infrastructure/event-publisher";
+import { EventPublisher } from "../../domain-events/event-publisher";
 import { AnalyticsServiceAdapter } from "../adapters/services/AnalyticsServiceAdapter";
-import { LoggerAdapter } from "../adapters/services/LoggerAdapter";
+import { EventPublisherAdapter } from "../adapters/services/EventPublisherAdapter";
+import { getRedis } from "@/lib/queue";
 
 // Core CRUD
 import { CreateTaskUseCase } from "../use-cases/create-task/CreateTaskUseCase";
@@ -59,9 +60,10 @@ import { GetTaskIdsByRepoIdsUseCase } from "../use-cases/get-task-ids-by-repo-id
  * Shared infrastructure dependencies (singletons)
  */
 const taskRepository = new TaskRepository();
-const eventPublisher = new EventPublisher();
+const eventPublisher = new EventPublisherAdapter(
+  EventPublisher.getInstance(getRedis()),
+);
 const analyticsService = new AnalyticsServiceAdapter();
-const logger = new LoggerAdapter();
 
 /**
  * Use case factory - creates use case instances with dependencies injected

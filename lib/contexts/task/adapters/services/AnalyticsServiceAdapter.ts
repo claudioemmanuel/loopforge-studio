@@ -25,12 +25,13 @@ export class AnalyticsServiceAdapter implements IAnalyticsService {
         break;
 
       case "task_completed":
-        await this.analytics.taskCompleted({
+        await this.analytics.statusChanged({
           taskId: properties.taskId as string,
           repoId: properties.repoId as string,
           userId: properties.userId as string,
           taskTitle: properties.taskTitle as string,
-          hasPr: properties.hasPr as boolean,
+          fromStatus: "review",
+          toStatus: "done",
         });
         break;
 

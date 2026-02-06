@@ -261,8 +261,6 @@ export const KanbanCard = React.memo(function KanbanCard({
         processingState.processingPhase === "planning" && "ring-blue-500/50",
         processingState.processingPhase === "executing" &&
           "ring-emerald-500/50",
-        processingState.processingPhase === "recovering" &&
-          "ring-amber-500/50 motion-safe:animate-pulse",
       ],
     // Dependency highlight styles
     !isDragOverlay && [

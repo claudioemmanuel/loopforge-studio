@@ -1,429 +1,168 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { POST } from "@/app/api/experiments/generate/route";
+/**
+ * Integration tests for experiment analysis pipeline.
+ *
+ * Legacy `/api/experiments/generate` route was removed; this suite validates
+ * current experiment persistence + analytics behavior.
+ */
+
+import { beforeEach, describe, expect, it } from "vitest";
+import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { encryptApiKey } from "@/lib/crypto";
+import { analyzeExperiment } from "@/lib/contexts/analytics/infrastructure/experiment-statistics";
 
-// Mock the AI client
-vi.mock("@/lib/api", async () => {
-  const actual = await vi.importActual("@/lib/api");
-  return {
-    ...actual,
-    createUserAIClient: vi.fn().mockResolvedValue({
-      chat: vi.fn().mockResolvedValue(
-        JSON.stringify({
-          experimentName: "Generated Test Experiment",
-          experimentDescription: "AI-generated experiment for testing",
-          variants: [
-            {
-              name: "Variant A",
-              weight: 33,
-              config: {
-                type: "prompt",
-                promptOverrides: {
-                  system_prompt: "System prompt for variant A",
-                },
-              },
-            },
-            {
-              name: "Variant B",
-              weight: 33,
-              config: {
-                type: "prompt",
-                promptOverrides: {
-                  system_prompt: "System prompt for variant B",
-                },
-              },
-            },
-            {
-              name: "Variant C",
-              weight: 34,
-              config: {
-                type: "prompt",
-                promptOverrides: {
-                  system_prompt: "System prompt for variant C",
-                },
-              },
-            },
-          ],
-        }),
-      ),
-      getProvider: vi.fn().mockReturnValue("anthropic"),
-      getModel: vi.fn().mockReturnValue("claude-sonnet-4-20250514"),
-    }),
-  };
-});
-
-const TEST_PREFIX = `exp-gen-${Date.now()}`;
-
-describe("Experiments Generate API", () => {
-  let testUser: schema.User;
+describe("Experiment Analysis Integration", () => {
+  let userId: string;
+  let repoId: string;
+  let taskId: string;
 
   beforeEach(async () => {
-    // Create test user with encrypted API key
-    const { encrypted, iv } = encryptApiKey("test-api-key");
+    const unique = `${Date.now()}-${Math.random()}`;
 
-    [testUser] = await db
-      .insert(schema.users)
-      .values({
-        githubId: `${TEST_PREFIX}-user-${Math.random().toString(36).slice(2)}`,
-        username: "testuser",
-        encryptedApiKey: encrypted,
-        apiKeyIv: iv,
-        preferredProvider: "anthropic",
-      })
-      .returning();
+    userId = randomUUID();
+    await db.insert(schema.users).values({
+      id: userId,
+      githubId: `gh-${unique}`,
+      username: `user-${unique}`,
+      email: `user-${unique}@example.com`,
+    });
+
+    repoId = randomUUID();
+    await db.insert(schema.repos).values({
+      id: repoId,
+      userId,
+      githubRepoId: `repo-${unique}`,
+      name: "exp-repo",
+      fullName: `owner/exp-repo-${unique}`,
+      cloneUrl: "https://github.com/owner/exp-repo.git",
+      defaultBranch: "main",
+    });
+
+    taskId = randomUUID();
+    await db.insert(schema.tasks).values({
+      id: taskId,
+      repoId,
+      title: "Experiment Task",
+      status: "todo",
+    });
   });
 
-  describe("POST /api/experiments/generate", () => {
-    it("should generate experiment for brainstorming test area", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "brainstorming",
-          userAnswers: {
-            speed_vs_thoroughness: "Speed",
-            focus: "Technical details",
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
+  it("returns null for unknown experiment", async () => {
+    const result = await analyzeExperiment("unknown-experiment", "latency_ms");
+    expect(result).toBeNull();
+  });
+
+  it("computes variant statistics and significance for two-variant experiments", async () => {
+    const [experiment] = await db
+      .insert(schema.experiments)
+      .values({
+        id: randomUUID(),
+        name: `exp-${Date.now()}`,
+        description: "Experiment for integration test",
+        status: "active",
+        trafficAllocation: 50,
+      })
+      .returning();
+
+    const [control, treatment] = await db
+      .insert(schema.experimentVariants)
+      .values([
+        {
+          id: randomUUID(),
+          experimentId: experiment.id,
+          name: "control",
+          weight: 50,
+          config: { type: "prompt", promptOverrides: {} },
         },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.experiment).toBeDefined();
-      expect(data.experiment.name).toBe("Generated Test Experiment");
-      expect(data.experiment.description).toBe(
-        "AI-generated experiment for testing",
-      );
-      expect(data.experiment.variants).toHaveLength(3);
-      expect(data.metadata).toBeDefined();
-      expect(data.metadata.testArea).toBe("brainstorming");
-      expect(data.metadata.generatedBy).toBe("anthropic");
-
-      // Verify experiment was saved to database
-      const savedExperiment = await db.query.experiments.findFirst({
-        where: eq(schema.experiments.id, data.experiment.id),
-        with: {
-          variants: true,
+        {
+          id: randomUUID(),
+          experimentId: experiment.id,
+          name: "treatment",
+          weight: 50,
+          config: { type: "prompt", promptOverrides: {} },
         },
-      });
+      ])
+      .returning();
 
-      expect(savedExperiment).toBeDefined();
-      expect(savedExperiment?.variants).toHaveLength(3);
-    });
+    const [t1, t2, t3, t4] = await db
+      .insert(schema.tasks)
+      .values([
+        { id: randomUUID(), repoId, title: "exp-task-1", status: "todo" },
+        { id: randomUUID(), repoId, title: "exp-task-2", status: "todo" },
+        { id: randomUUID(), repoId, title: "exp-task-3", status: "todo" },
+        { id: randomUUID(), repoId, title: "exp-task-4", status: "todo" },
+      ])
+      .returning();
 
-    it("should generate experiment for planning test area", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "planning",
-          userAnswers: {
-            granularity: "Detailed steps",
-            file_paths: "Yes, always",
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
+    const [a1, a2, a3, a4] = await db
+      .insert(schema.variantAssignments)
+      .values([
+        {
+          id: randomUUID(),
+          experimentId: experiment.id,
+          variantId: control.id,
+          userId,
+          taskId: t1.id,
         },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.experiment).toBeDefined();
-      expect(data.metadata.testArea).toBe("planning");
-    });
-
-    it("should generate experiment for code_generation test area", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "code_generation",
-          userAnswers: {
-            refactoring_style: "Conservative",
-            comment_density: "Minimal",
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
+        {
+          id: randomUUID(),
+          experimentId: experiment.id,
+          variantId: control.id,
+          userId,
+          taskId: t2.id,
         },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.experiment).toBeDefined();
-      expect(data.metadata.testArea).toBe("code_generation");
-    });
-
-    it("should generate experiment for model_params test area", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "model_params",
-          userAnswers: {
-            optimization_goal: "Quality",
-            risk_tolerance: "Low (conservative)",
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
+        {
+          id: randomUUID(),
+          experimentId: experiment.id,
+          variantId: treatment.id,
+          userId,
+          taskId: t3.id,
         },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.experiment).toBeDefined();
-      expect(data.metadata.testArea).toBe("model_params");
-    });
-
-    it("should apply custom experiment name", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "brainstorming",
-          userAnswers: {
-            speed_vs_thoroughness: "Speed",
-            focus: "Technical details",
-          },
-          customizations: {
-            experimentName: "Custom Experiment Name",
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
+        {
+          id: randomUUID(),
+          experimentId: experiment.id,
+          variantId: treatment.id,
+          userId,
+          taskId: t4.id,
         },
-      });
+      ])
+      .returning();
 
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-      const data = await response.json();
+    await db.insert(schema.experimentMetrics).values([
+      {
+        id: randomUUID(),
+        variantAssignmentId: a1.id,
+        metricName: "latency_ms",
+        metricValue: 120,
+      },
+      {
+        id: randomUUID(),
+        variantAssignmentId: a2.id,
+        metricName: "latency_ms",
+        metricValue: 130,
+      },
+      {
+        id: randomUUID(),
+        variantAssignmentId: a3.id,
+        metricName: "latency_ms",
+        metricValue: 90,
+      },
+      {
+        id: randomUUID(),
+        variantAssignmentId: a4.id,
+        metricName: "latency_ms",
+        metricValue: 95,
+      },
+    ]);
 
-      expect(response.status).toBe(200);
-      expect(data.experiment.name).toBe("Custom Experiment Name");
-    });
-
-    it("should apply custom traffic allocation", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "brainstorming",
-          userAnswers: {
-            speed_vs_thoroughness: "Speed",
-            focus: "Technical details",
-          },
-          customizations: {
-            trafficAllocation: 25,
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.experiment.trafficAllocation).toBe(25);
-    });
-
-    it("should return 400 for invalid test area", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "invalid_area",
-          userAnswers: {},
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-
-      expect(response.status).toBe(400);
-    });
-
-    it("should return 400 for missing required fields", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "brainstorming",
-          // Missing userAnswers
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-
-      expect(response.status).toBe(400);
-    });
-
-    it("should return error when AI provider not configured", async () => {
-      // Create user without API key
-      const [userWithoutKey] = await db
-        .insert(schema.users)
-        .values({
-          githubId: `${TEST_PREFIX}-no-key-${Math.random().toString(36).slice(2)}`,
-          username: "testuser-no-key",
-          // No encrypted API key
-        })
-        .returning();
-
-      // Mock createUserAIClient to return null for this user
-      const { createUserAIClient } = await import("@/lib/api");
-      vi.mocked(createUserAIClient).mockResolvedValueOnce(null);
-
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "brainstorming",
-          userAnswers: {
-            speed_vs_thoroughness: "Speed",
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const response = await POST(request, {
-        user: userWithoutKey,
-        session: {} as { user?: unknown; expires: string },
-      });
-
-      expect(response.status).toBe(400);
-    });
-
-    it("should create experiment with draft status", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "brainstorming",
-          userAnswers: {
-            speed_vs_thoroughness: "Speed",
-            focus: "Technical details",
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data.experiment.status).toBe("draft");
-    });
-
-    it("should create variants with correct weights summing to 100", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "brainstorming",
-          userAnswers: {
-            speed_vs_thoroughness: "Speed",
-            focus: "Technical details",
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-
-      const totalWeight = data.experiment.variants.reduce(
-        (sum: number, v: { weight: number }) => sum + v.weight,
-        0,
-      );
-
-      expect(totalWeight).toBe(100);
-    });
-
-    it("should save variant configs to database", async () => {
-      const request = new Request("http://localhost:3000/api/experiments/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          testArea: "brainstorming",
-          userAnswers: {
-            speed_vs_thoroughness: "Speed",
-            focus: "Technical details",
-          },
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const response = await POST(request, {
-        user: testUser,
-        session: {} as { user?: unknown; expires: string },
-      });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-
-      // Verify variants were saved with configs
-      const savedVariants = await db.query.experimentVariants.findMany({
-        where: eq(
-          schema.experimentVariants.experimentId,
-          data.experiment.id,
-        ),
-      });
-
-      expect(savedVariants).toHaveLength(3);
-      savedVariants.forEach((variant) => {
-        expect(variant.config).toBeDefined();
-        expect(variant.config.type).toBe("prompt");
-        expect(variant.config.promptOverrides).toBeDefined();
-      });
-    });
+    const analysis = await analyzeExperiment(experiment.name, "latency_ms");
+    expect(analysis).toBeTruthy();
+    expect(analysis?.variants).toHaveLength(2);
+    expect(analysis?.comparison).toBeTruthy();
+    expect(analysis?.comparison?.control.sampleSize).toBe(2);
+    expect(analysis?.comparison?.treatment.sampleSize).toBe(2);
+    expect(analysis?.comparison?.recommendation).toMatch(
+      /continue|rollout|stop/,
+    );
   });
 });

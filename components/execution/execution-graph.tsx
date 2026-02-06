@@ -68,10 +68,16 @@ export function ExecutionGraph({
   const { viewport, pan, zoomIn, zoomOut, fitToView, reset, setViewport } =
     useGraphViewport(containerRef);
 
+  // Get container dimensions for minimap and culling.
+  const [containerDimensions, setContainerDimensions] = useState({
+    width: 800,
+    height: 600,
+  });
+
   // Real-time updates via SSE
   const { isConnected, updatedNodeIds } = useGraphRealtime({
     taskId,
-    executionGraph,
+    executionGraph: executionGraph ?? null,
     onGraphUpdate,
     enabled: enableRealtime,
   });
@@ -134,12 +140,6 @@ export function ExecutionGraph({
 
     return { nodes: visibleNodes, edges: visibleEdges };
   }, [layout, viewport, containerDimensions, useCanvasMode]);
-
-  // Get container dimensions for minimap
-  const [containerDimensions, setContainerDimensions] = useState({
-    width: 800,
-    height: 600,
-  });
 
   useEffect(() => {
     if (containerRef.current) {

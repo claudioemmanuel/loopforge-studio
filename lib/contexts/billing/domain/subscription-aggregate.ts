@@ -238,7 +238,7 @@ export class UserSubscriptionAggregate {
    * Check if limit exceeded
    */
   async checkLimit(
-    limitType: "maxRepos" | "maxTasks" | "maxTokensPerMonth",
+    limitType: "maxRepos" | "maxTasksPerMonth" | "maxTokensPerMonth",
     currentValue: number,
   ): Promise<boolean> {
     const limitValue = this.state.limits[limitType];

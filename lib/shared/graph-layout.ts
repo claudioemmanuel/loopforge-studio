@@ -95,9 +95,9 @@ export function calculateGraphLayout(
         // Add execution step edges
         executionGraph.edges.forEach((edge) => {
           edges.push({
-            id: `${task.id}-edge-${edge.from}-${edge.to}`,
-            source: `${task.id}-step-${edge.from}`,
-            target: `${task.id}-step-${edge.to}`,
+            id: `${task.id}-edge-${edge.source}-${edge.target}`,
+            source: `${task.id}-step-${edge.source}`,
+            target: `${task.id}-step-${edge.target}`,
             type: "smoothstep",
             style: { stroke: "#6366f1", strokeWidth: 2 },
             animated: false,

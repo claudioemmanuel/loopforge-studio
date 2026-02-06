@@ -55,7 +55,7 @@ export async function POST(
   }
 
   // Check if already cloned
-  if (repo.isCloned && repo.localPath) {
+  if (repo.cloneStatus === "cloned" && repo.localPath) {
     try {
       await fs.access(repo.localPath);
       return NextResponse.json({

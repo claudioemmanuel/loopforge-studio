@@ -70,7 +70,14 @@ async function getQueueStats(queueName: string): Promise<QueueStats> {
 
     await queue.close();
 
-    return counts as QueueStats;
+    return {
+      waiting: counts.waiting,
+      active: counts.active,
+      completed: counts.completed,
+      failed: counts.failed,
+      delayed: counts.delayed,
+      paused: counts.paused,
+    };
   } catch (error) {
     console.error(`Error getting stats for queue ${queueName}:`, error);
     return {
@@ -197,8 +204,6 @@ export const GET = withAuth(async () => {
     return NextResponse.json(response);
   } catch (error) {
     console.error("Error in worker health endpoint:", error);
-    return handleError(
-      Errors.internal("Failed to retrieve worker health status"),
-    );
+    return handleError(Errors.serverError(error));
   }
 });

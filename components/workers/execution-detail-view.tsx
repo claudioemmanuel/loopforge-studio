@@ -23,39 +23,39 @@ export function ExecutionDetailView({
   const status = execution.status;
 
   const statusConfig = {
-    brainstorming: {
-      label: "Brainstorming",
-      icon: Loader2,
-      iconClass: "animate-spin text-violet-500",
-      badgeVariant: "default" as const,
+    queued: {
+      label: "Queued",
+      icon: Clock,
+      iconClass: "text-slate-500",
+      badgeVariant: "secondary" as const,
     },
-    planning: {
-      label: "Planning",
+    running: {
+      label: "Running",
       icon: Loader2,
       iconClass: "animate-spin text-blue-500",
       badgeVariant: "default" as const,
     },
-    executing: {
-      label: "Executing",
-      icon: Loader2,
-      iconClass: "animate-spin text-emerald-500",
-      badgeVariant: "default" as const,
-    },
-    done: {
+    completed: {
       label: "Completed",
       icon: CheckCircle2,
       iconClass: "text-emerald-500",
       badgeVariant: "default" as const,
     },
-    stuck: {
+    failed: {
       label: "Failed",
       icon: XCircle,
       iconClass: "text-destructive",
       badgeVariant: "destructive" as const,
     },
+    cancelled: {
+      label: "Cancelled",
+      icon: XCircle,
+      iconClass: "text-slate-500",
+      badgeVariant: "secondary" as const,
+    },
   };
 
-  const config = statusConfig[status] || statusConfig.executing;
+  const config = statusConfig[status] || statusConfig.running;
   const Icon = config.icon;
 
   return (

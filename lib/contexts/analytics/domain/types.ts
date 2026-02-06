@@ -7,19 +7,14 @@
 /**
  * Activity event category
  */
-export type ActivityCategory =
-  | "ai_action"
-  | "git"
-  | "system"
-  | "test"
-  | "review";
+export type ActivityCategory = "ai_action" | "git" | "system";
 
 /**
  * Activity event
  */
 export interface ActivityEvent {
   id: string;
-  userId: string;
+  userId?: string;
   taskId?: string;
   repoId?: string;
   executionId?: string;
