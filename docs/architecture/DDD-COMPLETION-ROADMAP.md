@@ -1,12 +1,27 @@
 # DDD Migration Completion Roadmap
 
-> Current state: ~60% complete
-> Task + Execution contexts: WIRED ✅
-> IAM, Repository, Billing, Analytics: STAGED (not wired)
+> Current state: ~65% complete
+> All 6 contexts: WIRED ✅
+> Service-to-repository layer complete ✅
+> Next: Add missing ExecutionService methods, convert diff/review routes
 
-## Priority 1: Wire Application Services to Repositories (HIGH)
+## ✅ Priority 1: Wire Application Services to Repositories (COMPLETE)
 
-### Analytics Context
+**Completed:** 2026-02-06
+**Effort:** 2 hours (2-3 hours estimated)
+
+All application services now properly delegate to their infrastructure repositories:
+
+- ✅ **Analytics**: Wired ActivityRepository, replaced db.insert/delete with repository methods
+- ✅ **Billing**: Wired UsageRepository, added recordUsage/getEstimatedCost methods
+- ✅ **Repository**: Already wired (uses RepositoryRepository throughout)
+- ✅ **IAM**: Already wired (uses UserRepository throughout)
+
+Commits: 414ec8c, 3b2083f
+
+---
+
+### Analytics Context (ARCHIVED)
 
 **File:** `lib/contexts/analytics/application/analytics-service.ts`
 

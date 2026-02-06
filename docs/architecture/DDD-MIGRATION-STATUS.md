@@ -185,6 +185,43 @@ Migrated Task context from service-layer pattern to strict Clean Architecture us
 
 **Design document:** `docs/plans/2026-02-05-clean-architecture-task-context-design.md`
 
+### ✅ Completed – Wire Remaining Contexts to Repositories (Phase 11)
+
+**Date completed:** 2026-02-06
+
+Completed Priority 1 from DDD-COMPLETION-ROADMAP: wired all remaining bounded contexts to their infrastructure repositories.
+
+**Analytics Context:**
+
+- Wired `ActivityRepository` into `AnalyticsService`
+- Replaced `db.insert(activityEvents)` with `activityRepository.recordActivity()`
+- Added `deleteByUserId` method to repository
+- Replaced direct delete with `activityRepository.deleteByUserId()`
+
+**Billing Context:**
+
+- Added `recordUsage` method to `UsageRepository` for detailed usage tracking
+- Added `getEstimatedCost` method to `UsageRepository` for cost aggregation
+- Replaced `db.insert(usageRecords)` with `usageRepository.recordUsage()`
+- Replaced direct cost query with `usageRepository.getEstimatedCost()`
+
+**Repository Context:**
+
+- Already wired ✅ (uses `RepositoryRepository` throughout)
+- Only remaining direct query is cross-context (fetching tasks)
+
+**IAM Context:**
+
+- Already wired ✅ (uses `UserRepository` throughout)
+- Only minor direct updates remain (`updateLocale`, `updateUserFields` - can be addressed later)
+
+**Commits:**
+
+- 414ec8c: feat(ddd): wire Analytics context to ActivityRepository
+- 3b2083f: feat(ddd): wire Billing context to UsageRepository
+
+All four remaining contexts now properly delegate to their infrastructure repositories. Service-to-repository wiring complete across all 6 bounded contexts.
+
 ### ✅ Completed – Wire Task & Execution aggregates + delete lib/domain/ (Phase 9)
 
 - `TaskRepository.saveWithStatusGuard` added (atomic execution claiming)
