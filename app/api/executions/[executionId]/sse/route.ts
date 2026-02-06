@@ -1,9 +1,8 @@
 import { auth } from "@/lib/auth";
-import { db, executions, executionEvents } from "@/lib/db";
-import { eq, asc } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
 import Redis from "ioredis";
 import { apiLogger } from "@/lib/logger";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,17 +18,11 @@ export async function GET(
     return new Response("Unauthorized", { status: 401 });
   }
 
+  const executionService = getExecutionService();
+
   // Verify ownership via execution -> task -> repo chain
-  const execution = await db.query.executions.findFirst({
-    where: eq(executions.id, executionId),
-    with: {
-      task: {
-        with: {
-          repo: true,
-        },
-      },
-    },
-  });
+  const execution =
+    await executionService.getExecutionWithOwnership(executionId);
 
   if (!execution || execution.task.repo.userId !== session.user.id) {
     return new Response("Not found", { status: 404 });
@@ -43,17 +36,15 @@ export async function GET(
     async start(controller) {
       // Send initial burst of existing events
       try {
-        const existingEvents = await db.query.executionEvents.findMany({
-          where: eq(executionEvents.executionId, executionId),
-          orderBy: [asc(executionEvents.createdAt)],
-        });
+        const existingEvents =
+          await executionService.getExecutionEvents(executionId);
 
         for (const e of existingEvents) {
           const event = {
             id: e.id,
-            type: e.eventType,
+            type: e.type,
             content: e.content,
-            timestamp: e.createdAt,
+            timestamp: e.timestamp,
             metadata: e.metadata,
           };
           controller.enqueue(

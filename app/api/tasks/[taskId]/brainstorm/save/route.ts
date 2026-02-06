@@ -1,33 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { getConversation } from "@/lib/ai";
 import { apiLogger } from "@/lib/logger";
-import { handleError, Errors } from "@/lib/errors";
+import { handleError } from "@/lib/errors";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
+import { withTask } from "@/lib/api";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return handleError(Errors.unauthorized());
-  }
-
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return handleError(Errors.notFound("Task"));
-  }
-
+export const POST = withTask(async (request, { taskId }) => {
   // Get conversation from memory
   const conversation = getConversation(taskId);
 
@@ -69,4 +47,4 @@ export async function POST(
     apiLogger.error({ taskId, error }, "Brainstorm save error");
     return handleError(error);
   }
-}
+});

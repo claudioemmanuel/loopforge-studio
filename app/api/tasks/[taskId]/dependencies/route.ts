@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { db, tasks, taskDependencies } from "@/lib/db";
-import { eq, and, notInArray } from "drizzle-orm";
 import { withTask } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 // GET - Get task dependencies
 export const GET = withTask(async (request, { task, taskId }) => {
@@ -21,9 +20,10 @@ export const GET = withTask(async (request, { task, taskId }) => {
   const existingBlockerIds = graph.dependencies.map((d) => d.id);
   const excludeIds = [taskId, ...existingBlockerIds];
 
-  const availableTasks = await db.query.tasks.findMany({
-    where: and(eq(tasks.repoId, task.repoId), notInArray(tasks.id, excludeIds)),
-    orderBy: (tasks, { desc }) => [desc(tasks.createdAt)],
+  const taskService = getTaskService();
+  const repoTasks = await taskService.listByRepo(task.repoId);
+  const availableTasks = repoTasks.filter((repoTask) => {
+    return !excludeIds.includes(repoTask.id);
   });
 
   // Format response to match expected structure
@@ -59,10 +59,9 @@ export const POST = withTask(async (request, { task, taskId }) => {
     return handleError(Errors.invalidRequest("blockedById is required"));
   }
 
-  // Verify blocker task exists and is in same repo
-  const blockerTask = await db.query.tasks.findFirst({
-    where: and(eq(tasks.id, blockedById), eq(tasks.repoId, task.repoId)),
-  });
+  const taskService = getTaskService();
+  const repoTasks = await taskService.listByRepo(task.repoId);
+  const blockerTask = repoTasks.find((repoTask) => repoTask.id === blockedById);
 
   if (!blockerTask) {
     return handleError(Errors.notFound("Blocker task"));
@@ -73,44 +72,8 @@ export const POST = withTask(async (request, { task, taskId }) => {
     return handleError(Errors.invalidRequest("Cannot depend on self"));
   }
 
-  // Check for circular dependency
-  const checkCircular = async (
-    checkId: string,
-    visited: Set<string> = new Set(),
-  ): Promise<boolean> => {
-    if (visited.has(checkId)) return false;
-    if (checkId === taskId) return true; // Circular detected!
-
-    visited.add(checkId);
-
-    const deps = await db.query.taskDependencies.findMany({
-      where: eq(taskDependencies.taskId, checkId),
-    });
-
-    for (const dep of deps) {
-      if (await checkCircular(dep.blockedById, visited)) {
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  if (await checkCircular(blockedById)) {
-    return handleError(
-      Errors.invalidRequest("Would create circular dependency"),
-    );
-  }
-
   // Check if dependency already exists
-  const existing = await db.query.taskDependencies.findFirst({
-    where: and(
-      eq(taskDependencies.taskId, taskId),
-      eq(taskDependencies.blockedById, blockedById),
-    ),
-  });
-
-  if (existing) {
+  if ((task.blockedByIds || []).includes(blockedById)) {
     return handleError(Errors.conflict("Dependency already exists"));
   }
 
@@ -132,7 +95,7 @@ export const POST = withTask(async (request, { task, taskId }) => {
 });
 
 // DELETE - Remove a dependency
-export const DELETE = withTask(async (request, { task, taskId }) => {
+export const DELETE = withTask(async (request, { taskId }) => {
   const body = await request.json();
   const { blockedById } = body;
 
@@ -155,7 +118,7 @@ export const DELETE = withTask(async (request, { task, taskId }) => {
 });
 
 // PATCH - Update dependency settings
-export const PATCH = withTask(async (request, { task, taskId }) => {
+export const PATCH = withTask(async (request, { taskId }) => {
   const body = await request.json();
   const { autoExecuteWhenUnblocked, dependencyPriority } = body;
 

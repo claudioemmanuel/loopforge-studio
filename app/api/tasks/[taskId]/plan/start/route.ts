@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { db, tasks, buildStatusHistoryAppend } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { queuePlan } from "@/lib/queue";
 import {
   publishProcessingEvent,
@@ -11,6 +9,7 @@ import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   // Check if brainstorm result exists
@@ -52,22 +51,15 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       );
     }
 
-    // Update status to planning (direct DB for now as use case doesn't handle this)
-    await db
-      .update(tasks)
-      .set({
-        status: "planning",
-        statusHistory: buildStatusHistoryAppend({
-          fromStatus: task.status,
-          toStatus: "planning",
-          triggeredBy: "user",
-          userId: user.id,
-        }),
-        processingStartedAt: startedAt,
-        processingStatusText: "Reviewing brainstorm...",
-        updatedAt: startedAt,
-      })
-      .where(eq(tasks.id, taskId));
+    const taskService = getTaskService();
+
+    // Update status to planning after slot claim
+    await taskService.updateFields(taskId, {
+      status: "planning",
+      processingStartedAt: startedAt,
+      processingStatusText: "Reviewing brainstorm...",
+      updatedAt: startedAt,
+    });
 
     // Record activity events
     const analyticsService = getAnalyticsService();
@@ -101,12 +93,9 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     });
 
     // Update with the job ID
-    await db
-      .update(tasks)
-      .set({
-        processingJobId: job.id,
-      })
-      .where(eq(tasks.id, taskId));
+    await taskService.updateFields(taskId, {
+      processingJobId: job.id,
+    });
 
     // Publish processing_start event
     const processingEvent = createProcessingEvent(

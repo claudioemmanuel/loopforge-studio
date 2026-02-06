@@ -11,6 +11,78 @@ import {
   type RepositoryState,
 } from "../domain/repository-aggregate";
 
+export function buildVerifiedCloneFields(
+  localPath: string,
+  now = new Date(),
+): {
+  localPath: string;
+  clonePath: string;
+  isCloned: true;
+  cloneStatus: "completed";
+  clonedAt: Date;
+  cloneCompletedAt: Date;
+  indexingStatus: "pending";
+  updatedAt: Date;
+} {
+  return {
+    localPath,
+    clonePath: localPath,
+    isCloned: true,
+    cloneStatus: "completed",
+    clonedAt: now,
+    cloneCompletedAt: now,
+    indexingStatus: "pending",
+    updatedAt: now,
+  };
+}
+
+export function buildCloneStartedFields(now = new Date()): {
+  cloneStatus: "cloning";
+  cloneStartedAt: Date;
+  updatedAt: Date;
+} {
+  return {
+    cloneStatus: "cloning",
+    cloneStartedAt: now,
+    updatedAt: now,
+  };
+}
+
+export function buildCloneCompletedFields(
+  localPath: string,
+  now = new Date(),
+): {
+  localPath: string;
+  isCloned: true;
+  clonedAt: Date;
+  cloneStatus: "completed";
+  clonePath: string;
+  cloneCompletedAt: Date;
+  indexingStatus: "pending";
+  updatedAt: Date;
+} {
+  return {
+    localPath,
+    isCloned: true,
+    clonedAt: now,
+    cloneStatus: "completed",
+    clonePath: localPath,
+    cloneCompletedAt: now,
+    indexingStatus: "pending",
+    updatedAt: now,
+  };
+}
+
+export function buildCloneFailedFields(now = new Date()): {
+  cloneStatus: "failed";
+  updatedAt: Date;
+} {
+  return {
+    cloneStatus: "failed",
+    updatedAt: now,
+  };
+}
+
 export class RepositoryService {
   private repository: RepositoryRepository;
 
@@ -92,6 +164,23 @@ export class RepositoryService {
     return aggregate ? this.aggregateToDTO(aggregate) : null;
   }
 
+  /** Get repository by ID without owner guard (internal worker usage). */
+  async getById(repoId: string) {
+    const aggregate = await this.repository.findById(repoId);
+    return aggregate ? this.aggregateToDTO(aggregate) : null;
+  }
+
+  /** Get repository index record by repository ID. */
+  async getRepoIndexByRepoId(repoId: string) {
+    const { db } = await import("@/lib/db");
+    const { repoIndex } = await import("@/lib/db/schema/tables");
+    const { eq } = await import("drizzle-orm");
+
+    return db.query.repoIndex.findFirst({
+      where: eq(repoIndex.repoId, repoId),
+    });
+  }
+
   // =========================================================================
   // Create / Delete
   // =========================================================================
@@ -160,6 +249,68 @@ export class RepositoryService {
   async findByOwner(repoId: string, userId: string) {
     const aggregate = await this.repository.findByOwner(repoId, userId);
     return aggregate ? this.aggregateToDTO(aggregate) : null;
+  }
+
+  /** Find repository with index metadata for clone/indexing status UIs. */
+  async getRepositoryWithIndexByOwner(repoId: string, userId: string) {
+    const { db } = await import("@/lib/db");
+    const { repos } = await import("@/lib/db/schema/tables");
+    const { and, eq } = await import("drizzle-orm");
+
+    return db.query.repos.findFirst({
+      where: and(eq(repos.id, repoId), eq(repos.userId, userId)),
+      with: {
+        index: true,
+      },
+    });
+  }
+
+  /** Mark an existing local clone as verified and ready for indexing. */
+  async markRepositoryCloneVerified(
+    repoId: string,
+    localPath: string,
+  ): Promise<void> {
+    const { db } = await import("@/lib/db");
+    const { repos } = await import("@/lib/db/schema/tables");
+    const { eq } = await import("drizzle-orm");
+
+    await db
+      .update(repos)
+      .set(buildVerifiedCloneFields(localPath))
+      .where(eq(repos.id, repoId));
+  }
+
+  async markCloneStarted(repoId: string): Promise<void> {
+    const { db } = await import("@/lib/db");
+    const { repos } = await import("@/lib/db/schema/tables");
+    const { eq } = await import("drizzle-orm");
+
+    await db
+      .update(repos)
+      .set(buildCloneStartedFields())
+      .where(eq(repos.id, repoId));
+  }
+
+  async markCloneCompleted(repoId: string, localPath: string): Promise<void> {
+    const { db } = await import("@/lib/db");
+    const { repos } = await import("@/lib/db/schema/tables");
+    const { eq } = await import("drizzle-orm");
+
+    await db
+      .update(repos)
+      .set(buildCloneCompletedFields(localPath))
+      .where(eq(repos.id, repoId));
+  }
+
+  async markCloneFailed(repoId: string): Promise<void> {
+    const { db } = await import("@/lib/db");
+    const { repos } = await import("@/lib/db/schema/tables");
+    const { eq } = await import("drizzle-orm");
+
+    await db
+      .update(repos)
+      .set(buildCloneFailedFields())
+      .where(eq(repos.id, repoId));
   }
 
   /** Partial update on a repository row. */

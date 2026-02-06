@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { tasks, repos } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
 import { buildDependencyMap } from "@/lib/shared/graph-layout";
 import type { ExecutionGraph } from "@/lib/shared/graph-types";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 /**
  * GET /api/repos/[repoId]/graph
@@ -22,20 +21,18 @@ export async function GET(
     return handleError(Errors.unauthorized());
   }
 
+  const repositoryService = getRepositoryService();
+  const taskService = getTaskService();
+
   // Verify repo ownership
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
-  });
+  const repo = await repositoryService.findByOwner(repoId, session.user.id);
 
   if (!repo) {
     return handleError(Errors.notFound("Repository not found"));
   }
 
   // Fetch all tasks for this repository
-  const allTasks = await db.query.tasks.findMany({
-    where: eq(tasks.repoId, repoId),
-    orderBy: (tasks, { desc }) => [desc(tasks.createdAt)],
-  });
+  const allTasks = await taskService.listByRepo(repoId);
 
   // Build dependency map
   const dependencies = buildDependencyMap(allTasks);

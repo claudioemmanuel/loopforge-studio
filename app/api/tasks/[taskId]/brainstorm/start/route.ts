@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { queueBrainstorm } from "@/lib/queue";
 import {
   publishProcessingEvent,
@@ -11,6 +9,7 @@ import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   // Find a configured provider
@@ -73,12 +72,10 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     });
 
     // Update with the job ID
-    await db
-      .update(tasks)
-      .set({
-        processingJobId: job.id,
-      })
-      .where(eq(tasks.id, taskId));
+    const taskService = getTaskService();
+    await taskService.updateFields(taskId, {
+      processingJobId: job.id,
+    });
 
     // Publish processing_start event
     const processingEvent = createProcessingEvent(

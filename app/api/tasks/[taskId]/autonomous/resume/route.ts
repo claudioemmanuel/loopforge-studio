@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db, tasks, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import {
-  getProviderApiKey,
+  withTask,
   getPreferredModel,
+  getProviderApiKey,
   findConfiguredProvider,
 } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
@@ -21,27 +19,7 @@ import { getExecutionService } from "@/lib/contexts/execution/api";
  * - If status === "executing" or "done": return error (can't enable mid-execution)
  * - Otherwise: just set the flag
  */
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ taskId: string }> },
-) {
-  const session = await auth();
-  const { taskId } = await params;
-
-  if (!session?.user?.id) {
-    return handleError(Errors.unauthorized());
-  }
-
-  // Get task with repo to verify ownership
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: { repo: true },
-  });
-
-  if (!task || task.repo.userId !== session.user.id) {
-    return handleError(Errors.notFound("Task"));
-  }
-
+export const POST = withTask(async (request, { user, task, taskId }) => {
   // Don't allow enabling autonomous mode during execution or after completion
   if (task.status === "executing") {
     return handleError(
@@ -71,15 +49,6 @@ export async function POST(
       return handleError(
         Errors.invalidRequest("Task must have a plan to execute"),
       );
-    }
-
-    // Get user details for API key
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
-
-    if (!user) {
-      return handleError(Errors.notFound("User"));
     }
 
     // BYOK only: User needs at least one API key configured
@@ -120,7 +89,7 @@ export async function POST(
         executionId,
         taskId,
         repoId: task.repoId,
-        userId: session.user.id,
+        userId: user.id,
         aiProvider: finalProvider,
         preferredModel: finalModel,
         planContent: task.planContent,
@@ -158,4 +127,4 @@ export async function POST(
     ...enableResult.value,
     autoStarted: false,
   });
-}
+});

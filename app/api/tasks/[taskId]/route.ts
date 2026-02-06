@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { db, tasks, executions, executionEvents } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import type { TaskStatus } from "@/lib/db/schema";
 import {
@@ -16,6 +14,7 @@ import { buildExecutionGraph } from "@/lib/shared/graph-builder";
 import type { ExecutionData } from "@/lib/shared/graph-types";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { getExecutionService } from "@/lib/contexts/execution/api";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export const GET = withTask(async (request, { task }) => {
   // Check if graph data is requested via query param
@@ -36,11 +35,10 @@ export const GET = withTask(async (request, { task }) => {
 
   // Build graph from execution data
   try {
+    const executionService = getExecutionService();
+
     // Get latest execution for this task
-    const latestExecution = await db.query.executions.findFirst({
-      where: eq(executions.taskId, task.id),
-      orderBy: (executions, { desc }) => [desc(executions.createdAt)],
-    });
+    const latestExecution = await executionService.getLatestForTask(task.id);
 
     if (!latestExecution) {
       // No execution yet, return task without graph
@@ -48,10 +46,9 @@ export const GET = withTask(async (request, { task }) => {
     }
 
     // Get execution events
-    const events = await db.query.executionEvents.findMany({
-      where: eq(executionEvents.executionId, latestExecution.id),
-      orderBy: (executionEvents, { asc }) => [asc(executionEvents.createdAt)],
-    });
+    const events = await executionService.getExecutionEvents(
+      latestExecution.id,
+    );
 
     // Build execution data structure
     const executionData: ExecutionData = {
@@ -61,11 +58,11 @@ export const GET = withTask(async (request, { task }) => {
       phase: task.processingPhase || undefined,
       events: events.map((e) => ({
         id: e.id,
-        eventType: e.eventType,
-        title: e.title || undefined,
+        eventType: e.type,
+        title: undefined,
         content: e.content,
-        metadata: e.metadata as Record<string, unknown> | undefined,
-        createdAt: e.createdAt,
+        metadata: undefined,
+        createdAt: new Date(e.timestamp),
       })),
       commits: latestExecution.commits || undefined,
       startedAt: latestExecution.startedAt || undefined,
@@ -234,12 +231,10 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
       }
     }
 
-    // Update status via direct DB update for now
-    // TODO: Create ChangeTaskStatusUseCase for proper status transitions
-    await db
-      .update(tasks)
-      .set({ status: body.status, updatedAt: new Date() })
-      .where(eq(tasks.id, taskId));
+    const taskService = getTaskService();
+    await taskService.updateFields(taskId, {
+      status: body.status,
+    });
   }
 
   // Handle configuration changes
@@ -255,11 +250,8 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
       configFields.planContent = body.planContent;
     if (body.branch !== undefined) configFields.branch = body.branch;
 
-    // Direct DB update for fields not yet in use cases
-    await db
-      .update(tasks)
-      .set({ ...configFields, updatedAt: new Date() })
-      .where(eq(tasks.id, taskId));
+    const taskService = getTaskService();
+    await taskService.updateFields(taskId, configFields);
   }
 
   // Handle brainstorm result
@@ -272,10 +264,8 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
   }
 
   // Re-fetch the updated task
-  const getUseCase = UseCaseFactory.getTaskWithRepo();
-  const taskResult = await getUseCase.execute({ taskId });
-
-  const updatedTask = taskResult.isSuccess ? taskResult.value : task;
+  const taskService = getTaskService();
+  const updatedTask = (await taskService.getTaskFull(taskId)) ?? task;
 
   // Record activity events
   const analyticsService = getAnalyticsService();

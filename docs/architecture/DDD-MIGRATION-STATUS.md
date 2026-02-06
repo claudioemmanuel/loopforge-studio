@@ -2,8 +2,8 @@
 
 > **Last updated:** 2026-02-06
 > **Branch:** `main` (single branch – all work consolidated)
-> **Migration state:** Clean Architecture use cases complete ✅ | All API routes migrated ✅ | Task & Execution aggregates wired ✅ | `lib/domain/` deleted ✅ | Remaining contexts (IAM, Repository, Billing, Analytics) staged
-> **Completion Roadmap:** See [`DDD-COMPLETION-ROADMAP.md`](./DDD-COMPLETION-ROADMAP.md) for detailed plan to finish the remaining 40%
+> **Migration state:** Clean Architecture use cases complete ✅ | Task & Execution aggregates wired ✅ | Diff/review routes migrated to `ExecutionService` ✅ | Repository clone-status/verify-local routes migrated to `RepositoryService` ✅ | All API routes migrated off direct `@/lib/db` imports ✅ | Worker/queue backend internals migrated to context services/adapters ✅ | `lib/domain/` deleted ✅
+> **Completion Roadmap:** See [`DDD-COMPLETION-ROADMAP.md`](./DDD-COMPLETION-ROADMAP.md) for final cleanup items.
 
 ---
 
@@ -124,7 +124,7 @@ Every API route that does simple CRUD or single-context reads/writes now goes th
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **AnalyticsService**  | `recordActivityEvent`, `taskCreated`, `statusChanged`, `brainstormStarted`, `brainstormCompleted`, `planningStarted`, `planningCompleted`, `taskUpdated`, `executionStarted`, `executionCompleted`, `getTaskMetrics`, `getTasksByStatus`, `getDailyCompletions`, `getRepoActivity`, `getTokenUsage`, `getCostBreakdown`, `getActivityFeed`, `getActivityHistory`, `getActivityChanges`, `getActivitySummary`, `deleteUserActivities` |
 | **BillingService**    | `checkRepoLimit`, `checkTaskLimit`, `recordUsage`, `getUsageSummary`, `createCheckoutSession`, `createPortalSession`                                                                                                                                                                                                                                                                                                                 |
-| **RepositoryService** | `getRepositoryFull`, `listUserRepositories`, `connectRepository`, `findByOwner`, `updateRepository`, `deleteRepository`, `deleteAllByUser`                                                                                                                                                                                                                                                                                           |
+| **RepositoryService** | `getRepositoryFull`, `listUserRepositories`, `connectRepository`, `findByOwner`, `getRepositoryWithIndexByOwner`, `markRepositoryCloneVerified`, `updateRepository`, `deleteRepository`, `deleteAllByUser`                                                                                                                                                                                                                           |
 | **TaskService**       | `getTaskFull`, `listByRepo`, `listByUserId`, `listActiveWorkerTasks`, `createTask`, `updateFields`, `claimProcessingSlot`, `clearProcessingSlot`, `deleteTask`, `verifyOwnership`, `getIdsByRepoIds`, `deleteByRepoIds`, **`claimExecutionSlot`**, **`revertExecutionSlot`**, **`saveBrainstormResult`**, **`addDependency`**, **`removeDependency`**, **`updateDependencySettings`**, **`enableAutonomousMode`**                    |
 | **ExecutionService**  | `getLatestForTask`, `listByTask`, `getById`, `getExecutionWithOwnership`, `getExecutionEvents`, `create`, `markRunning`, `markCompleted`, `markFailed`, `markStuck`, `deleteByTaskIds`, **`createQueued`**                                                                                                                                                                                                                           |
 | **UserService**       | `registerUser`, `configureProvider`, `removeProvider`, `updatePreferences`, `updateLocale`, `completeOnboarding`, `updateSubscription`, `getUserFull`, `deleteUser`, `updateUserFields`                                                                                                                                                                                                                                              |
@@ -222,6 +222,89 @@ Completed Priority 1 from DDD-COMPLETION-ROADMAP: wired all remaining bounded co
 
 All four remaining contexts now properly delegate to their infrastructure repositories. Service-to-repository wiring complete across all 6 bounded contexts.
 
+### ✅ Completed – Repository Clone Status & Verification Route Migration (Phase 12a)
+
+**Date completed:** 2026-02-06
+
+Migrated repository clone lifecycle read/verification endpoints to `RepositoryService`:
+
+- `app/api/repos/[repoId]/clone-status/route.ts` now calls `repositoryService.getRepositoryWithIndexByOwner()`
+- `app/api/repos/[repoId]/verify-local/route.ts` now calls:
+  - `repositoryService.findByOwner()`
+  - `repositoryService.markRepositoryCloneVerified()`
+
+New RepositoryService methods added:
+
+- `getRepositoryWithIndexByOwner(repoId, userId)` for clone/indexing status reads
+- `markRepositoryCloneVerified(repoId, localPath)` for verified-local path persistence
+
+Result: route handlers no longer import `@/lib/db` directly for these two endpoints.
+
+### ✅ Completed – Full Backend API Route Migration (Phase 12b)
+
+**Date completed:** 2026-02-06
+
+Migrated all remaining API route handlers away from direct `@/lib/db` imports.
+
+Additional routes migrated in this phase include:
+
+- `app/api/tasks/[taskId]/route.ts`
+- `app/api/tasks/[taskId]/execute/route.ts`
+- `app/api/tasks/[taskId]/autonomous/resume/route.ts`
+- `app/api/tasks/[taskId]/brainstorm/save/route.ts`
+- `app/api/tasks/[taskId]/brainstorm/start/route.ts`
+- `app/api/tasks/[taskId]/plan/start/route.ts`
+- `app/api/tasks/[taskId]/dependencies/route.ts`
+- `app/api/tasks/[taskId]/recovery-status/route.ts`
+- `app/api/repos/[repoId]/tasks/route.ts`
+- `app/api/repos/[repoId]/graph/route.ts`
+- `app/api/repos/[repoId]/clone/route.ts`
+- `app/api/repos/add/route.ts`
+- `app/api/onboarding/complete/route.ts`
+- `app/api/dashboard/stuck-tasks/route.ts`
+- `app/api/executions/[executionId]/sse/route.ts`
+- `app/api/workers/[taskId]/sse/route.ts`
+- `app/api/workers/history/route.ts`
+- `app/api/workers/health/route.ts`
+- `app/api/workers/heartbeat/route.ts`
+- `app/api/health/route.ts`
+
+New service layer additions to support this:
+
+- `TaskService` restored under `lib/contexts/task/application/task-service.ts`
+- `WorkerMonitoringService` added under `lib/contexts/execution/application/worker-monitoring-service.ts`
+- `SystemHealthService` added under `lib/contexts/system/application/system-health-service.ts`
+
+Result: `app/api/**` no longer contains direct `@/lib/db` imports.
+
+### ✅ Completed – Worker/Queue Backend Internal Migration (Phase 12c)
+
+**Date completed:** 2026-02-06
+
+Migrated worker and queue backend internals away from direct shared `lib/db` route-style coupling:
+
+- `lib/queue/autonomous-flow.ts` now uses:
+  - `getUserService()`
+  - `getTaskService()`
+  - `getRepositoryService()`
+  - `getExecutionService()`
+- `workers/execution-worker.ts` now:
+  - imports persistence primitives from `lib/contexts/execution/infrastructure/worker-runtime-persistence.ts`
+  - uses context services for user/task/repository/execution lookups
+  - routes dependency lookups through `TaskService`
+  - routes activity logging through `AnalyticsService`
+  - routes execution event and worker event inserts through infrastructure helper functions
+
+Service additions made for this phase:
+
+- `TaskService.getTaskWithLatestExecution(taskId)`
+- `RepositoryService.getById(repoId)`
+- `RepositoryService.getRepoIndexByRepoId(repoId)`
+- `ExecutionService.deleteById(executionId)`
+- `ExecutionService.updateFields(executionId, fields)`
+
+Result: `app/api`, `lib/queue`, `lib/workers`, and `workers` no longer import `@/lib/db` or `../lib/db` directly.
+
 ### ✅ Completed – Wire Task & Execution aggregates + delete lib/domain/ (Phase 9)
 
 - `TaskRepository.saveWithStatusGuard` added (atomic execution claiming)
@@ -231,9 +314,9 @@ All four remaining contexts now properly delegate to their infrastructure reposi
   `execute/route`, `brainstorm/save/route`, `dependencies/route`, `autonomous/resume/route`, `tasks/[taskId]/route` (PATCH executing + GET graph-cache), `repos/[repoId]/tasks/route` (POST create)
 - `lib/domain/` deleted (13 files)
 
-### Priority 1 – Wire remaining context aggregates (IAM, Repository, Billing, Analytics)
+### Priority 1 – Migrate Remaining Non-route Backend DB Access
 
-Same pattern as Task + Execution: add service methods that delegate to context-local aggregates + repositories. Services in these contexts still query the DB directly.
+Service-to-repository wiring is complete across all six contexts and API routes are migrated. Remaining work is backend internals (workers/queue/utilities) that still use direct DB access.
 
 ### Priority 2 – Routes with heavy in-route infrastructure (keep as-is for now)
 
@@ -251,23 +334,13 @@ Same pattern as Task + Execution: add service methods that delegate to context-l
 | `user/subscription`        | Complex Drizzle relation query; very low traffic                       |
 | `repos/[repoId]/graph`     | Depends on dependency-graph domain logic that isn't wired yet          |
 
-### Priority 4 – Routes with no DDD migration yet (direct DB, no context imports)
+### Priority 4 – Backend internals migration status
 
-These routes have not been touched by the migration. They still import from `@/lib/db` directly and have no bounded-context service calls:
-
-| Route                         | Notes                               |
-| ----------------------------- | ----------------------------------- |
-| `repos/[repoId]/clone`        | Git clone orchestration             |
-| `repos/[repoId]/clone-status` | Clone progress polling              |
-| `repos/[repoId]/verify-local` | Local clone verification            |
-| `experiments/*` (4 routes)    | Experimental feature; low priority  |
-| `plans`                       | Plan listing                        |
-| `executions/[id]/sse`         | SSE stream for a single execution   |
-| `workers/[taskId]/sse`        | SSE stream for a single worker task |
-| `dashboard/stuck-tasks`       | Stuck-tasks widget query            |
-| `recovery-status`             | Recovery state polling              |
-| `workers/health`              | Health endpoint                     |
-| `workers/heartbeat`           | Heartbeat endpoint                  |
+| Module                         | Status      | Notes                                                                                                                                                                                               |
+| ------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workers/execution-worker.ts`  | In progress | Direct imports removed, lookups routed through services, dependency/activity paths migrated; remaining table-level state update orchestration is isolated in execution-context persistence adapter. |
+| `lib/queue/autonomous-flow.ts` | Complete    | Fully migrated to Task/Repository/Execution/User services.                                                                                                                                          |
+| `lib/workers/events.ts`        | Complete    | Task persistence writes delegated to `TaskService.updateFields()`.                                                                                                                                  |
 
 ### Priority 5 – Clean up staged artifacts
 
@@ -281,17 +354,16 @@ These routes have not been touched by the migration. They still import from `@/l
 
 These errors existed before the DDD migration and are **not caused by it**:
 
-| File                                                 | Error                                                                                                             |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `lib/contexts/*/api/index.ts` (4 files)              | `getRedis` not exported from `@/lib/queue` — the barrel files reference it but the queue module doesn't export it |
-| `lib/contexts/iam/infrastructure/user-repository.ts` | Column name mismatches: DB has `username`/`avatarUrl`, repository maps to `name`/`image`                          |
-| `app/api/webhooks/stripe/route.ts`                   | `stripe` variable used outside its initialising `try` block                                                       |
-| `lib/graph/layout.ts`                                | `GraphEdge` missing `.from` / `.to` properties                                                                    |
-| `lib/ralph/loop.ts`                                  | `SkillResult[]` missing `message` / `timestamp` fields                                                            |
-| `lib/skills/enforcement.ts`                          | `Record<string, unknown>` not assignable to expected union                                                        |
-| `navigation.ts`                                      | `createSharedPathnamesNavigation` removed in newer next-intl                                                      |
-| `workers/execution-worker.ts`                        | `console.warn` overload mismatch with `unknown` argument                                                          |
-| `__tests__/**`                                       | Fixture shape mismatches, missing test-db module paths                                                            |
+| File                                                 | Error                                                                                    |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `lib/contexts/iam/infrastructure/user-repository.ts` | Column name mismatches: DB has `username`/`avatarUrl`, repository maps to `name`/`image` |
+| `app/api/webhooks/stripe/route.ts`                   | `stripe` variable used outside its initialising `try` block                              |
+| `lib/graph/layout.ts`                                | `GraphEdge` missing `.from` / `.to` properties                                           |
+| `lib/ralph/loop.ts`                                  | `SkillResult[]` missing `message` / `timestamp` fields                                   |
+| `lib/skills/enforcement.ts`                          | `Record<string, unknown>` not assignable to expected union                               |
+| `navigation.ts`                                      | `createSharedPathnamesNavigation` removed in newer next-intl                             |
+| `workers/execution-worker.ts`                        | `console.warn` overload mismatch with `unknown` argument                                 |
+| `__tests__/**`                                       | Fixture shape mismatches, missing test-db module paths                                   |
 
 ---
 

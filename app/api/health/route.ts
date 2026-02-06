@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { sql } from "drizzle-orm";
 import {
   getHandlerHealthStatus,
   areAllHandlersHealthy,
   type HandlerHealth,
 } from "@/lib/contexts/event-initialization";
+import { getSystemHealthService } from "@/lib/contexts/system/api";
 
 export const revalidate = 60;
 
@@ -28,6 +27,7 @@ interface HealthStatus {
 }
 
 export async function GET() {
+  const systemHealthService = getSystemHealthService();
   let dbConnected = false;
   let schemaValid = false;
   let missingColumns: string[] = [];
@@ -35,11 +35,14 @@ export async function GET() {
 
   // Check database
   try {
-    await db.execute(sql`SELECT 1`);
+    await systemHealthService.checkDatabaseConnection();
     dbConnected = true;
 
     // Validate critical schema columns
-    const schemaCheck = await validateSchema();
+    const schemaCheck = await systemHealthService.validateColumns([
+      { table: "users", column: "default_clone_directory" },
+      { table: "executions", column: "skill_executions" },
+    ]);
     schemaValid = schemaCheck.valid;
     missingColumns = schemaCheck.missingColumns;
   } catch (error) {
@@ -85,35 +88,4 @@ export async function GET() {
 
   const statusCode = health.status === "healthy" ? 200 : 503;
   return NextResponse.json(health, { status: statusCode });
-}
-
-async function validateSchema() {
-  const requiredColumns = [
-    { table: "users", column: "default_clone_directory" },
-    { table: "executions", column: "skill_executions" },
-  ];
-
-  const missingColumns: string[] = [];
-
-  for (const { table, column } of requiredColumns) {
-    try {
-      const result = await db.execute(sql`
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_name = ${table}
-        AND column_name = ${column}
-      `);
-
-      if (result.rows.length === 0) {
-        missingColumns.push(`${table}.${column}`);
-      }
-    } catch (error) {
-      missingColumns.push(`${table}.${column} (check failed)`);
-    }
-  }
-
-  return {
-    valid: missingColumns.length === 0,
-    missingColumns,
-  };
 }

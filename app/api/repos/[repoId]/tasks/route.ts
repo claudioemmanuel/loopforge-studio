@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { db, repos } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
 import { handleError, Errors } from "@/lib/errors";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
-import { ValidationError, NotFoundError } from "@/lib/shared/errors";
+import { ValidationError } from "@/lib/shared/errors";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
 
 export async function GET(
   request: Request,
@@ -18,10 +17,8 @@ export async function GET(
     return handleError(Errors.unauthorized());
   }
 
-  // Verify repo ownership
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
-  });
+  const repositoryService = getRepositoryService();
+  const repo = await repositoryService.findByOwner(repoId, session.user.id);
 
   if (!repo) {
     return handleError(Errors.notFound("Repository"));
@@ -49,10 +46,8 @@ export async function POST(
     return handleError(Errors.unauthorized());
   }
 
-  // Verify repo ownership
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
-  });
+  const repositoryService = getRepositoryService();
+  const repo = await repositoryService.findByOwner(repoId, session.user.id);
 
   if (!repo) {
     return handleError(Errors.notFound("Repository"));

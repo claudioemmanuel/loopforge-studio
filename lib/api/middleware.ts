@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import type { Session } from "next-auth";
 import { auth } from "@/lib/auth";
-import { db, tasks, users } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import type { User, Task, Repo } from "@/lib/db/schema";
-import { handleError, Errors } from "@/lib/errors";
+import { getUserService } from "@/lib/contexts/iam/api";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export interface AuthContext {
   session: Session;
@@ -31,9 +30,8 @@ export function withAuth(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
+    const userService = getUserService();
+    const user = await userService.getUserFull(session.user.id);
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -61,20 +59,16 @@ export function withTask(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get task with repo to verify ownership
-    const task = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-      with: { repo: true },
-    });
+    const taskService = getTaskService();
+    const task = await taskService.getTaskFull(taskId);
 
     if (!task || task.repo.userId !== session.user.id) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     // Get user's details
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
-    });
+    const userService = getUserService();
+    const user = await userService.getUserFull(session.user.id);
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });

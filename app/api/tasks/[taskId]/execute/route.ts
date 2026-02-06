@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { db, tasks } from "@/lib/db";
-import { inArray } from "drizzle-orm";
 import { queueExecution } from "@/lib/queue";
 import {
   withTask,
@@ -12,6 +10,7 @@ import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { getExecutionService } from "@/lib/contexts/execution/api";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   if (task.status !== "ready") {
@@ -31,10 +30,8 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   // Check for blocking dependencies
   const blockedByIds = task.blockedByIds || [];
   if (blockedByIds.length > 0) {
-    const blockerTasks = await db.query.tasks.findMany({
-      where: inArray(tasks.id, blockedByIds),
-      columns: { id: true, title: true, status: true },
-    });
+    const taskService = getTaskService();
+    const blockerTasks = await taskService.listByIds(blockedByIds);
 
     const incompleteBlockers = blockerTasks.filter(
       (blocker) => blocker.status !== "done",

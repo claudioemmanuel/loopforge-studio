@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { db, tasks, repos, executions } from "@/lib/db";
-import { eq, and, inArray } from "drizzle-orm";
 import { withAuth } from "@/lib/api";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export interface StuckTaskInfo {
   id: string;
@@ -24,39 +25,35 @@ export interface StuckTasksResponse {
 }
 
 export const GET = withAuth(async (request, { user }) => {
-  // Find all tasks for this user that are stuck or recovering
-  const userTasks = await db.query.tasks.findMany({
-    where: and(
-      eq(tasks.status, "stuck"),
-      inArray(
-        tasks.repoId,
-        db
-          .select({ id: repos.id })
-          .from(repos)
-          .where(eq(repos.userId, user.id)),
-      ),
-    ),
-    with: {
-      repo: true,
-    },
-    orderBy: (tasks, { desc }) => [desc(tasks.updatedAt)],
-  });
+  const taskService = getTaskService();
+  const repositoryService = getRepositoryService();
+  const executionService = getExecutionService();
+
+  const [allUserTasks, userRepos] = await Promise.all([
+    taskService.listByUserId(user.id),
+    repositoryService.listUserRepositories(user.id),
+  ]);
+
+  const repoMap = new Map(userRepos.map((repo) => [repo.id, repo]));
+  const userTasks = allUserTasks
+    .filter((task) => task.status === "stuck")
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
   // Get latest executions for these tasks
   const taskIds = userTasks.map((t) => t.id);
-  const latestExecutions =
-    taskIds.length > 0
-      ? await db.query.executions.findMany({
-          where: inArray(executions.taskId, taskIds),
-          orderBy: (executions, { desc }) => [desc(executions.createdAt)],
-        })
-      : [];
+  const latestExecutions = await Promise.all(
+    taskIds.map(async (taskId) => executionService.getLatestForTask(taskId)),
+  );
 
   // Create a map of taskId to latest execution
-  const executionMap = new Map<string, (typeof latestExecutions)[0]>();
-  for (const execution of latestExecutions) {
-    if (!executionMap.has(execution.taskId)) {
-      executionMap.set(execution.taskId, execution);
+  const executionMap = new Map<
+    string,
+    (typeof latestExecutions)[number] | null
+  >();
+  for (let i = 0; i < taskIds.length; i++) {
+    const execution = latestExecutions[i];
+    if (execution) {
+      executionMap.set(taskIds[i], execution);
     }
   }
 
@@ -80,7 +77,7 @@ export const GET = withAuth(async (request, { user }) => {
       status: task.status,
       processingPhase: task.processingPhase,
       repoId: task.repoId,
-      repoName: task.repo?.name || "Unknown",
+      repoName: repoMap.get(task.repoId)?.name || "Unknown",
       isRecovering,
       recoveryAttemptCount: recoveryAttempts.length,
       lastError: execution?.errorMessage || undefined,

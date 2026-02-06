@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, workerJobs, workerEvents } from "@/lib/db";
-import type { WorkerJobPhase, WorkerJobStatus } from "@/lib/db/schema";
-import { eq, and, inArray, desc, asc, sql } from "drizzle-orm";
+import type { WorkerJobPhase } from "@/lib/db/schema";
 import { apiLogger } from "@/lib/logger";
 import { handleError, Errors } from "@/lib/errors";
 import { getRepositoryService } from "@/lib/contexts/repository/api";
 import { getTaskService } from "@/lib/contexts/task/api";
+import { getWorkerMonitoringService } from "@/lib/contexts/execution/api";
 
 export const runtime = "nodejs";
 
@@ -34,16 +33,6 @@ interface HistoryItem {
   resultSummary?: string;
   error?: string;
   events?: HistoryWorkerEvent[];
-}
-
-// Stats response
-interface HistoryStats {
-  total: number;
-  completed: number;
-  failed: number;
-  brainstorming: number;
-  planning: number;
-  executing: number;
 }
 
 export async function GET(request: Request) {
@@ -117,128 +106,53 @@ export async function GET(request: Request) {
 
     const taskIds = userTasks.map((t) => t.id);
     const taskMap = new Map(userTasks.map((t) => [t.id, t]));
+    const repoTaskIds =
+      repoId && repoIds.includes(repoId)
+        ? userTasks.filter((t) => t.repoId === repoId).map((t) => t.id)
+        : undefined;
 
-    // Build conditions for worker_jobs query
-    const conditions = [
-      inArray(workerJobs.taskId, taskIds),
-      // Only show completed or failed jobs (not running/queued)
-      inArray(workerJobs.status, ["completed", "failed"] as WorkerJobStatus[]),
-    ];
+    const searchTaskIds = search
+      ? userTasks
+          .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
+          .map((t) => t.id)
+      : undefined;
 
-    // Filter by phase
-    if (phase && phase !== "all") {
-      conditions.push(eq(workerJobs.phase, phase));
-    }
-
-    // Filter by status
-    if (status === "completed") {
-      conditions.push(eq(workerJobs.status, "completed"));
-    } else if (status === "failed") {
-      conditions.push(eq(workerJobs.status, "failed"));
-    }
-
-    // Filter by repo
-    if (repoId && repoIds.includes(repoId)) {
-      const repoTaskIds = userTasks
-        .filter((t) => t.repoId === repoId)
-        .map((t) => t.id);
-      if (repoTaskIds.length > 0) {
-        conditions.push(inArray(workerJobs.taskId, repoTaskIds));
-      }
-    }
-
-    // Search filter (search in task titles)
-    if (search) {
-      const matchingTaskIds = userTasks
-        .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
-        .map((t) => t.id);
-      if (matchingTaskIds.length > 0) {
-        conditions.push(inArray(workerJobs.taskId, matchingTaskIds));
-      } else {
-        // No matching tasks, return empty
-        return NextResponse.json({
-          items: [],
-          stats: {
-            total: 0,
-            completed: 0,
-            failed: 0,
-            brainstorming: 0,
-            planning: 0,
-            executing: 0,
-          },
-          page,
-          hasMore: false,
-        });
-      }
-    }
-
-    // Get total count for pagination
-    const countResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(workerJobs)
-      .where(and(...conditions));
-
-    const totalCount = Number(countResult[0]?.count || 0);
-
-    // Query worker jobs
-    const jobs = await db.query.workerJobs.findMany({
-      where: and(...conditions),
-      orderBy: [desc(workerJobs.completedAt), desc(workerJobs.createdAt)],
-      limit: limit,
-      offset: offset,
-      with: {
-        events: {
-          limit: 10,
-          orderBy: [asc(workerEvents.createdAt)],
+    if (search && (!searchTaskIds || searchTaskIds.length === 0)) {
+      return NextResponse.json({
+        items: [],
+        stats: {
+          total: 0,
+          completed: 0,
+          failed: 0,
+          brainstorming: 0,
+          planning: 0,
+          executing: 0,
         },
-      },
-    });
-
-    // Calculate stats (for all matching jobs, not just current page)
-    const statsConditions = [
-      inArray(workerJobs.taskId, taskIds),
-      inArray(workerJobs.status, ["completed", "failed"] as WorkerJobStatus[]),
-    ];
-
-    // Apply same filters to stats (except pagination)
-    if (repoId && repoIds.includes(repoId)) {
-      const repoTaskIds = userTasks
-        .filter((t) => t.repoId === repoId)
-        .map((t) => t.id);
-      if (repoTaskIds.length > 0) {
-        statsConditions.push(inArray(workerJobs.taskId, repoTaskIds));
-      }
+        page,
+        hasMore: false,
+      });
     }
 
-    if (search) {
-      const matchingTaskIds = userTasks
-        .filter((t) => t.title.toLowerCase().includes(search.toLowerCase()))
-        .map((t) => t.id);
-      if (matchingTaskIds.length > 0) {
-        statsConditions.push(inArray(workerJobs.taskId, matchingTaskIds));
-      }
-    }
+    const workerMonitoringService = getWorkerMonitoringService();
+    const [historyResult, stats] = await Promise.all([
+      workerMonitoringService.getHistory({
+        taskIds,
+        phase,
+        status,
+        repoTaskIds,
+        searchTaskIds,
+        limit,
+        offset,
+      }),
+      workerMonitoringService.getHistoryStats({
+        taskIds,
+        repoTaskIds,
+        searchTaskIds,
+      }),
+    ]);
 
-    const statsResult = await db
-      .select({
-        total: sql<number>`count(*)`,
-        completed: sql<number>`count(*) filter (where ${workerJobs.status} = 'completed')`,
-        failed: sql<number>`count(*) filter (where ${workerJobs.status} = 'failed')`,
-        brainstorming: sql<number>`count(*) filter (where ${workerJobs.phase} = 'brainstorming')`,
-        planning: sql<number>`count(*) filter (where ${workerJobs.phase} = 'planning')`,
-        executing: sql<number>`count(*) filter (where ${workerJobs.phase} = 'executing')`,
-      })
-      .from(workerJobs)
-      .where(and(...statsConditions));
-
-    const stats: HistoryStats = {
-      total: Number(statsResult[0]?.total || 0),
-      completed: Number(statsResult[0]?.completed || 0),
-      failed: Number(statsResult[0]?.failed || 0),
-      brainstorming: Number(statsResult[0]?.brainstorming || 0),
-      planning: Number(statsResult[0]?.planning || 0),
-      executing: Number(statsResult[0]?.executing || 0),
-    };
+    const jobs = historyResult.jobs;
+    const totalCount = historyResult.totalCount;
 
     // Build history items
     const items: HistoryItem[] = jobs.map((job) => {

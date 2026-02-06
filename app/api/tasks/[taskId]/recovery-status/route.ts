@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { db, executions } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { withTask } from "@/lib/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export interface RecoveryStatusResponse {
   isRecovering: boolean;
@@ -20,11 +19,10 @@ export interface RecoveryStatusResponse {
 }
 
 export const GET = withTask(async (request, { task }) => {
+  const executionService = getExecutionService();
+
   // Get the latest execution for this task
-  const latestExecution = await db.query.executions.findFirst({
-    where: eq(executions.taskId, task.id),
-    orderBy: (executions, { desc }) => [desc(executions.createdAt)],
-  });
+  const latestExecution = await executionService.getLatestForTask(task.id);
 
   if (!latestExecution) {
     // No execution yet

@@ -1,6 +1,5 @@
 import { Queue, Worker, Job } from "bullmq";
 import { connectionOptions, createConnectionOptions } from "./connection";
-import { eq, and, or } from "drizzle-orm";
 import {
   createAIClient,
   generateInitialBrainstorm,
@@ -13,7 +12,6 @@ import {
   findConfiguredProvider,
 } from "@/lib/api";
 import { decryptApiKey, decryptGithubToken } from "@/lib/crypto";
-import { db, executions, repos, tasks, users } from "@/lib/db";
 import { scanRepoViaGitHub } from "@/lib/github/repo-scanner";
 import {
   queueExecution,
@@ -24,6 +22,10 @@ import {
   createWorkerUpdateEvent,
   publishWorkerEvent,
 } from "@/lib/workers/events";
+import { getUserService } from "@/lib/contexts/iam/api";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
+import { getExecutionService } from "@/lib/contexts/execution/api";
 
 // =========================================================================
 // Types
@@ -49,14 +51,16 @@ export async function processAutonomousFlow(
   job: Job<AutonomousFlowJobData, AutonomousFlowJobResult>,
 ): Promise<AutonomousFlowJobResult> {
   const { taskId, userId, repoId } = job.data;
+  const userService = getUserService();
+  const taskService = getTaskService();
+  const repositoryService = getRepositoryService();
+  const executionService = getExecutionService();
 
   queueLogger.info({ taskId }, "Starting autonomous flow");
 
   try {
     // Get user
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
+    const user = await userService.getUserFull(userId);
 
     if (!user) {
       throw new Error("User not found");
@@ -79,10 +83,7 @@ export async function processAutonomousFlow(
     const client = await createAIClient(aiProvider, apiKey, model);
 
     // Get task
-    const task = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-      with: { repo: true },
-    });
+    const task = await taskService.getTaskFull(taskId);
 
     if (!task) {
       throw new Error("Task not found");
@@ -148,22 +149,16 @@ export async function processAutonomousFlow(
     );
 
     // Update task with brainstorm result – only if task is still in todo/brainstorming
-    const brainstormUpdate = await db
-      .update(tasks)
-      .set({
+    const brainstormUpdate = await taskService.updateIfStatus(
+      taskId,
+      ["todo", "brainstorming"],
+      {
         brainstormResult: JSON.stringify(brainstormResult),
         status: "brainstorming",
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(tasks.id, taskId),
-          or(eq(tasks.status, "todo"), eq(tasks.status, "brainstorming")),
-        ),
-      )
-      .returning({ id: tasks.id });
+      },
+    );
 
-    if (brainstormUpdate.length === 0) {
+    if (!brainstormUpdate) {
       throw new Error(
         "Task state changed during autonomous flow - brainstorm update aborted",
       );
@@ -199,18 +194,17 @@ export async function processAutonomousFlow(
     const branchName = `loopforge/${taskId.slice(0, 8)}`;
 
     // Update task with plan – only if task is still brainstorming
-    const planUpdate = await db
-      .update(tasks)
-      .set({
+    const planUpdate = await taskService.updateIfStatus(
+      taskId,
+      ["brainstorming"],
+      {
         planContent: JSON.stringify(planResult),
         status: "planning",
         branch: branchName,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(tasks.id, taskId), eq(tasks.status, "brainstorming")))
-      .returning({ id: tasks.id });
+      },
+    );
 
-    if (planUpdate.length === 0) {
+    if (!planUpdate) {
       throw new Error(
         "Task state changed during autonomous flow - plan update aborted",
       );
@@ -234,51 +228,40 @@ export async function processAutonomousFlow(
     );
 
     // Update to ready – only if task is still planning
-    const readyUpdate = await db
-      .update(tasks)
-      .set({
-        status: "ready",
-        updatedAt: new Date(),
-      })
-      .where(and(eq(tasks.id, taskId), eq(tasks.status, "planning")))
-      .returning({ id: tasks.id });
+    const readyUpdate = await taskService.updateIfStatus(taskId, ["planning"], {
+      status: "ready",
+    });
 
-    if (readyUpdate.length === 0) {
+    if (!readyUpdate) {
       throw new Error(
         "Task state changed during autonomous flow - ready update aborted",
       );
     }
 
-    const repo = await db.query.repos.findFirst({
-      where: eq(repos.id, repoId),
-    });
+    const repo = await repositoryService.findByOwner(repoId, userId);
 
     if (!repo) {
       throw new Error("Repository not found");
     }
 
     // Create execution record
-    const [execution] = await db
-      .insert(executions)
-      .values({
-        taskId,
-        status: "queued",
-        iteration: 0,
-      })
-      .returning();
+    const executionId = crypto.randomUUID();
+    await executionService.createQueued({
+      id: executionId,
+      taskId,
+    });
 
     // Update task to executing – only if task is still ready
-    const executingUpdate = await db
-      .update(tasks)
-      .set({
+    const executingUpdate = await taskService.updateIfStatus(
+      taskId,
+      ["ready"],
+      {
         status: "executing",
-        updatedAt: new Date(),
-      })
-      .where(and(eq(tasks.id, taskId), eq(tasks.status, "ready")))
-      .returning({ id: tasks.id });
+      },
+    );
 
-    if (executingUpdate.length === 0) {
-      await db.delete(executions).where(eq(executions.id, execution.id));
+    if (!executingUpdate) {
+      await executionService.deleteById(executionId);
       throw new Error(
         "Task state changed during autonomous flow - executing update aborted",
       );
@@ -296,7 +279,7 @@ export async function processAutonomousFlow(
 
     // Queue the execution job – worker decrypts API key on demand via userId
     const executionData: ExecutionJobData = {
-      executionId: execution.id,
+      executionId,
       taskId,
       repoId,
       userId,
@@ -322,18 +305,9 @@ export async function processAutonomousFlow(
       error instanceof Error ? error.message : "Unknown error";
     queueLogger.error({ taskId, error: errorMessage }, "Autonomous flow error");
 
-    const failedTask = await db.query.tasks.findFirst({
-      where: eq(tasks.id, taskId),
-      with: { repo: true },
-    });
+    const failedTask = await taskService.getTaskFull(taskId);
 
-    await db
-      .update(tasks)
-      .set({
-        status: "stuck",
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, taskId));
+    await taskService.updateFields(taskId, { status: "stuck" });
 
     if (failedTask) {
       await publishWorkerEvent(

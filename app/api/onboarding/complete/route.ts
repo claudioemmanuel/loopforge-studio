@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
-import { db, users, repos } from "@/lib/db";
 import { encryptApiKey } from "@/lib/crypto";
-import { eq } from "drizzle-orm";
 import { apiLogger } from "@/lib/logger";
+import { getUserService } from "@/lib/contexts/iam/api";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
 
 interface GitHubRepo {
   id: number;
@@ -104,41 +104,31 @@ export const POST = withAuth(async (request, { user }) => {
         break;
     }
 
-    await db.update(users).set(updateFields).where(eq(users.id, user.id));
+    const userService = getUserService();
+    const repositoryService = getRepositoryService();
+
+    await userService.updateUserFields(user.id, updateFields);
 
     // Create repo records using atomic upsert to prevent race condition duplicates
     const repoIds: string[] = [];
     for (const repoData of reposToAdd) {
-      const repoId = crypto.randomUUID();
+      const createdId = await repositoryService.connectRepository({
+        userId: user.id,
+        githubRepoId: String(repoData.id),
+        name: repoData.name,
+        fullName: repoData.full_name,
+        defaultBranch: repoData.default_branch,
+        cloneUrl: repoData.clone_url,
+        isPrivate: repoData.private,
+      });
 
-      // Use atomic insert with ON CONFLICT to handle duplicates atomically
-      // Returns the inserted row if new, otherwise returns nothing on conflict
-      const result = await db
-        .insert(repos)
-        .values({
-          id: repoId,
-          userId: user.id,
-          githubRepoId: String(repoData.id),
-          name: repoData.name,
-          fullName: repoData.full_name,
-          defaultBranch: repoData.default_branch,
-          cloneUrl: repoData.clone_url,
-          isPrivate: repoData.private,
-        })
-        .onConflictDoNothing({
-          target: [repos.userId, repos.githubRepoId],
-        })
-        .returning({ id: repos.id });
-
-      if (result.length > 0) {
-        // New repo was inserted
-        repoIds.push(result[0].id);
+      if (createdId) {
+        repoIds.push(createdId);
       } else {
-        // Conflict - repo already exists, fetch existing ID
-        const existingRepo = await db.query.repos.findFirst({
-          where: eq(repos.githubRepoId, String(repoData.id)),
-          columns: { id: true },
-        });
+        const existingRepo = await repositoryService.findByUserAndGithubId(
+          user.id,
+          String(repoData.id),
+        );
         if (existingRepo) {
           repoIds.push(existingRepo.id);
         }
