@@ -1,8 +1,8 @@
 # DDD Migration – Complete Status
 
-> **Last updated:** 2026-02-04
+> **Last updated:** 2026-02-06
 > **Branch:** `main` (single branch – all work consolidated)
-> **Migration state:** Service layer + route migrations complete ✅ | Task & Execution aggregates wired ✅ | `lib/domain/` deleted ✅ | Remaining contexts (IAM, Repository, Billing, Analytics) staged
+> **Migration state:** Clean Architecture use cases complete ✅ | All API routes migrated ✅ | Task & Execution aggregates wired ✅ | `lib/domain/` deleted ✅ | Remaining contexts (IAM, Repository, Billing, Analytics) staged
 > **Completion Roadmap:** See [`DDD-COMPLETION-ROADMAP.md`](./DDD-COMPLETION-ROADMAP.md) for detailed plan to finish the remaining 40%
 
 ---
@@ -133,7 +133,59 @@ Every API route that does simple CRUD or single-context reads/writes now goes th
 
 ## What Remains
 
-### ✅ Completed – Wire Task & Execution aggregates + delete lib/domain/
+### ✅ Completed – Clean Architecture Use Case Pattern (Phase 10)
+
+**Date completed:** 2026-02-06
+
+Migrated Task context from service-layer pattern to strict Clean Architecture use cases:
+
+**Infrastructure created:**
+
+- 31 use cases in `lib/contexts/task/use-cases/` with Input/Output DTOs
+- `UseCaseFactory` with dependency injection for all use cases
+- Port adapters: `AnalyticsServiceAdapter`, `LoggerAdapter` implementing domain ports
+- `Result<T, E>` pattern for explicit error handling (no exceptions for business logic)
+
+**All API routes migrated (15 routes):**
+
+1. `app/api/repos/[repoId]/tasks/route.ts` → CreateTask, ListTasksByRepo
+2. `app/api/tasks/[taskId]/route.ts` → GetTask, UpdateTaskFields, DeleteTask, ClaimExecutionSlot, RevertExecutionSlot, UpdateTaskConfiguration, SaveBrainstormResult
+3. `app/api/tasks/[taskId]/dependencies/route.ts` → AddTaskDependency, RemoveTaskDependency, UpdateDependencySettings, GetTaskDependencyGraph
+4. `app/api/tasks/[taskId]/brainstorm/save/route.ts` → SaveBrainstormResult
+5. `app/api/tasks/[taskId]/brainstorm/finalize/route.ts` → SaveBrainstormResult, FinalizeBrainstorm
+6. `app/api/tasks/[taskId]/brainstorm/start/route.ts` → ClaimBrainstormingSlot, ClearProcessingSlot
+7. `app/api/tasks/[taskId]/brainstorm/route.ts` → ClaimBrainstormingSlot, SaveBrainstormResult, ClearProcessingSlot, GetTaskWithRepo
+8. `app/api/tasks/[taskId]/plan/route.ts` → ClaimPlanningSlot, SavePlan, FinalizePlanning, GetTaskWithRepo
+9. `app/api/tasks/[taskId]/plan/start/route.ts` → ClaimPlanningSlot, ClearProcessingSlot
+10. `app/api/tasks/[taskId]/execute/route.ts` → ClaimExecutionSlot, RevertExecutionSlot
+11. `app/api/tasks/[taskId]/autonomous/resume/route.ts` → EnableAutonomousMode, ClaimExecutionSlot, RevertExecutionSlot
+12. `app/api/tasks/[taskId]/execution/route.ts` → Already using ExecutionService ✅
+13. `app/api/workers/[taskId]/route.ts` → GetTaskWithRepo
+14. `app/api/tasks/[taskId]/brainstorm/init/route.ts` → No migration needed (conversation management only)
+15. `app/api/dashboard/stuck-tasks/route.ts` → No migration needed (direct queries only)
+
+**Task entity enhancements (10 business methods):**
+
+- `updateFields`, `savePlan`, `markAsRunning`, `markAsCompleted`, `markAsFailed`, `markAsStuck`
+- `setAutonomousMode`, `updatePriority`, `updateConfiguration`, `addDependency`, `removeDependency`
+- All methods return `[Task, DomainEvent]` tuples for immutability
+
+**Repository enhancements:**
+
+- `TaskRepository.saveWithStatusGuard` (atomic status-guarded UPDATE for execution claiming)
+- Explicit type assertions for proper domain/infrastructure boundary
+
+**Commits:**
+
+- 383965e: feat(ddd): implement all 31 use cases for Task context (Step 4)
+- 484f606: feat(ddd): migrate first route to use cases
+- faf212e: feat(ddd): migrate tasks/[taskId] and dependencies routes
+- 9e2bdbb: feat(ddd): migrate brainstorm save and finalize routes
+- 9bb7fb4: feat(ddd): complete API routes migration to use cases
+
+**Design document:** `docs/plans/2026-02-05-clean-architecture-task-context-design.md`
+
+### ✅ Completed – Wire Task & Execution aggregates + delete lib/domain/ (Phase 9)
 
 - `TaskRepository.saveWithStatusGuard` added (atomic execution claiming)
 - `TaskService` extended: `claimExecutionSlot`, `revertExecutionSlot`, `saveBrainstormResult`, `addDependency`, `removeDependency`, `updateDependencySettings`, `enableAutonomousMode`
