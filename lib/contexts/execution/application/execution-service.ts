@@ -12,7 +12,6 @@ import {
   getPendingChangesByTask as getPendingChangesByTaskHelper,
   countPendingChanges as countPendingChangesHelper,
   deletePendingChangesByTask as deletePendingChangesByTaskHelper,
-  type PendingChange,
 } from "../infrastructure/pending-changes-repository";
 import {
   createExecutionCommit as createExecutionCommitHelper,
@@ -20,14 +19,20 @@ import {
   markAllCommitsReverted,
   markExecutionReverted,
   canRollback as canRollbackHelper,
-  type ExecutionCommit,
 } from "../infrastructure/commit-repository";
 import {
   getLatestTestRun,
   getTestRunSummary,
   deleteTestRunsByExecution as deleteTestRunsByExecutionHelper,
-  type TestRun,
 } from "../infrastructure/test-run-repository";
+
+type PendingChange = Awaited<
+  ReturnType<typeof getPendingChangesByTaskHelper>
+>[number];
+type ExecutionCommit = Awaited<
+  ReturnType<typeof getCommitsByExecutionHelper>
+>[number];
+type TestRun = NonNullable<Awaited<ReturnType<typeof getLatestTestRun>>>;
 
 export class ExecutionService {
   private _redis: Redis;
@@ -88,6 +93,7 @@ export class ExecutionService {
       type: e.eventType,
       content: e.content,
       timestamp: e.createdAt,
+      metadata: e.metadata,
     }));
   }
 
@@ -173,6 +179,11 @@ export class ExecutionService {
     await db.delete(executions).where(inArray(executions.taskId, taskIds));
   }
 
+  /** Delete a single execution row by ID (queue race rollback helper). */
+  async deleteById(executionId: string): Promise<void> {
+    await db.delete(executions).where(eq(executions.id, executionId));
+  }
+
   /**
    * Create an execution in queued status (replaces legacy ExecutionAggregate.createQueued).
    * Inserts a minimal row – the worker will update it when it starts running.
@@ -186,6 +197,17 @@ export class ExecutionService {
       createdAt: new Date(),
     });
     return params.id;
+  }
+
+  /** Generic partial update for execution rows. */
+  async updateFields(
+    executionId: string,
+    fields: Record<string, unknown>,
+  ): Promise<void> {
+    await db
+      .update(executions)
+      .set(fields as Record<string, unknown>)
+      .where(eq(executions.id, executionId));
   }
 
   // =========================================================================
@@ -245,7 +267,7 @@ export class ExecutionService {
     reason?: string;
   }): Promise<void> {
     // Use transaction to ensure atomicity
-    await db.transaction(async (tx) => {
+    await db.transaction(async () => {
       // Mark all commits as reverted
       await markAllCommitsReverted(params.executionId, params.revertCommitSha);
 

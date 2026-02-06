@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { workerHeartbeats } from "@/lib/db/schema";
 import { handleError, Errors } from "@/lib/errors";
+import { getWorkerMonitoringService } from "@/lib/contexts/execution/api";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +13,8 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: NextRequest) {
   try {
+    const workerMonitoringService = getWorkerMonitoringService();
+
     // Verify worker authentication
     const authHeader = request.headers.get("x-worker-token");
     const expectedToken =
@@ -28,9 +29,8 @@ export async function POST(request: NextRequest) {
     const { workerId = "worker-1", version = "unknown" } = body;
 
     // Create heartbeat record
-    await db.insert(workerHeartbeats).values({
+    await workerMonitoringService.recordHeartbeat({
       workerId,
-      timestamp: new Date(),
       metadata: {
         version,
         uptime: process.uptime(),
@@ -50,11 +50,10 @@ export async function POST(request: NextRequest) {
 /**
  * GET endpoint to retrieve latest heartbeat (for debugging)
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const latestHeartbeat = await db.query.workerHeartbeats.findFirst({
-      orderBy: (heartbeats, { desc }) => [desc(heartbeats.timestamp)],
-    });
+    const workerMonitoringService = getWorkerMonitoringService();
+    const latestHeartbeat = await workerMonitoringService.getLatestHeartbeat();
 
     if (!latestHeartbeat) {
       return NextResponse.json({

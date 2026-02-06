@@ -1,9 +1,12 @@
 # DDD Migration Completion Roadmap
 
-> Current state: ~65% complete
+> Current state: ~95% complete
 > All 6 contexts: WIRED ✅
 > Service-to-repository layer complete ✅
-> Next: Add missing ExecutionService methods, convert diff/review routes
+> Diff/review routes migrated to `ExecutionService` ✅
+> All API routes migrated off direct `@/lib/db` imports ✅
+> Worker/queue backend internals migrated to context services/adapters ✅
+> Next: finish remaining worker orchestration persistence extraction and resolve pre-existing TypeScript errors
 
 ## ✅ Priority 1: Wire Application Services to Repositories (COMPLETE)
 
@@ -89,30 +92,31 @@ Should: Delegate to `UserRepository`
 
 **Estimated effort:** 3-4 hours (includes fixing TS errors)
 
-## Priority 2: Add Missing ExecutionService Methods (MEDIUM)
+## ✅ Priority 2: Add Missing ExecutionService Methods (COMPLETE)
 
-**5 diff/review routes** need new service methods:
+**Completed:** 2026-02-06
 
-| Method                              | Used By                   | Implementation                   |
-| ----------------------------------- | ------------------------- | -------------------------------- |
-| `getPendingChanges(taskId)`         | `diff/route.ts`           | Wrap `lib/db/pending-changes.ts` |
-| `deletePendingChanges(taskId)`      | `diff/reject/route.ts`    | Wrap helper                      |
-| `createCommit(executionId, commit)` | `diff/approve/route.ts`   | Wrap helper                      |
-| `getCommits(executionId)`           | `rollback/route.ts`       | Wrap helper                      |
-| `canRollback(taskId)`               | `rollback/check/route.ts` | Wrap helper                      |
-| `getLatestTestRun(taskId)`          | `diff/route.ts`           | Wrap `test-runs.ts`              |
+Added/used service methods for diff-review flow:
 
-**Implementation:**
+- `getPendingChanges(taskId)`
+- `getPendingChangesSummary(executionId)`
+- `deletePendingChanges(taskId)`
+- `recordCommit(...)`
+- `getCommits(executionId)`
+- `rollbackCommits(...)`
+- `canRollback(executionId)`
+- `getTestRunForExecution(executionId)`
+- `deleteTestRunsForExecution(executionId)`
 
-1. Add 6 new methods to `ExecutionService`
-2. Each method delegates to existing helpers in `lib/db/`
-3. Once wired, helpers become internal to Execution context
+These methods now delegate to execution-context infrastructure repositories (`pending-changes-repository`, `commit-repository`, `test-run-repository`).
 
-**Estimated effort:** 2-3 hours
+---
 
-## Priority 3: Convert Diff/Review Routes (MEDIUM)
+## ✅ Priority 3: Convert Diff/Review Routes (COMPLETE)
 
-**5 routes** still import from `@/lib/db/` helpers:
+**Completed:** 2026-02-06
+
+Migrated routes:
 
 - `app/api/tasks/[taskId]/diff/route.ts`
 - `app/api/tasks/[taskId]/diff/approve/route.ts`
@@ -120,53 +124,50 @@ Should: Delegate to `UserRepository`
 - `app/api/tasks/[taskId]/rollback/route.ts`
 - `app/api/tasks/[taskId]/rollback/check/route.ts`
 
-**Changes:**
+All now call `getExecutionService()` and no longer import legacy diff/commit/test helpers directly.
 
-1. Import `getExecutionService()` instead of `@/lib/db/*`
-2. Call new service methods from Priority 2
-3. Remove legacy helper imports
+---
 
-**Estimated effort:** 1-2 hours (after Priority 2 complete)
+## Priority 4: Absorb Legacy Backend Internals (IN PROGRESS)
 
-## Priority 4: Absorb Legacy Infrastructure (LOW)
+Execution helper absorption is complete. Worker/queue migration progress:
 
-**29 exported functions in `lib/db/`** that should move into contexts:
+| File                           | Scope                                  | Target Context                |
+| ------------------------------ | -------------------------------------- | ----------------------------- |
+| `workers/execution-worker.ts`  | execution orchestration + state writes | Execution/Task infrastructure |
+| `lib/queue/autonomous-flow.ts` | autonomous brainstorm/plan queue flow  | Task/Execution services       |
+| `lib/workers/events.ts`        | processing/recovery persistence        | Task application service      |
+| `status-history.ts`            | status history append helper           | Task infrastructure           |
+| `transactions.ts`              | shared tx helpers                      | keep shared (or inline)       |
 
-| File                   | Functions   | Target Context           |
-| ---------------------- | ----------- | ------------------------ |
-| `execution-commits.ts` | 6 functions | Execution infrastructure |
-| `pending-changes.ts`   | 7 functions | Execution infrastructure |
-| `test-runs.ts`         | 4 functions | Execution infrastructure |
-| `status-history.ts`    | 1 function  | Task infrastructure      |
-| `transactions.ts`      | 6 functions | Keep as shared utility   |
+**Status:**
 
-**Implementation:**
+1. ✅ `lib/queue/autonomous-flow.ts` migrated to `TaskService`/`RepositoryService`/`ExecutionService`/`UserService`
+2. ✅ `lib/workers/events.ts` task persistence delegated to `TaskService`
+3. ✅ `workers/execution-worker.ts` removed direct `lib/db` imports and now uses context services for user/task/repo/execution lookups
+4. ✅ `taskDependencies` reads and `activityEvents` writes moved behind `TaskService` + `AnalyticsService` in `workers/execution-worker.ts`
+5. ⏳ Remaining: move final task/execution/worker-job update mutations in `workers/execution-worker.ts` behind dedicated context service/repository methods
+6. ⏳ Move `status-history.ts` into `lib/contexts/task/infrastructure/` (or keep justified shared)
+7. ⏳ Keep `transactions.ts` shared utility (or inline into repositories where beneficial)
 
-1. Move commit/pending/test helpers into `lib/contexts/execution/infrastructure/`
-2. Move status-history into `lib/contexts/task/infrastructure/`
-3. Keep `transactions.ts` as shared utility (or inline into repositories)
-4. Update service imports
-5. Delete `lib/db/` helper files
-
-**Estimated effort:** 3-4 hours
+**Estimated effort remaining:** 1-2 hours
 
 ## Priority 5: Fix Pre-existing TS Errors (LOW)
 
-| File                          | Error                   | Fix                                            |
-| ----------------------------- | ----------------------- | ---------------------------------------------- |
-| `user-repository.ts`          | Column mismatches       | Rename `name`→`username`, `image`→`avatarUrl`  |
-| `lib/contexts/*/api/index.ts` | `getRedis` not exported | Export from `@/lib/queue` or remove references |
-| `lib/graph/layout.ts`         | Missing edge properties | Add `.from` and `.to` to `GraphEdge` type      |
-| `lib/ralph/loop.ts`           | Missing skill fields    | Add `message`, `timestamp` to `SkillResult[]`  |
+| File                  | Error                   | Fix                                           |
+| --------------------- | ----------------------- | --------------------------------------------- |
+| `user-repository.ts`  | Column mismatches       | Rename `name`→`username`, `image`→`avatarUrl` |
+| `lib/graph/layout.ts` | Missing edge properties | Add `.from` and `.to` to `GraphEdge` type     |
+| `lib/ralph/loop.ts`   | Missing skill fields    | Add `message`, `timestamp` to `SkillResult[]` |
 
 **Estimated effort:** 2-3 hours
 
 ## Completion Criteria
 
 ✅ All service methods delegate to repositories (0 direct `db.*` calls in application layer)
-✅ All routes use `get*Service()` factories (0 routes import `@/lib/db`)
+✅ All API routes use `get*Service()`/use-cases (0 `app/api/**` routes import `@/lib/db`)
 ✅ Legacy helpers absorbed into contexts or deleted
 ✅ Pre-existing TS errors resolved
 ✅ Domain events published from all 6 contexts
 
-**Total estimated effort:** 15-20 hours
+**Total estimated effort:** 18-24 hours

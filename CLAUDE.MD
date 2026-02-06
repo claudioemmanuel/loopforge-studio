@@ -27,6 +27,54 @@ Loopforge Studio is an AI-powered autonomous development platform that connects 
 
 **Important:** PR creation is optional (environment variable controlled). PR review and merge are ALWAYS manual.
 
+### Clean Architecture & Bounded Contexts
+
+Loopforge uses a hybrid approach combining **Domain-Driven Design (DDD)** with **Clean Architecture**:
+
+**Architecture Layers (inside each bounded context):**
+- **Entities** (`entities/`): Pure domain logic, zero external dependencies
+- **Use Cases** (`use-cases/`): Application logic, depends only on entities and port interfaces
+- **Adapters** (`adapters/`): Infrastructure implementations (repositories, external service adapters)
+- **API** (`api/`): Public interface, factory functions for dependency injection
+
+**Key Patterns:**
+- **Result<T, E>** type for explicit error handling (no exceptions for business logic)
+- **Port/Adapter** pattern for dependency inversion
+- **Use Case** pattern with explicit Input/Output DTOs
+- **Domain Events** for cross-context communication (Redis Pub/Sub)
+- **Factory** pattern for dependency injection (`UseCaseFactory`)
+
+**Task Context (fully migrated to Clean Architecture):**
+```typescript
+// API routes import use cases via factory
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
+
+const createUseCase = UseCaseFactory.createTask();
+const result = await createUseCase.execute({
+  repoId,
+  title,
+  description,
+  userId,
+});
+
+if (result.isFailure) {
+  return handleError(result.error);
+}
+
+return NextResponse.json(result.value);
+```
+
+**31 Task Use Cases:**
+- CRUD: CreateTask, GetTask, UpdateTaskFields, DeleteTask, ListTasks
+- Brainstorming: ClaimBrainstormingSlot, SaveBrainstormResult, FinalizeBrainstorm, ClearProcessingSlot
+- Planning: ClaimPlanningSlot, SavePlan, FinalizePlanning
+- Execution: ClaimExecutionSlot, RevertExecutionSlot, MarkTaskRunning, MarkTaskCompleted, MarkTaskFailed, MarkTaskStuck
+- Dependencies: AddTaskDependency, RemoveTaskDependency, UpdateDependencySettings, GetTaskDependencyGraph
+- Configuration: EnableAutonomousMode, UpdateTaskPriority, UpdateTaskConfiguration
+- Utilities: VerifyTaskOwnership, CheckTaskTransitionValid, DeleteTasksByRepoIds, GetTaskIdsByRepoIds
+
+**See `docs/architecture/DDD-MIGRATION-STATUS.md` for full migration status.**
+
 ### Important Directories
 
 ```
@@ -36,6 +84,22 @@ app/
 └── api/              # API routes (tasks, repos, github, analytics, workers)
 
 lib/
+├── contexts/         # Bounded contexts (Clean Architecture + DDD)
+│   ├── task/                  # Task Orchestration context
+│   │   ├── entities/          # Domain Layer: Task aggregate, value objects, events
+│   │   ├── use-cases/         # Application Layer: 31 use cases with Input/Output DTOs
+│   │   ├── adapters/          # Infrastructure Layer: TaskRepository, service adapters
+│   │   └── api/               # Public API: UseCaseFactory, barrel exports
+│   ├── execution/             # AI Execution context
+│   │   ├── application/       # ExecutionService (createQueued, getLatest, etc.)
+│   │   ├── domain/            # Execution aggregate, events (STAGED)
+│   │   ├── infrastructure/    # ExecutionRepository (STAGED)
+│   │   └── api/               # getExecutionService() factory
+│   ├── iam/                   # Identity & Access context
+│   ├── repository/            # Repository Management context
+│   ├── billing/               # Billing & Usage context
+│   ├── analytics/             # Analytics & Activity context
+│   └── domain-events/         # Cross-cutting event bus (Redis Pub/Sub)
 ├── api/              # Shared API utilities
 │   ├── helpers.ts            # AI provider helpers (getProviderApiKey, getPreferredModel, etc.)
 │   ├── middleware.ts         # Route middleware (withAuth, withTask)

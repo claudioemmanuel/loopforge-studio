@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, repos } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import { handleError, Errors } from "@/lib/errors";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
 
 /**
  * GET /api/repos/[repoId]/clone-status
@@ -21,12 +20,11 @@ export async function GET(
     return handleError(Errors.unauthorized());
   }
 
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
-    with: {
-      index: true,
-    },
-  });
+  const repositoryService = getRepositoryService();
+  const repo = await repositoryService.getRepositoryWithIndexByOwner(
+    repoId,
+    session.user.id,
+  );
 
   if (!repo) {
     return handleError(Errors.notFound("Repository"));

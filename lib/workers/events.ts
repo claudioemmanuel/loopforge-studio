@@ -1,9 +1,8 @@
 import Redis from "ioredis";
-import { eq } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
-import { db } from "@/lib/db";
-import { tasks, type TaskStatus, type ProcessingPhase } from "@/lib/db/schema";
+import type { TaskStatus, ProcessingPhase } from "@/lib/db/schema";
 import { workerLogger } from "@/lib/logger";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export interface WorkerEventData {
   taskId: string;
@@ -313,14 +312,12 @@ export async function publishRecoveryEvent(
       event.type === "recovery_started" ||
       event.type === "recovery_progress"
     ) {
-      await db
-        .update(tasks)
-        .set({
-          processingPhase: "recovering",
-          processingProgress: event.data.progress,
-          processingStatusText: event.data.statusText,
-        })
-        .where(eq(tasks.id, event.data.taskId));
+      const taskService = getTaskService();
+      await taskService.updateFields(event.data.taskId, {
+        processingPhase: "recovering",
+        processingProgress: event.data.progress,
+        processingStatusText: event.data.statusText,
+      });
     }
 
     // Publish to Redis for real-time updates
@@ -397,13 +394,11 @@ export async function publishProcessingEvent(
 ): Promise<void> {
   try {
     // Persist progress to database for recovery on page refresh
-    await db
-      .update(tasks)
-      .set({
-        processingProgress: event.data.progress,
-        processingStatusText: event.data.statusText,
-      })
-      .where(eq(tasks.id, event.data.taskId));
+    const taskService = getTaskService();
+    await taskService.updateFields(event.data.taskId, {
+      processingProgress: event.data.progress,
+      processingStatusText: event.data.statusText,
+    });
 
     // Publish to Redis for real-time updates
     const redis = getPublisher();

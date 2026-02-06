@@ -1,9 +1,8 @@
 import { auth } from "@/lib/auth";
-import { db, tasks } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { connectionOptions } from "@/lib/queue/connection";
 import Redis from "ioredis";
 import { apiLogger } from "@/lib/logger";
+import { getTaskService } from "@/lib/contexts/task/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,14 +20,10 @@ export async function GET(request: Request, { params }: RouteParams) {
 
   const { taskId } = await params;
   const userId = session.user.id;
+  const taskService = getTaskService();
 
   // Verify the user owns the task
-  const task = await db.query.tasks.findFirst({
-    where: eq(tasks.id, taskId),
-    with: {
-      repo: true,
-    },
-  });
+  const task = await taskService.getTaskFull(taskId);
 
   if (!task) {
     return new Response("Task not found", { status: 404 });

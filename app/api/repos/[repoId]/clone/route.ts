@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, repos, users } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
 import { decryptGithubToken } from "@/lib/crypto";
 import { queueIndexing } from "@/lib/queue";
 import simpleGit from "simple-git";
@@ -10,18 +8,16 @@ import fs from "fs/promises";
 import { handleError, Errors } from "@/lib/errors";
 import { expandPath, getDefaultCloneDirectory } from "@/lib/utils/path-utils";
 import { emitCloneStatusChange } from "@/lib/contexts/repository/infrastructure/clone-status";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
+import { getUserService } from "@/lib/contexts/iam/api";
 
 /**
  * Get clone directory for user with fallback priority
  */
-async function getCloneDirectory(userId: string): Promise<string> {
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-  });
-
+function getCloneDirectory(userDefaultCloneDirectory?: string | null): string {
   // Priority 1: User's configured directory
-  if (user?.defaultCloneDirectory) {
-    return expandPath(user.defaultCloneDirectory);
+  if (userDefaultCloneDirectory) {
+    return expandPath(userDefaultCloneDirectory);
   }
 
   // Priority 2: Environment variable (Docker compatibility)
@@ -48,10 +44,11 @@ export async function POST(
     return handleError(Errors.unauthorized());
   }
 
+  const repositoryService = getRepositoryService();
+  const userService = getUserService();
+
   // Get repo
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
-  });
+  const repo = await repositoryService.findByOwner(repoId, session.user.id);
 
   if (!repo) {
     return handleError(Errors.notFound("Repository"));
@@ -82,9 +79,7 @@ export async function POST(
   }
 
   // Get user's GitHub token
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, session.user.id),
-  });
+  const user = await userService.getUserFull(session.user.id);
 
   // Check if clone directory is configured
   if (!user?.defaultCloneDirectory && !process.env.REPOS_DIR) {
@@ -100,7 +95,7 @@ export async function POST(
 
   // Determine target path
   const sanitizedName = repo.fullName.replace("/", "_");
-  const baseDir = await getCloneDirectory(session.user.id);
+  const baseDir = getCloneDirectory(user?.defaultCloneDirectory);
   const targetPath = customPath || path.join(baseDir, sanitizedName);
 
   if (!user?.encryptedGithubToken || !user?.githubTokenIv) {
@@ -124,14 +119,7 @@ export async function POST(
 
   try {
     // Update status to "cloning" before starting
-    await db
-      .update(repos)
-      .set({
-        cloneStatus: "cloning",
-        cloneStartedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(repos.id, repoId));
+    await repositoryService.markCloneStarted(repoId);
 
     // Emit cloning started event
     emitCloneStatusChange({
@@ -181,19 +169,7 @@ export async function POST(
     }
 
     // Update repo record
-    await db
-      .update(repos)
-      .set({
-        localPath: targetPath,
-        isCloned: true,
-        clonedAt: new Date(),
-        cloneStatus: "completed",
-        clonePath: targetPath,
-        cloneCompletedAt: new Date(),
-        indexingStatus: "pending", // Ready for indexing
-        updatedAt: new Date(),
-      })
-      .where(eq(repos.id, repoId));
+    await repositoryService.markCloneCompleted(repoId, targetPath);
 
     // Emit completion event
     emitCloneStatusChange({
@@ -225,13 +201,7 @@ export async function POST(
     });
   } catch (error) {
     // Update status to "failed" on error
-    await db
-      .update(repos)
-      .set({
-        cloneStatus: "failed",
-        updatedAt: new Date(),
-      })
-      .where(eq(repos.id, repoId));
+    await repositoryService.markCloneFailed(repoId);
 
     // Emit failure event
     emitCloneStatusChange({

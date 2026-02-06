@@ -1,12 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { connectionOptions } from "@/lib/queue";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
-import { db } from "@/lib/db";
-import { workerJobs, workerHeartbeats } from "@/lib/db/schema";
-import { desc, sql, and, eq } from "drizzle-orm";
+import { getWorkerMonitoringService } from "@/lib/contexts/execution/api";
 
 export const dynamic = "force-dynamic";
 
@@ -124,58 +122,8 @@ async function getRedisInfo() {
 
 async function getWorkerStatus() {
   try {
-    // Get most recent worker heartbeat
-    const heartbeat = await db
-      .select()
-      .from(workerHeartbeats)
-      .orderBy(desc(workerHeartbeats.timestamp))
-      .limit(1)
-      .execute();
-
-    if (!heartbeat || heartbeat.length === 0) {
-      return {
-        status: "stopped" as const,
-        uptime: null,
-        lastHeartbeat: null,
-        restartCount: 0,
-      };
-    }
-
-    const lastHeartbeat = heartbeat[0].timestamp;
-    const now = new Date();
-    const timeSinceHeartbeat = now.getTime() - lastHeartbeat.getTime();
-    const twoMinutes = 2 * 60 * 1000;
-
-    // If heartbeat is older than 2 minutes, consider worker stopped
-    if (timeSinceHeartbeat > twoMinutes) {
-      return {
-        status: "stopped" as const,
-        uptime: null,
-        lastHeartbeat,
-        restartCount: 0,
-      };
-    }
-
-    // Calculate uptime (time since oldest heartbeat in last hour)
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    const oldestRecent = await db
-      .select()
-      .from(workerHeartbeats)
-      .where(sql`${workerHeartbeats.timestamp} > ${oneHourAgo}`)
-      .orderBy(workerHeartbeats.timestamp)
-      .limit(1)
-      .execute();
-
-    const uptime = oldestRecent[0]
-      ? now.getTime() - oldestRecent[0].timestamp.getTime()
-      : null;
-
-    return {
-      status: "running" as const,
-      uptime,
-      lastHeartbeat,
-      restartCount: 0,
-    };
+    const workerMonitoringService = getWorkerMonitoringService();
+    return workerMonitoringService.getWorkerStatus();
   } catch (error) {
     console.error("Error getting worker status:", error);
     return {
@@ -189,30 +137,8 @@ async function getWorkerStatus() {
 
 async function getRecentFailures() {
   try {
-    const failures = await db
-      .select({
-        taskId: workerJobs.taskId,
-        phase: workerJobs.phase,
-        error: workerJobs.errorMessage,
-        timestamp: workerJobs.completedAt,
-      })
-      .from(workerJobs)
-      .where(eq(workerJobs.status, "failed"))
-      .orderBy(desc(workerJobs.completedAt))
-      .limit(10)
-      .execute();
-
-    return {
-      count: failures.length,
-      recent: failures
-        .filter((f) => f.error && f.timestamp)
-        .map((f) => ({
-          taskId: f.taskId,
-          phase: f.phase,
-          error: f.error || "Unknown error",
-          timestamp: f.timestamp!,
-        })),
-    };
+    const workerMonitoringService = getWorkerMonitoringService();
+    return workerMonitoringService.getRecentFailures(10);
   } catch (error) {
     console.error("Error getting recent failures:", error);
     return {
@@ -224,34 +150,8 @@ async function getRecentFailures() {
 
 async function getStuckTasks() {
   try {
-    // Find tasks stuck in processing for more than 10 minutes
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-
-    const stuckTasks = await db.execute(sql`
-      SELECT
-        id as "taskId",
-        title,
-        EXTRACT(EPOCH FROM (NOW() - processing_started_at)) / 60 as "stuckMinutes"
-      FROM tasks
-      WHERE processing_phase IS NOT NULL
-        AND processing_started_at < ${tenMinutesAgo}
-      ORDER BY processing_started_at ASC
-      LIMIT 20
-    `);
-
-    const tasks = stuckTasks.rows.map((row: unknown) => {
-      const r = row as { taskId: string; title: string; stuckMinutes: number };
-      return {
-        taskId: r.taskId,
-        title: r.title,
-        stuckDuration: `${Math.floor(r.stuckMinutes)} minutes`,
-      };
-    });
-
-    return {
-      count: tasks.length,
-      tasks,
-    };
+    const workerMonitoringService = getWorkerMonitoringService();
+    return workerMonitoringService.getStuckTasks(10, 20);
   } catch (error) {
     console.error("Error getting stuck tasks:", error);
     return {
@@ -261,7 +161,7 @@ async function getStuckTasks() {
   }
 }
 
-export const GET = withAuth(async (request: NextRequest) => {
+export const GET = withAuth(async () => {
   try {
     // Gather all health data in parallel
     const [

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api/middleware";
-import { db, repos } from "@/lib/db";
 import { apiLogger } from "@/lib/logger";
-import { eq } from "drizzle-orm";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
 
 interface GitHubRepo {
   id: number;
@@ -29,54 +28,42 @@ export const POST = withAuth(async (request, { user }) => {
       );
     }
 
-    // Use database transaction with row locking to prevent race conditions
-    const result = await db.transaction(async (tx) => {
-      // Create repo records using atomic upsert to prevent duplicates
-      const repoIds: string[] = [];
-      const addedRepos: string[] = [];
-      const skippedRepos: string[] = [];
+    const repositoryService = getRepositoryService();
+    const repoIds: string[] = [];
+    const addedRepos: string[] = [];
+    const skippedRepos: string[] = [];
 
-      for (const repoData of reposToAdd) {
-        const repoId = crypto.randomUUID();
+    for (const repoData of reposToAdd) {
+      const createdId = await repositoryService.connectRepository({
+        userId: user.id,
+        githubRepoId: String(repoData.id),
+        name: repoData.name,
+        fullName: repoData.full_name,
+        defaultBranch: repoData.default_branch,
+        cloneUrl: repoData.clone_url,
+        isPrivate: repoData.private,
+      });
 
-        try {
-          // Use atomic insert with ON CONFLICT DO NOTHING to prevent duplicates
-          // The unique constraint on (userId, githubRepoId) ensures atomicity
-          const insertResult = await tx
-            .insert(repos)
-            .values({
-              id: repoId,
-              userId: user.id,
-              githubRepoId: String(repoData.id),
-              name: repoData.name,
-              fullName: repoData.full_name,
-              defaultBranch: repoData.default_branch,
-              cloneUrl: repoData.clone_url,
-              isPrivate: repoData.private,
-            })
-            .onConflictDoNothing({
-              target: [repos.userId, repos.githubRepoId],
-            })
-            .returning({ id: repos.id });
-
-          if (insertResult.length > 0) {
-            // New repo was inserted
-            repoIds.push(insertResult[0].id);
-            addedRepos.push(repoData.full_name);
-          } else {
-            // Conflict - repo already exists, skip
-            skippedRepos.push(repoData.full_name);
-          }
-        } catch (insertError: unknown) {
-          throw insertError;
-        }
+      if (createdId) {
+        repoIds.push(createdId);
+        addedRepos.push(repoData.full_name);
+        continue;
       }
 
-      return { repoIds, addedRepos, skippedRepos };
-    });
+      skippedRepos.push(repoData.full_name);
+      const existing = await repositoryService.findByUserAndGithubId(
+        user.id,
+        String(repoData.id),
+      );
+      if (existing) {
+        repoIds.push(existing.id);
+      }
+    }
 
     return NextResponse.json({
-      ...result,
+      repoIds,
+      addedRepos,
+      skippedRepos,
       success: true,
     });
   } catch (error: unknown) {

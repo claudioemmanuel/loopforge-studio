@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, repos } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { handleError, Errors } from "@/lib/errors";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
 
 // Common development directories to check
 const COMMON_DEV_PATHS = [
@@ -44,9 +43,8 @@ export async function POST(
     return handleError(Errors.unauthorized());
   }
 
-  const repo = await db.query.repos.findFirst({
-    where: and(eq(repos.id, repoId), eq(repos.userId, session.user.id)),
-  });
+  const repositoryService = getRepositoryService();
+  const repo = await repositoryService.findByOwner(repoId, session.user.id);
 
   if (!repo) {
     return handleError(Errors.notFound("Repository"));
@@ -157,16 +155,7 @@ export async function POST(
 
   // If we found a valid path, update the repo record
   if (results.verified && results.path && results.matchesRemote) {
-    await db
-      .update(repos)
-      .set({
-        localPath: results.path,
-        isCloned: true,
-        clonedAt: new Date(),
-        indexingStatus: "pending",
-        updatedAt: new Date(),
-      })
-      .where(eq(repos.id, repoId));
+    await repositoryService.markRepositoryCloneVerified(repoId, results.path);
   }
 
   return NextResponse.json(results);
