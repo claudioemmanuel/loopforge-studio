@@ -10,7 +10,7 @@ import {
 } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
@@ -71,13 +71,16 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
 
   try {
     const branch = `loopforge/${task.id.slice(0, 8)}`;
-    const taskService = getTaskService();
     const executionService = getExecutionService();
 
-    // ATOMIC: Claim the execution slot – only succeeds if status is still 'ready'
-    const claimedTask = await taskService.claimExecutionSlot(taskId, branch);
+    // ATOMIC: Claim the execution slot via use case
+    const claimUseCase = UseCaseFactory.claimExecutionSlot();
+    const claimResult = await claimUseCase.execute({
+      taskId,
+      workerId: branch,
+    });
 
-    if (!claimedTask) {
+    if (claimResult.isFailure) {
       return NextResponse.json(
         { error: "Task is already executing or not in ready status" },
         { status: 409 },
@@ -103,16 +106,16 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     });
 
     return NextResponse.json({
-      ...claimedTask,
+      ...claimResult.value,
       executionId,
       jobId: job.id,
     });
   } catch (error) {
     apiLogger.error({ taskId, error }, "Execution error");
 
-    // Revert status on error (only if we claimed it)
-    const taskService = getTaskService();
-    await taskService.revertExecutionSlot(taskId, "ready");
+    // Revert execution slot on error via use case
+    const revertUseCase = UseCaseFactory.revertExecutionSlot();
+    await revertUseCase.execute({ taskId });
 
     return handleError(error);
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, tasks, buildStatusHistoryAppend } from "@/lib/db";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { queuePlan } from "@/lib/queue";
 import {
   publishProcessingEvent,
@@ -10,6 +10,7 @@ import { withTask, getProviderApiKey, findConfiguredProvider } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   // Check if brainstorm result exists
@@ -34,9 +35,25 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   try {
     const startedAt = new Date();
 
-    // ATOMIC: Claim the processing slot first to prevent race conditions
-    // This UPDATE only succeeds if processingPhase is NULL
-    const claimResult = await db
+    // ATOMIC: Claim the planning slot via use case
+    const claimUseCase = UseCaseFactory.claimPlanningSlot();
+    const claimResult = await claimUseCase.execute({
+      taskId,
+      workerId: user.id,
+    });
+
+    if (claimResult.isFailure) {
+      return NextResponse.json(
+        {
+          error: "Task is already processing",
+          phase: task.processingPhase || "unknown",
+        },
+        { status: 409 },
+      );
+    }
+
+    // Update status to planning (direct DB for now as use case doesn't handle this)
+    await db
       .update(tasks)
       .set({
         status: "planning",
@@ -46,24 +63,11 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
           triggeredBy: "user",
           userId: user.id,
         }),
-        processingPhase: "planning",
         processingStartedAt: startedAt,
         processingStatusText: "Reviewing brainstorm...",
         updatedAt: startedAt,
       })
-      .where(and(eq(tasks.id, taskId), isNull(tasks.processingPhase)))
-      .returning({ id: tasks.id });
-
-    // If no rows were updated, another request already claimed the slot
-    if (claimResult.length === 0) {
-      return NextResponse.json(
-        {
-          error: "Task is already processing",
-          phase: task.processingPhase || "unknown",
-        },
-        { status: 409 },
-      );
-    }
+      .where(eq(tasks.id, taskId));
 
     // Record activity events
     const analyticsService = getAnalyticsService();
@@ -84,8 +88,7 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       }),
     ]);
 
-    // Now queue the job (we have exclusive processing rights)
-    // Worker will decrypt API key on demand using userId
+    // Queue the background job
     const job = await queuePlan({
       taskId,
       userId: user.id,
@@ -125,17 +128,9 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       processingPhase: "planning",
     });
   } catch (error) {
-    // If queuing failed after claiming, reset the processing state
-    await db
-      .update(tasks)
-      .set({
-        status: task.status, // Restore original status
-        processingPhase: null,
-        processingJobId: null,
-        processingStartedAt: null,
-        processingStatusText: null,
-      })
-      .where(eq(tasks.id, taskId));
+    // Revert on error
+    const clearUseCase = UseCaseFactory.clearProcessingSlot();
+    await clearUseCase.execute({ taskId, revertToStatus: task.status });
 
     apiLogger.error(
       { taskId, provider: aiProvider, error },

@@ -10,7 +10,7 @@ import {
 } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { getExecutionService } from "@/lib/contexts/execution/api";
 
 /**
@@ -57,11 +57,15 @@ export async function POST(
     );
   }
 
-  const taskService = getTaskService();
-
   // If task is "ready", enable autonomous mode AND queue execution
   if (task.status === "ready") {
-    await taskService.enableAutonomousMode(taskId);
+    // Enable autonomous mode via use case
+    const enableAutoUseCase = UseCaseFactory.enableAutonomousMode();
+    const enableResult = await enableAutoUseCase.execute({ taskId });
+
+    if (enableResult.isFailure) {
+      return handleError(enableResult.error);
+    }
 
     if (!task.planContent) {
       return handleError(
@@ -95,10 +99,15 @@ export async function POST(
     try {
       const branch = `loopforge/${task.id.slice(0, 8)}`;
 
-      // ATOMIC: Claim the execution slot
-      const claimedTask = await taskService.claimExecutionSlot(taskId, branch);
-      if (!claimedTask) {
-        throw new Error("Task is already executing");
+      // ATOMIC: Claim the execution slot via use case
+      const claimUseCase = UseCaseFactory.claimExecutionSlot();
+      const claimResult = await claimUseCase.execute({
+        taskId,
+        workerId: branch,
+      });
+
+      if (claimResult.isFailure) {
+        return handleError(Errors.conflict("Task is already executing"));
       }
 
       // Create execution record
@@ -121,23 +130,32 @@ export async function POST(
       });
 
       return NextResponse.json({
-        ...claimedTask,
+        ...claimResult.value,
         executionId,
         jobId: job.id,
         autoStarted: true,
       });
     } catch (error) {
       apiLogger.error({ taskId, error }, "Execution error");
-      await taskService.revertExecutionSlot(taskId, "ready");
+
+      // Revert execution slot on error via use case
+      const revertUseCase = UseCaseFactory.revertExecutionSlot();
+      await revertUseCase.execute({ taskId });
+
       return handleError(error);
     }
   }
 
   // For other statuses, just enable autonomous mode and return
-  const updatedTask = await taskService.enableAutonomousMode(taskId);
+  const enableAutoUseCase = UseCaseFactory.enableAutonomousMode();
+  const enableResult = await enableAutoUseCase.execute({ taskId });
+
+  if (enableResult.isFailure) {
+    return handleError(enableResult.error);
+  }
 
   return NextResponse.json({
-    ...updatedTask,
+    ...enableResult.value,
     autoStarted: false,
   });
 }

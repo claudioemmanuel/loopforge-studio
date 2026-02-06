@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { handleError, Errors } from "@/lib/errors";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { getExecutionService } from "@/lib/contexts/execution/api";
 
 export const runtime = "nodejs";
@@ -20,12 +20,15 @@ export async function GET(request: Request, { params }: RouteParams) {
 
   const { taskId } = await params;
 
-  const taskService = getTaskService();
-  const task = await taskService.getTaskFull(taskId);
+  // Get task with repo via use case
+  const getTaskUseCase = UseCaseFactory.getTaskWithRepo();
+  const taskResult = await getTaskUseCase.execute({ taskId });
 
-  if (!task) {
-    return handleError(Errors.notFound("Task"));
+  if (taskResult.isFailure) {
+    return handleError(taskResult.error);
   }
+
+  const task = taskResult.value;
 
   if (task.repo.userId !== session.user.id) {
     return handleError(Errors.forbidden());

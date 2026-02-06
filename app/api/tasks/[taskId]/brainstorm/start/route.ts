@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { db, tasks, buildStatusHistoryAppend } from "@/lib/db";
-import { eq, and, isNull } from "drizzle-orm";
+import { db, tasks } from "@/lib/db";
+import { eq } from "drizzle-orm";
 import { queueBrainstorm } from "@/lib/queue";
 import {
   publishProcessingEvent,
@@ -10,6 +10,7 @@ import { withTask, getProviderApiKey, findConfiguredProvider } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
 import { apiLogger } from "@/lib/logger";
 import { getAnalyticsService } from "@/lib/contexts/analytics/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
   // Find a configured provider
@@ -26,28 +27,14 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
   try {
     const startedAt = new Date();
 
-    // ATOMIC: Claim the processing slot first to prevent race conditions
-    // This UPDATE only succeeds if processingPhase is NULL
-    const claimResult = await db
-      .update(tasks)
-      .set({
-        status: "brainstorming",
-        statusHistory: buildStatusHistoryAppend({
-          fromStatus: task.status,
-          toStatus: "brainstorming",
-          triggeredBy: "user",
-          userId: user.id,
-        }),
-        processingPhase: "brainstorming",
-        processingStartedAt: startedAt,
-        processingStatusText: "Analyzing task...",
-        updatedAt: startedAt,
-      })
-      .where(and(eq(tasks.id, taskId), isNull(tasks.processingPhase)))
-      .returning({ id: tasks.id });
+    // ATOMIC: Claim the brainstorming slot via use case
+    const claimUseCase = UseCaseFactory.claimBrainstormingSlot();
+    const claimResult = await claimUseCase.execute({
+      taskId,
+      workerId: user.id,
+    });
 
-    // If no rows were updated, another request already claimed the slot
-    if (claimResult.length === 0) {
+    if (claimResult.isFailure) {
       return NextResponse.json(
         {
           error: "Task is already processing",
@@ -113,17 +100,9 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       processingPhase: "brainstorming",
     });
   } catch (error) {
-    // If queuing failed after claiming, reset the processing state
-    await db
-      .update(tasks)
-      .set({
-        status: task.status, // Restore original status
-        processingPhase: null,
-        processingJobId: null,
-        processingStartedAt: null,
-        processingStatusText: null,
-      })
-      .where(eq(tasks.id, taskId));
+    // Revert brainstorming slot on error via use case
+    const clearUseCase = UseCaseFactory.clearProcessingSlot();
+    await clearUseCase.execute({ taskId, revertToStatus: task.status });
 
     apiLogger.error(
       { taskId, provider: aiProvider, error },

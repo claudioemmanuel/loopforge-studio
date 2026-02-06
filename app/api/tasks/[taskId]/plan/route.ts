@@ -1,18 +1,12 @@
 /**
  * POST /api/tasks/[taskId]/plan
- *
- * TODO (DDD Migration): Atomic claim pattern - same as brainstorm route.
- * Future migration:
- * 1. Create TaskService.startPlanning(taskId, userId) method
- * 2. Move AI plan generation to Application Service
- * 3. Use taskService.updatePlanContent() for saving results
- * 4. Preserve atomic processing slot claiming
+ * Generate execution plan for a task
  */
 import { NextResponse } from "next/server";
 import { generatePlan, createAIClient } from "@/lib/ai";
 import { handleError, Errors } from "@/lib/errors";
 import { withTask, getAIClientConfig } from "@/lib/api";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { apiLogger } from "@/lib/logger";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
@@ -21,8 +15,6 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     return handleError(Errors.noProviderConfigured());
   }
 
-  const taskService = getTaskService();
-
   try {
     const client = await createAIClient(
       config.provider,
@@ -30,15 +22,14 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       config.model,
     );
 
-    // ATOMIC: Claim the processing slot to prevent concurrent plans
-    const claimed = await taskService.claimProcessingSlot(
+    // ATOMIC: Claim the planning slot
+    const claimUseCase = UseCaseFactory.claimPlanningSlot();
+    const claimResult = await claimUseCase.execute({
       taskId,
-      "planning",
-      "Generating execution plan...",
-      "planning",
-    );
+      workerId: user.id,
+    });
 
-    if (!claimed) {
+    if (claimResult.isFailure) {
       return NextResponse.json(
         {
           error: "Task is already processing",
@@ -61,13 +52,30 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       },
     );
 
-    // Save result and clear processing state
-    await taskService.clearProcessingSlot(taskId, {
-      planContent: JSON.stringify(result, null, 2),
+    // Save plan
+    const savePlanUseCase = UseCaseFactory.savePlan();
+    const saveResult = await savePlanUseCase.execute({
+      taskId,
+      plan: JSON.stringify(result, null, 2),
     });
 
-    const updated = await taskService.getTaskFull(taskId);
-    return NextResponse.json(updated);
+    if (saveResult.isFailure) {
+      return handleError(saveResult.error);
+    }
+
+    // Transition to ready
+    const finalizeUseCase = UseCaseFactory.finalizePlanning();
+    const finalizeResult = await finalizeUseCase.execute({ taskId });
+
+    if (finalizeResult.isFailure) {
+      return handleError(finalizeResult.error);
+    }
+
+    // Fetch updated task
+    const getTaskUseCase = UseCaseFactory.getTaskWithRepo();
+    const taskResult = await getTaskUseCase.execute({ taskId });
+
+    return NextResponse.json(taskResult.isSuccess ? taskResult.value : task);
   } catch (error) {
     apiLogger.error(
       {
@@ -79,8 +87,9 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
       "Plan generation error",
     );
 
-    // Revert status and clear processing state on error
-    await taskService.clearProcessingSlot(taskId, { status: "brainstorming" });
+    // Revert to brainstorming on error
+    const clearUseCase = UseCaseFactory.clearProcessingSlot();
+    await clearUseCase.execute({ taskId, revertToStatus: "brainstorming" });
 
     return handleError(error);
   }
