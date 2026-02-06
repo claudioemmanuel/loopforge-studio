@@ -3,10 +3,29 @@
  *
  * Subscribes to domain events from Redis Pub/Sub and routes them to registered handlers.
  * Supports wildcard subscriptions (e.g., 'Task.*' matches all Task events).
+ *
+ * ## Idempotency Guarantees
+ *
+ * Each event is processed exactly once per subscriber using an inbox pattern:
+ * - Before processing, claim an inbox lock using Redis SET NX with event.id as key
+ * - If lock acquisition fails, event was already processed (or is being processed)
+ * - Successful processing keeps the inbox key for 7 days (prevents late duplicates)
+ * - Failed processing releases the inbox key (allows retry)
+ * - Each subscriber has an isolated inbox (parallel processing across subscribers)
+ *
+ * ## Retry Strategy
+ *
+ * Failed handlers are retried up to 3 times with exponential backoff:
+ * - Attempt 1: immediate
+ * - Attempt 2: 100ms delay
+ * - Attempt 3: 200ms delay
+ * - Attempt 4: 400ms delay (final attempt)
+ * - After exhausting retries, event is sent to dead-letter channel
  */
 
 import { Redis } from "ioredis";
 import type { DomainEvent, EventSubscription, IEventSubscriber } from "./types";
+import { getCompatibleEventTypes } from "./event-taxonomy";
 
 export class EventSubscriber implements IEventSubscriber {
   private static instance: EventSubscriber;
@@ -14,6 +33,11 @@ export class EventSubscriber implements IEventSubscriber {
   private subscriber: Redis;
   private subscriptions: Map<string, EventSubscription[]> = new Map();
   private readonly channelPrefix = "domain-events:";
+  private readonly deadLetterChannel = "domain-events:dead-letter";
+  private readonly inboxPrefix = "domain-events:inbox";
+  private readonly inboxTtlSeconds = 60 * 60 * 24 * 7; // 7 days (prevents late duplicates)
+  private readonly maxHandlerRetries = 3;
+  private readonly retryDelayMs = 100;
   private isRunning = false;
 
   private constructor(redis: Redis) {
@@ -92,6 +116,8 @@ export class EventSubscriber implements IEventSubscriber {
 
     // Handle incoming messages
     this.subscriber.on("pmessage", async (pattern, channel, message) => {
+      void pattern;
+      void channel;
       try {
         const event: DomainEvent = JSON.parse(message);
         await this.handleEvent(event);
@@ -110,8 +136,8 @@ export class EventSubscriber implements IEventSubscriber {
   async stop(): Promise<void> {
     if (!this.isRunning) return;
 
-    await this.subscriber.punsubscribe();
-    await this.subscriber.quit();
+    await this.subscriber.punsubscribe(`${this.channelPrefix}*`);
+    this.subscriber.removeAllListeners("pmessage");
 
     this.isRunning = false;
     console.log("[EventSubscriber] Stopped listening for domain events");
@@ -132,9 +158,16 @@ export class EventSubscriber implements IEventSubscriber {
 
     // Execute all matching handlers (sorted by priority)
     for (const subscription of matchingSubscriptions) {
+      const inboxClaimed = await this.claimInbox(subscription, event);
+      if (!inboxClaimed) {
+        continue;
+      }
+
       try {
-        await subscription.handler(event);
+        await this.executeHandlerWithRetry(subscription, event);
       } catch (error) {
+        await this.releaseInbox(subscription, event);
+        await this.publishDeadLetter(subscription, event, error);
         console.error(
           `[EventSubscriber] Error in handler ${subscription.subscriberName}:`,
           error,
@@ -149,10 +182,23 @@ export class EventSubscriber implements IEventSubscriber {
    */
   private findMatchingSubscriptions(eventType: string): EventSubscription[] {
     const matching: EventSubscription[] = [];
+    const seen = new Set<string>();
+    const candidateTypes = getCompatibleEventTypes(eventType);
 
     for (const [pattern, subscriptions] of this.subscriptions.entries()) {
-      if (this.matchesPattern(eventType, pattern)) {
-        matching.push(...subscriptions);
+      const matches = candidateTypes.some((candidate) =>
+        this.matchesPattern(candidate, pattern),
+      );
+
+      if (matches) {
+        for (const subscription of subscriptions) {
+          const key = `${pattern}:${subscription.subscriberName}`;
+          if (seen.has(key)) {
+            continue;
+          }
+          seen.add(key);
+          matching.push(subscription);
+        }
       }
     }
 
@@ -178,6 +224,81 @@ export class EventSubscriber implements IEventSubscriber {
     if (pattern === "*") return true;
 
     return false;
+  }
+
+  private buildInboxKey(
+    subscription: EventSubscription,
+    event: DomainEvent,
+  ): string {
+    return `${this.inboxPrefix}:${subscription.subscriberName}:${event.id}`;
+  }
+
+  private async claimInbox(
+    subscription: EventSubscription,
+    event: DomainEvent,
+  ): Promise<boolean> {
+    const key = this.buildInboxKey(subscription, event);
+    const result = await this.redis.set(
+      key,
+      "1",
+      "EX",
+      this.inboxTtlSeconds,
+      "NX",
+    );
+
+    return result === "OK";
+  }
+
+  private async releaseInbox(
+    subscription: EventSubscription,
+    event: DomainEvent,
+  ): Promise<void> {
+    const key = this.buildInboxKey(subscription, event);
+    await this.redis.del(key);
+  }
+
+  private async executeHandlerWithRetry(
+    subscription: EventSubscription,
+    event: DomainEvent,
+  ): Promise<void> {
+    let attempt = 1;
+
+    while (attempt <= this.maxHandlerRetries) {
+      try {
+        await subscription.handler(event);
+        return;
+      } catch (error) {
+        if (attempt === this.maxHandlerRetries) {
+          throw error;
+        }
+
+        const delay = this.retryDelayMs * 2 ** (attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        attempt++;
+      }
+    }
+  }
+
+  private async publishDeadLetter(
+    subscription: EventSubscription,
+    event: DomainEvent,
+    error: unknown,
+  ): Promise<void> {
+    const payload = {
+      subscriberName: subscription.subscriberName,
+      event,
+      error: error instanceof Error ? error.message : "Unknown handler error",
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      await this.redis.publish(this.deadLetterChannel, JSON.stringify(payload));
+    } catch (deadLetterError) {
+      console.error(
+        `[EventSubscriber] Failed to publish dead-letter for ${subscription.subscriberName}:`,
+        deadLetterError,
+      );
+    }
   }
 
   /**

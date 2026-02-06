@@ -104,7 +104,7 @@ describe("Domain Event Infrastructure", () => {
 
     expect(receivedEvent).not.toBeNull();
     expect(receivedEvent as unknown as EventShape).toMatchObject({
-      eventType: "UserRegistered",
+      eventType: "User.Registered",
       data: { email: "test@example.com" },
     });
   });
@@ -136,8 +136,8 @@ describe("Domain Event Infrastructure", () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     expect(receivedEvents).toHaveLength(3);
-    expect(receivedEvents[0].eventType).toBe("TaskCreated");
-    expect(receivedEvents[1].eventType).toBe("TaskStatusChanged");
+    expect(receivedEvents[0].eventType).toBe("Task.Created");
+    expect(receivedEvents[1].eventType).toBe("Task.StatusChanged");
     expect(receivedEvents[2].eventType).toBe("TaskCompleted");
   });
 
@@ -221,5 +221,82 @@ describe("Domain Event Infrastructure", () => {
 
     console.log(`Query time: ${queryTime}ms`);
     expect(queryTime).toBeLessThan(5);
+  });
+
+  it("should prevent duplicate event processing via inbox pattern", async () => {
+    let processCount = 0;
+
+    // Register subscriber
+    subscriber.subscribe({
+      eventType: "PaymentProcessed",
+      subscriberName: "payment-handler",
+      handler: async () => {
+        processCount++;
+        // Simulate processing time
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      },
+    });
+
+    // Create a test event
+    const testEvent = EventPublisher.createEvent(
+      "PaymentProcessed",
+      "Payment",
+      "payment-123",
+      { amount: 100 },
+    );
+
+    // Publish the same event multiple times (simulating duplicate delivery)
+    await Promise.all([
+      publisher.publish(testEvent),
+      publisher.publish(testEvent),
+      publisher.publish(testEvent),
+    ]);
+
+    // Wait for processing
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Verify event was processed exactly once despite multiple publishes
+    expect(processCount).toBe(1);
+  });
+
+  it("should retry failed handlers with exponential backoff", async () => {
+    const attempts: number[] = [];
+    let attemptCount = 0;
+
+    subscriber.subscribe({
+      eventType: "FailingEvent",
+      subscriberName: "failing-handler",
+      handler: async () => {
+        attemptCount++;
+        attempts.push(Date.now());
+
+        // Fail first 2 attempts, succeed on 3rd
+        if (attemptCount < 3) {
+          throw new Error("Simulated failure");
+        }
+      },
+    });
+
+    await publisher.publish(
+      EventPublisher.createEvent("FailingEvent", "Test", "test-999", {}),
+    );
+
+    // Wait for retries
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Verify handler was retried (should succeed on 3rd attempt)
+    expect(attemptCount).toBe(3);
+
+    // Verify exponential backoff (delays should increase)
+    if (attempts.length >= 3) {
+      const delay1 = attempts[1] - attempts[0];
+      const delay2 = attempts[2] - attempts[1];
+
+      console.log(`Retry delays: ${delay1}ms, ${delay2}ms`);
+
+      // Second delay should be roughly 2x the first (exponential backoff)
+      // Allow some variance due to timing jitter
+      expect(delay2).toBeGreaterThan(delay1);
+    }
   });
 });
