@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { getConversation } from "@/lib/ai";
 import { apiLogger } from "@/lib/logger";
 import { handleError, Errors } from "@/lib/errors";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 
 export async function POST(
   request: Request,
@@ -37,25 +37,26 @@ export async function POST(
   }
 
   try {
-    const taskService = getTaskService();
+    // Prepare brainstorm result in the format expected by use case
+    const brainstormResult = {
+      summary: conversation.currentPreview
+        ? JSON.stringify(conversation.currentPreview)
+        : "No summary available",
+      conversation: conversation.messages || [],
+      messageCount: conversation.messages?.length || 0,
+      compactedAt: null,
+    };
 
-    const params: {
-      brainstormResult?: string | null;
-      brainstormConversation?: string | null;
-    } = {};
+    // Save via use case
+    const useCase = UseCaseFactory.saveBrainstormResult();
+    const result = await useCase.execute({
+      taskId,
+      result: brainstormResult,
+    });
 
-    if (conversation.currentPreview) {
-      params.brainstormResult = JSON.stringify(
-        conversation.currentPreview,
-        null,
-        2,
-      );
+    if (result.isFailure) {
+      return handleError(result.error);
     }
-    if (conversation.messages.length > 0) {
-      params.brainstormConversation = JSON.stringify(conversation.messages);
-    }
-
-    await taskService.saveBrainstormResult(taskId, params);
 
     // Keep conversation in memory (don't delete)
     // This allows continuing the conversation if user reopens

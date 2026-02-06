@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getConversation, deleteConversation } from "@/lib/ai";
 import { withTask } from "@/lib/api";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { apiLogger } from "@/lib/logger";
 
 export const POST = withTask(async (request, { taskId }) => {
@@ -15,19 +15,45 @@ export const POST = withTask(async (request, { taskId }) => {
   }
 
   try {
-    const taskService = getTaskService();
+    // Save final brainstorm result
+    const saveBrainstormUseCase = UseCaseFactory.saveBrainstormResult();
+    const brainstormResult = {
+      summary: JSON.stringify(conversation.currentPreview, null, 2),
+      conversation: [],
+      messageCount: 0,
+      compactedAt: null,
+    };
 
-    // Save final brainstorm result and clear conversation
-    await taskService.updateFields(taskId, {
-      brainstormResult: JSON.stringify(conversation.currentPreview, null, 2),
-      brainstormConversation: null,
+    await saveBrainstormUseCase.execute({
+      taskId,
+      result: brainstormResult,
     });
+
+    // Transition to planning phase
+    const finalizeUseCase = UseCaseFactory.finalizeBrainstorm();
+    const result = await finalizeUseCase.execute({ taskId });
+
+    if (result.isFailure) {
+      apiLogger.error(
+        { taskId, error: result.error },
+        "Finalize brainstorm failed",
+      );
+      return NextResponse.json(
+        { error: "Failed to finalize brainstorm. Please try again." },
+        { status: 500 },
+      );
+    }
 
     // Delete conversation from memory
     deleteConversation(taskId);
 
-    const updatedTask = await taskService.getTaskFull(taskId);
-    return NextResponse.json(updatedTask);
+    // Fetch updated task
+    const getTaskUseCase = UseCaseFactory.getTaskWithRepo();
+    const taskResult = await getTaskUseCase.execute({ taskId });
+
+    return NextResponse.json(
+      taskResult.isSuccess ? taskResult.value : result.value,
+    );
   } catch (error) {
     apiLogger.error({ taskId, error }, "Brainstorm finalize error");
     return NextResponse.json(
