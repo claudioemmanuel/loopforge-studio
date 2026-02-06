@@ -279,6 +279,13 @@ export class ActivityRepository {
   }
 
   /**
+   * Delete all activities for a user (account deletion)
+   */
+  async deleteByUserId(userId: string): Promise<void> {
+    await db.delete(activityEvents).where(eq(activityEvents.userId, userId));
+  }
+
+  /**
    * Get activity metrics
    */
   async getMetrics(

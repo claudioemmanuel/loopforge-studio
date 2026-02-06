@@ -17,6 +17,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, inArray, gte, lte, sql, desc } from "drizzle-orm";
 import { eachDayOfInterval, format } from "date-fns";
+import { ActivityRepository } from "../infrastructure/activity-repository";
 
 export interface DateRange {
   start: Date;
@@ -37,11 +38,10 @@ export interface RecordActivityEventParams {
 }
 
 export class AnalyticsService {
-  // Kept for future event-bus wiring.
-  private _redis: Redis;
+  private activityRepository: ActivityRepository;
 
   constructor(redis: Redis) {
-    this._redis = redis;
+    this.activityRepository = new ActivityRepository(redis);
   }
 
   // =========================================================================
@@ -49,16 +49,16 @@ export class AnalyticsService {
   // =========================================================================
 
   async recordActivityEvent(params: RecordActivityEventParams): Promise<void> {
-    await db.insert(activityEvents).values({
-      taskId: params.taskId ?? null,
-      repoId: params.repoId ?? null,
+    await this.activityRepository.recordActivity({
+      taskId: params.taskId,
+      repoId: params.repoId,
       userId: params.userId,
-      executionId: params.executionId ?? null,
+      executionId: params.executionId,
       eventType: params.eventType,
       eventCategory: params.eventCategory,
       title: params.title,
-      content: params.content ?? null,
-      metadata: params.metadata ?? null,
+      content: params.content,
+      metadata: params.metadata,
     });
   }
 
@@ -592,7 +592,7 @@ export class AnalyticsService {
 
   /** Delete all activity events for a user (account deletion). */
   async deleteUserActivities(userId: string): Promise<void> {
-    await db.delete(activityEvents).where(eq(activityEvents.userId, userId));
+    await this.activityRepository.deleteByUserId(userId);
   }
 
   // =========================================================================
