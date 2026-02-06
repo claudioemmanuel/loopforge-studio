@@ -14,11 +14,19 @@ import type {
 } from "./value-objects";
 import { canTransitionTo as canStatusTransitionTo } from "./value-objects";
 import type {
+  DomainEvent,
   TaskCreated,
   BrainstormingStarted,
   BrainstormingCompleted,
+  PlanningCompleted,
   ExecutionClaimed,
+  ExecutionStarted,
+  ExecutionCompleted,
+  ExecutionFailed,
+  TaskStuck,
   TaskStatusChanged,
+  TaskFieldsUpdated,
+  TaskPriorityChanged,
 } from "./events";
 
 /**
@@ -247,6 +255,69 @@ export class Task {
   }
 
   /**
+   * Save execution plan
+   */
+  savePlan(plan: string): [Task, PlanningCompleted] {
+    const now = new Date();
+
+    const newState: TaskState = {
+      ...this.state,
+      planContent: plan,
+      updatedAt: now,
+    };
+
+    const event: PlanningCompleted = {
+      type: "PlanningCompleted",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: { planLength: plan.length },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Update task metadata fields
+   */
+  updateFields(fields: {
+    title?: string;
+    description?: string;
+    priority?: number;
+  }): [Task, TaskFieldsUpdated | null] {
+    const now = new Date();
+    const hasChanges =
+      fields.title !== undefined ||
+      fields.description !== undefined ||
+      fields.priority !== undefined;
+
+    if (!hasChanges) {
+      return [this, null];
+    }
+
+    const newState: TaskState = {
+      ...this.state,
+      metadata: {
+        ...this.state.metadata,
+        ...(fields.title !== undefined && { title: fields.title }),
+        ...(fields.description !== undefined && {
+          description: fields.description,
+        }),
+        ...(fields.priority !== undefined && { priority: fields.priority }),
+      },
+      updatedAt: now,
+    };
+
+    const event: TaskFieldsUpdated = {
+      type: "TaskFieldsUpdated",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: { fields },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
    * Change task status
    */
   changeStatus(
@@ -285,6 +356,253 @@ export class Task {
         oldStatus: this.state.status,
         newStatus,
       },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Mark task as running
+   */
+  markAsRunning(executionId: string): [Task, ExecutionStarted] {
+    const now = new Date();
+
+    const newState: TaskState = {
+      ...this.state,
+      status: "executing",
+      processingPhase: "executing",
+      statusHistory: [
+        ...this.state.statusHistory,
+        { status: "executing", timestamp: now },
+      ],
+      updatedAt: now,
+    };
+
+    const event: ExecutionStarted = {
+      type: "ExecutionStarted",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: { workerId: executionId },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Mark task as completed with execution result
+   */
+  markAsCompleted(result: ExecutionResult): [Task, ExecutionCompleted] {
+    const now = new Date();
+
+    const newState: TaskState = {
+      ...this.state,
+      status: "done",
+      processingPhase: null,
+      executionResult: result,
+      statusHistory: [
+        ...this.state.statusHistory,
+        { status: "done", timestamp: now },
+      ],
+      updatedAt: now,
+    };
+
+    const event: ExecutionCompleted = {
+      type: "ExecutionCompleted",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: {
+        prUrl: result.prUrl,
+      },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Mark task as failed
+   */
+  markAsFailed(error: string): [Task, ExecutionFailed] {
+    const now = new Date();
+
+    const newState: TaskState = {
+      ...this.state,
+      status: "ready",
+      processingPhase: null,
+      statusHistory: [
+        ...this.state.statusHistory,
+        { status: "ready", timestamp: now },
+      ],
+      updatedAt: now,
+    };
+
+    const event: ExecutionFailed = {
+      type: "ExecutionFailed",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: { error },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Mark task as stuck
+   */
+  markAsStuck(reason: string): [Task, TaskStuck] {
+    const now = new Date();
+
+    const newState: TaskState = {
+      ...this.state,
+      status: "stuck",
+      processingPhase: null,
+      statusHistory: [
+        ...this.state.statusHistory,
+        { status: "stuck", timestamp: now },
+      ],
+      updatedAt: now,
+    };
+
+    const event: TaskStuck = {
+      type: "TaskStuck",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: { reason },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Set autonomous mode
+   */
+  setAutonomousMode(enabled: boolean): [Task, DomainEvent | null] {
+    if (this.state.configuration.autonomousMode === enabled) {
+      return [this, null];
+    }
+
+    const now = new Date();
+    const newState: TaskState = {
+      ...this.state,
+      configuration: {
+        ...this.state.configuration,
+        autonomousMode: enabled,
+      },
+      updatedAt: now,
+    };
+
+    const event = {
+      type: "TaskConfigurationUpdated" as const,
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: { autonomousMode: enabled },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Update priority
+   */
+  updatePriority(priority: number): [Task, TaskPriorityChanged | null] {
+    if (this.state.metadata.priority === priority) {
+      return [this, null];
+    }
+
+    const now = new Date();
+    const oldPriority = this.state.metadata.priority;
+
+    const newState: TaskState = {
+      ...this.state,
+      metadata: {
+        ...this.state.metadata,
+        priority,
+      },
+      updatedAt: now,
+    };
+
+    const event: TaskPriorityChanged = {
+      type: "TaskPriorityChanged",
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: { oldPriority, newPriority: priority },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Update configuration
+   */
+  updateConfiguration(
+    config: Partial<TaskConfiguration>,
+  ): [Task, DomainEvent | null] {
+    const now = new Date();
+    const newState: TaskState = {
+      ...this.state,
+      configuration: {
+        ...this.state.configuration,
+        ...config,
+      },
+      updatedAt: now,
+    };
+
+    const event = {
+      type: "TaskConfigurationUpdated" as const,
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: config,
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Add dependency
+   */
+  addDependency(dependsOnId: string): [Task, DomainEvent | null] {
+    // Check if dependency already exists
+    if (this.state.blockedByIds.includes(dependsOnId)) {
+      return [this, null];
+    }
+
+    const now = new Date();
+    const newState: TaskState = {
+      ...this.state,
+      blockedByIds: [...this.state.blockedByIds, dependsOnId],
+      updatedAt: now,
+    };
+
+    const event = {
+      type: "TaskDependencyAdded" as const,
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: { dependsOnId },
+    };
+
+    return [new Task(newState), event];
+  }
+
+  /**
+   * Remove dependency
+   */
+  removeDependency(dependsOnId: string): [Task, DomainEvent | null] {
+    // Check if dependency exists
+    if (!this.state.blockedByIds.includes(dependsOnId)) {
+      return [this, null];
+    }
+
+    const now = new Date();
+    const newState: TaskState = {
+      ...this.state,
+      blockedByIds: this.state.blockedByIds.filter((id) => id !== dependsOnId),
+      updatedAt: now,
+    };
+
+    const event = {
+      type: "TaskDependencyRemoved" as const,
+      aggregateId: this.state.id,
+      occurredAt: now,
+      data: { dependsOnId },
     };
 
     return [new Task(newState), event];

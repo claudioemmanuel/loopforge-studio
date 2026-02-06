@@ -9,7 +9,12 @@ import { db } from "@/lib/db";
 import { tasks, repos } from "@/lib/db/schema/tables";
 import { eq, and, inArray } from "drizzle-orm";
 import type { ITaskRepository } from "../../use-cases/ports/ITaskRepository";
-import { Task, type TaskState } from "../../entities/Task";
+import {
+  Task,
+  type TaskState,
+  type StatusHistoryEntry,
+} from "../../entities/Task";
+import type { TaskStatus, ProcessingPhase } from "../../entities/value-objects";
 import { Result } from "@/lib/shared/Result";
 import { RepositoryError } from "@/lib/shared/errors";
 
@@ -182,43 +187,43 @@ export class TaskRepository implements ITaskRepository {
    */
   private toDomain(row: Record<string, unknown>): Task {
     const state: TaskState = {
-      id: row.id,
-      repositoryId: row.repoId,
+      id: row.id as string,
+      repositoryId: row.repoId as string,
       metadata: {
-        title: row.title,
-        description: row.description ?? "",
-        priority: row.priority,
+        title: row.title as string,
+        description: (row.description as string) ?? "",
+        priority: row.priority as number,
       },
-      status: row.status,
-      processingPhase: row.processingPhase,
+      status: row.status as TaskStatus,
+      processingPhase: row.processingPhase as ProcessingPhase | null,
       brainstormResult: row.brainstormSummary
         ? {
-            summary: row.brainstormSummary,
+            summary: row.brainstormSummary as string,
             conversation: row.brainstormConversation
-              ? JSON.parse(row.brainstormConversation)
+              ? JSON.parse(row.brainstormConversation as string)
               : [],
-            messageCount: row.brainstormMessageCount ?? 0,
-            compactedAt: row.brainstormCompactedAt,
+            messageCount: (row.brainstormMessageCount as number) ?? 0,
+            compactedAt: row.brainstormCompactedAt as Date | null,
           }
         : null,
-      planContent: row.planContent,
+      planContent: row.planContent as string | null,
       executionResult: row.branch
         ? {
-            branchName: row.branch,
-            prUrl: row.prUrl,
-            prNumber: row.prNumber,
-            prTargetBranch: row.prTargetBranch,
-            prDraft: row.prDraft,
+            branchName: row.branch as string,
+            prUrl: (row.prUrl as string | null) ?? null,
+            prNumber: (row.prNumber as number | null) ?? null,
+            prTargetBranch: (row.prTargetBranch as string | null) ?? null,
+            prDraft: (row.prDraft as boolean | null) ?? null,
           }
         : null,
       configuration: {
-        autonomousMode: row.autonomousMode,
-        autoApprove: row.autoApprove,
+        autonomousMode: row.autonomousMode as boolean,
+        autoApprove: row.autoApprove as boolean,
       },
-      blockedByIds: row.blockedByIds ?? [],
-      statusHistory: row.statusHistory ?? [],
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
+      blockedByIds: (row.blockedByIds as string[]) ?? [],
+      statusHistory: (row.statusHistory as StatusHistoryEntry[]) ?? [],
+      createdAt: row.createdAt as Date,
+      updatedAt: row.updatedAt as Date,
     };
 
     return Task.reconstitute(state);

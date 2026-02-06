@@ -30,6 +30,17 @@ export interface TaskStatusChanged extends DomainEvent {
   };
 }
 
+export interface TaskFieldsUpdated extends DomainEvent {
+  type: "TaskFieldsUpdated";
+  data: {
+    fields: {
+      title?: string;
+      description?: string;
+      priority?: number;
+    };
+  };
+}
+
 export interface BrainstormingStarted extends DomainEvent {
   type: "BrainstormingStarted";
   data: {
@@ -108,6 +119,7 @@ export interface ExecutionClaimed extends DomainEvent {
 export type TaskDomainEvent =
   | TaskCreated
   | TaskStatusChanged
+  | TaskFieldsUpdated
   | BrainstormingStarted
   | BrainstormingCompleted
   | PlanningStarted
