@@ -169,7 +169,7 @@ services:
     container_name: loopforge-bull-board-dev
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "3002:3000" # Changed to 3002 to avoid conflict with worker's 3001
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
