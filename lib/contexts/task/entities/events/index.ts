@@ -1,116 +1,107 @@
 import type { TaskStatus } from "../value-objects";
-
-/**
- * Base domain event interface
- */
-export interface DomainEvent {
-  type: string;
-  aggregateId: string;
-  occurredAt: Date;
-  data: Record<string, unknown>;
-}
+import type { DomainEvent } from "@/lib/contexts/domain-events";
 
 /**
  * Task lifecycle events
  */
 
-export interface TaskCreated extends DomainEvent {
-  type: "TaskCreated";
-  data: {
-    repoId: string;
-    title: string;
-  };
+export interface TaskCreated extends DomainEvent<{
+  repoId: string;
+  title: string;
+}> {
+  eventType: "TaskCreated";
+  aggregateType: "Task";
 }
 
-export interface TaskStatusChanged extends DomainEvent {
-  type: "TaskStatusChanged";
-  data: {
-    oldStatus: TaskStatus;
-    newStatus: TaskStatus;
-  };
+export interface TaskStatusChanged extends DomainEvent<{
+  oldStatus: TaskStatus;
+  newStatus: TaskStatus;
+}> {
+  eventType: "TaskStatusChanged";
+  aggregateType: "Task";
 }
 
-export interface TaskFieldsUpdated extends DomainEvent {
-  type: "TaskFieldsUpdated";
-  data: {
-    fields: {
-      title?: string;
-      description?: string;
-      priority?: number;
-    };
+export interface TaskFieldsUpdated extends DomainEvent<{
+  fields: {
+    title?: string;
+    description?: string;
+    priority?: number;
   };
+}> {
+  eventType: "TaskFieldsUpdated";
+  aggregateType: "Task";
 }
 
-export interface BrainstormingStarted extends DomainEvent {
-  type: "BrainstormingStarted";
-  data: {
-    workerId: string;
-  };
+export interface BrainstormingStarted extends DomainEvent<{
+  workerId: string;
+}> {
+  eventType: "BrainstormingStarted";
+  aggregateType: "Task";
 }
 
-export interface BrainstormingCompleted extends DomainEvent {
-  type: "BrainstormingCompleted";
-  data: {
-    summary: string;
-  };
+export interface BrainstormingCompleted extends DomainEvent<{
+  summary: string;
+}> {
+  eventType: "BrainstormingCompleted";
+  aggregateType: "Task";
 }
 
-export interface PlanningStarted extends DomainEvent {
-  type: "PlanningStarted";
-  data: {
-    workerId: string;
-  };
+export interface PlanningStarted extends DomainEvent<{
+  workerId: string;
+}> {
+  eventType: "PlanningStarted";
+  aggregateType: "Task";
 }
 
-export interface PlanningCompleted extends DomainEvent {
-  type: "PlanningCompleted";
-  data: {
-    planLength: number;
-  };
+export interface PlanningCompleted extends DomainEvent<{
+  planLength: number;
+}> {
+  eventType: "PlanningCompleted";
+  aggregateType: "Task";
 }
 
-export interface ExecutionStarted extends DomainEvent {
-  type: "ExecutionStarted";
-  data: {
-    workerId: string;
-  };
+export interface ExecutionStarted extends DomainEvent<{
+  workerId: string;
+}> {
+  eventType: "ExecutionStarted";
+  aggregateType: "Task";
 }
 
-export interface ExecutionCompleted extends DomainEvent {
-  type: "ExecutionCompleted";
-  data: {
-    commitSha?: string;
-    prUrl?: string;
-  };
+export interface ExecutionCompleted extends DomainEvent<{
+  commitSha?: string;
+  prUrl?: string;
+}> {
+  eventType: "ExecutionCompleted";
+  aggregateType: "Task";
 }
 
-export interface ExecutionFailed extends DomainEvent {
-  type: "ExecutionFailed";
-  data: {
-    error: string;
-  };
+export interface ExecutionFailed extends DomainEvent<{
+  error: string;
+}> {
+  eventType: "ExecutionFailed";
+  aggregateType: "Task";
 }
 
-export interface TaskStuck extends DomainEvent {
-  type: "TaskStuck";
-  data: {
-    reason: string;
-  };
+export interface TaskStuck extends DomainEvent<{
+  reason: string;
+}> {
+  eventType: "TaskStuck";
+  aggregateType: "Task";
 }
 
-export interface TaskPriorityChanged extends DomainEvent {
-  type: "TaskPriorityChanged";
-  data: {
-    oldPriority: number;
-    newPriority: number;
-  };
+export interface TaskPriorityChanged extends DomainEvent<{
+  oldPriority: number;
+  newPriority: number;
+}> {
+  eventType: "TaskPriorityChanged";
+  aggregateType: "Task";
 }
 
-export interface ExecutionClaimed extends DomainEvent {
-  type: "ExecutionClaimed";
-  data: {
-    workerId: string;
-  };
+export interface ExecutionClaimed extends DomainEvent<{
+  workerId: string;
+}> {
+  eventType: "ExecutionClaimed";
+  aggregateType: "Task";
 }
 
 /**

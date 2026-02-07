@@ -14,7 +14,6 @@ import type {
 } from "./value-objects";
 import { canTransitionTo as canStatusTransitionTo } from "./value-objects";
 import type {
-  DomainEvent,
   TaskCreated,
   BrainstormingStarted,
   BrainstormingCompleted,
@@ -120,8 +119,10 @@ export class Task {
 
     const task = new Task(state);
     const event: TaskCreated = {
-      type: "TaskCreated",
+      id: crypto.randomUUID(),
+      eventType: "TaskCreated",
       aggregateId: params.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { repoId: params.repoId, title: params.title },
     };
@@ -160,8 +161,10 @@ export class Task {
     };
 
     const event: BrainstormingStarted = {
-      type: "BrainstormingStarted",
+      id: crypto.randomUUID(),
+      eventType: "BrainstormingStarted",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { workerId },
     };
@@ -196,8 +199,10 @@ export class Task {
     };
 
     const event: BrainstormingCompleted = {
-      type: "BrainstormingCompleted",
+      id: crypto.randomUUID(),
+      eventType: "BrainstormingCompleted",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { summary: result.summary },
     };
@@ -245,8 +250,10 @@ export class Task {
     };
 
     const event: ExecutionClaimed = {
-      type: "ExecutionClaimed",
+      id: crypto.randomUUID(),
+      eventType: "ExecutionClaimed",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { workerId },
     };
@@ -267,8 +274,10 @@ export class Task {
     };
 
     const event: PlanningCompleted = {
-      type: "PlanningCompleted",
+      id: crypto.randomUUID(),
+      eventType: "PlanningCompleted",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { planLength: plan.length },
     };
@@ -308,8 +317,10 @@ export class Task {
     };
 
     const event: TaskFieldsUpdated = {
-      type: "TaskFieldsUpdated",
+      id: crypto.randomUUID(),
+      eventType: "TaskFieldsUpdated",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { fields },
     };
@@ -349,8 +360,10 @@ export class Task {
     };
 
     const event: TaskStatusChanged = {
-      type: "TaskStatusChanged",
+      id: crypto.randomUUID(),
+      eventType: "TaskStatusChanged",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: {
         oldStatus: this.state.status,
@@ -379,8 +392,10 @@ export class Task {
     };
 
     const event: ExecutionStarted = {
-      type: "ExecutionStarted",
+      id: crypto.randomUUID(),
+      eventType: "ExecutionStarted",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { workerId: executionId },
     };
@@ -407,8 +422,10 @@ export class Task {
     };
 
     const event: ExecutionCompleted = {
-      type: "ExecutionCompleted",
+      id: crypto.randomUUID(),
+      eventType: "ExecutionCompleted",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: {
         prUrl: result.prUrl ?? undefined,
@@ -436,8 +453,10 @@ export class Task {
     };
 
     const event: ExecutionFailed = {
-      type: "ExecutionFailed",
+      id: crypto.randomUUID(),
+      eventType: "ExecutionFailed",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { error },
     };
@@ -463,8 +482,10 @@ export class Task {
     };
 
     const event: TaskStuck = {
-      type: "TaskStuck",
+      id: crypto.randomUUID(),
+      eventType: "TaskStuck",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { reason },
     };
@@ -491,8 +512,10 @@ export class Task {
     };
 
     const event = {
-      type: "TaskConfigurationUpdated" as const,
+      id: crypto.randomUUID(),
+      eventType: "TaskConfigurationUpdated" as const,
       aggregateId: this.state.id,
+      aggregateType: "Task" as const,
       occurredAt: now,
       data: { autonomousMode: enabled },
     };
@@ -521,8 +544,10 @@ export class Task {
     };
 
     const event: TaskPriorityChanged = {
-      type: "TaskPriorityChanged",
+      id: crypto.randomUUID(),
+      eventType: "TaskPriorityChanged",
       aggregateId: this.state.id,
+      aggregateType: "Task",
       occurredAt: now,
       data: { oldPriority, newPriority: priority },
     };
@@ -547,8 +572,10 @@ export class Task {
     };
 
     const event = {
-      type: "TaskConfigurationUpdated" as const,
+      id: crypto.randomUUID(),
+      eventType: "TaskConfigurationUpdated" as const,
       aggregateId: this.state.id,
+      aggregateType: "Task" as const,
       occurredAt: now,
       data: config,
     };
@@ -573,8 +600,10 @@ export class Task {
     };
 
     const event = {
-      type: "TaskDependencyAdded" as const,
+      id: crypto.randomUUID(),
+      eventType: "TaskDependencyAdded" as const,
       aggregateId: this.state.id,
+      aggregateType: "Task" as const,
       occurredAt: now,
       data: { dependsOnId },
     };
@@ -599,8 +628,10 @@ export class Task {
     };
 
     const event = {
-      type: "TaskDependencyRemoved" as const,
+      id: crypto.randomUUID(),
+      eventType: "TaskDependencyRemoved" as const,
       aggregateId: this.state.id,
+      aggregateType: "Task" as const,
       occurredAt: now,
       data: { dependsOnId },
     };

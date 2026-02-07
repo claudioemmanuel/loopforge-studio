@@ -7,8 +7,10 @@
 
 /**
  * Base domain event interface that all events must implement
+ *
+ * @template TData - Type of the event payload data (defaults to Record<string, unknown>)
  */
-export interface DomainEvent {
+export interface DomainEvent<TData = Record<string, unknown>> {
   /** Unique identifier for this event instance */
   id: string;
 
@@ -25,7 +27,7 @@ export interface DomainEvent {
   occurredAt: Date;
 
   /** Event payload data */
-  data: Record<string, unknown>;
+  data: TData;
 
   /** Optional metadata (correlation IDs, causation IDs, etc.) */
   metadata?: EventMetadata;
@@ -114,8 +116,12 @@ export interface IEventSubscriber {
 
 /**
  * Persisted event record (for event store)
+ *
+ * @template TData - Type of the event payload data
  */
-export interface PersistedEvent extends DomainEvent {
+export interface PersistedEvent<
+  TData = Record<string, unknown>,
+> extends DomainEvent<TData> {
   /** Database record ID */
   recordId: string;
 
