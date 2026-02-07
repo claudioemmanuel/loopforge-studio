@@ -15,6 +15,7 @@ import { handleError, Errors } from "@/lib/errors";
 import { queueAutonomousFlow } from "@/lib/queue";
 import { scanRepoViaGitHub, getTestCoverageContext } from "@/lib/github";
 import { apiLogger } from "@/lib/logger";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { getTaskService } from "@/lib/contexts/task/api";
 import { getUserService } from "@/lib/contexts/iam/api";
 
@@ -52,14 +53,13 @@ export async function POST(
     );
 
     // ATOMIC: Claim the processing slot first to prevent race conditions
-    const claimed = await taskService.claimProcessingSlot(
+    const claimUseCase = UseCaseFactory.claimBrainstormingSlot();
+    const claimResult = await claimUseCase.execute({
       taskId,
-      "brainstorming",
-      "Starting autonomous flow...",
-      "brainstorming",
-    );
+      workerId: "Starting autonomous flow...",
+    });
 
-    if (!claimed) {
+    if (claimResult.isFailure) {
       return handleError(Errors.conflict("Task is already processing"));
     }
 
@@ -71,15 +71,31 @@ export async function POST(
         repoId: task.repo.id,
       });
 
-      // Record the job ID
+      // Record the job ID via use-case
+      const updateConversationUseCase =
+        UseCaseFactory.updateBrainstormConversation();
+      await updateConversationUseCase.execute({
+        taskId,
+        conversation: "[]", // Empty conversation for autonomous mode
+      });
+
+      // Store job ID via raw persistence (not part of brainstorm conversation)
       await taskService.updateFields(taskId, { processingJobId: job.id });
 
-      return NextResponse.json(claimed);
+      return NextResponse.json(claimResult.value);
     } catch (error) {
       // If queuing failed after claiming, reset the processing state
-      await taskService.clearProcessingSlot(taskId, {
-        status: task.status,
-        processingJobId: null,
+      const clearUseCase = UseCaseFactory.clearProcessingSlot();
+      await clearUseCase.execute({
+        taskId,
+        status: task.status as
+          | "todo"
+          | "brainstorming"
+          | "planning"
+          | "executing"
+          | "review"
+          | "done"
+          | "blocked",
       });
 
       apiLogger.error({ taskId, error }, "Failed to queue autonomous flow");
@@ -177,14 +193,13 @@ export async function POST(
     }
 
     // ATOMIC: Claim the processing slot first to prevent concurrent brainstorms
-    const claimed = await taskService.claimProcessingSlot(
+    const claimUseCase = UseCaseFactory.claimBrainstormingSlot();
+    const claimResult = await claimUseCase.execute({
       taskId,
-      "brainstorming",
-      "Generating initial brainstorm...",
-      "brainstorming",
-    );
+      workerId: "Generating initial brainstorm...",
+    });
 
-    if (!claimed) {
+    if (claimResult.isFailure) {
       return handleError(Errors.conflict("Task is already processing"));
     }
 
@@ -202,13 +217,35 @@ export async function POST(
     );
     apiLogger.debug({ taskId }, "Brainstorm generated successfully");
 
-    // Save result and clear processing state
-    await taskService.clearProcessingSlot(taskId, {
-      brainstormResult: JSON.stringify(brainstormResult),
+    // Save result and clear processing state via use-case
+    const updateConversationUseCase =
+      UseCaseFactory.updateBrainstormConversation();
+    const updateResult = await updateConversationUseCase.execute({
+      taskId,
+      conversation: "[]", // Empty conversation for initial generate
+      result: JSON.stringify(brainstormResult),
+    });
+
+    if (updateResult.isFailure) {
+      return handleError(updateResult.error);
+    }
+
+    // Clear processing slot and transition to brainstorming status
+    const clearUseCase = UseCaseFactory.clearProcessingSlot();
+    await clearUseCase.execute({
+      taskId,
       status: "brainstorming",
     });
 
-    const updatedTask = await taskService.getTaskFull(taskId);
+    // Get updated task
+    const getTaskUseCase = UseCaseFactory.getTaskWithRepo();
+    const taskResult = await getTaskUseCase.execute({ taskId });
+    const updatedTask = taskResult.isSuccess ? taskResult.value : null;
+
+    if (!updatedTask) {
+      return handleError(Errors.notFound("Task"));
+    }
+
     apiLogger.debug({ taskId }, "Task updated successfully");
 
     return NextResponse.json(updatedTask);
@@ -216,7 +253,18 @@ export async function POST(
     apiLogger.error({ taskId, error }, "Brainstorm generate error");
 
     // Clear processing state on error to allow retry
-    await taskService.clearProcessingSlot(taskId, { status: task.status });
+    const clearUseCase = UseCaseFactory.clearProcessingSlot();
+    await clearUseCase.execute({
+      taskId,
+      status: task.status as
+        | "todo"
+        | "brainstorming"
+        | "planning"
+        | "executing"
+        | "review"
+        | "done"
+        | "blocked",
+    });
 
     return handleError(error);
   }
