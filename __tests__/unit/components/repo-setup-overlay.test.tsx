@@ -65,17 +65,13 @@ describe("RepoSetupOverlay", () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/api/settings/clone-directory")) {
-        return {
-          ok: true,
-          json: async () => ({ cloneDirectory: "/tmp/loopforge" }),
-        };
+        return new Response(
+          JSON.stringify({ cloneDirectory: "/tmp/loopforge" }),
+        );
       }
 
-      return {
-        ok: true,
-        json: async () => ({}),
-      };
-    });
+      return new Response(JSON.stringify({}));
+    }) as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -106,21 +102,13 @@ describe("RepoSetupOverlay", () => {
       (input: RequestInfo | URL) => {
         const url = String(input);
         if (url.includes("/api/settings/clone-directory")) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ cloneDirectory: "/tmp/loopforge" }),
-          });
+          return Promise.resolve(
+            new Response(JSON.stringify({ cloneDirectory: "/tmp/loopforge" })),
+          );
         }
 
         return new Promise((resolve) => {
-          setTimeout(
-            () =>
-              resolve({
-                ok: true,
-                json: () => Promise.resolve({}),
-              }),
-            500,
-          );
+          setTimeout(() => resolve(new Response(JSON.stringify({}))), 500);
         });
       },
     );
@@ -143,16 +131,14 @@ describe("RepoSetupOverlay", () => {
       async (input: RequestInfo | URL) => {
         const url = String(input);
         if (url.includes("/api/settings/clone-directory")) {
-          return {
-            ok: true,
-            json: async () => ({ cloneDirectory: "/tmp/loopforge" }),
-          };
+          return new Response(
+            JSON.stringify({ cloneDirectory: "/tmp/loopforge" }),
+          );
         }
 
-        return {
-          ok: false,
-          json: async () => ({ error: "Clone failed" }),
-        };
+        return new Response(JSON.stringify({ error: "Clone failed" }), {
+          status: 500,
+        });
       },
     );
 

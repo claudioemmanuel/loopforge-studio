@@ -79,13 +79,8 @@ export class ExecutionPersistenceAdapter {
       where: eq(executionEvents.executionId, executionId),
       orderBy: (e, { asc }) => [asc(e.createdAt)],
     });
-    return rows.map((e) => ({
-      id: e.id,
-      type: e.eventType,
-      content: e.content,
-      timestamp: e.createdAt,
-      metadata: e.metadata,
-    }));
+    // Return full database records to match ExecutionEvent schema type
+    return rows;
   }
 
   /** Create an execution record. */
@@ -149,8 +144,9 @@ export class ExecutionPersistenceAdapter {
   /** Mark execution as stuck. */
   async markStuck(executionId: string, signals?: unknown[]): Promise<void> {
     const updates: Partial<typeof executions.$inferInsert> = {
-      status: "stuck",
+      status: "failed",
       completedAt: new Date(),
+      errorMessage: "Execution stuck - manual intervention required",
     };
     if (signals) updates.stuckSignals = signals;
 

@@ -209,35 +209,60 @@ Your API key is encrypted at rest and never logged.
 
 ## Development
 
-### Running Locally (Without Docker)
+### Hybrid Development Mode (Recommended)
+
+Run infrastructure in Docker while running the web server locally for fast hot-reload:
 
 ```bash
 # Install dependencies
 npm install
 
-# Start PostgreSQL and Redis (required)
-docker compose up -d postgres redis
+# Copy environment template (first time only)
+cp .env.local.example .env.local
+# Edit .env.local and add your secrets
 
-# Start development server (automatically runs migrations)
+# Start infrastructure (postgres, redis, worker, bull-board)
+npm run docker:infra
+
+# In another terminal, start the web server locally
 npm run dev
 
-# In a separate terminal, start the background worker
-npm run worker
+# Access:
+# - Web UI: http://localhost:3000
+# - Bull Board: http://localhost:3002
+# - Worker Health: http://localhost:3001/health
 ```
 
-**Note:** Database migrations are now automatically checked and applied before starting the dev server. If you need to skip this check (e.g., for faster iteration), use `npm run dev:skip-migrate`.
+To stop infrastructure:
+
+```bash
+npm run docker:infra:down
+```
+
+### Full Docker Mode
+
+Run everything in Docker (use for testing production-like environment):
+
+```bash
+npm run docker:full
+```
 
 ### Available Scripts
 
-| Script                     | Description                              |
-| -------------------------- | ---------------------------------------- |
-| `npm run dev`              | Start dev server (auto-runs migrations)  |
-| `npm run dev:skip-migrate` | Start dev server without migration check |
-| `npm run build`            | Build for production                     |
-| `npm run worker`           | Start background job worker              |
-| `npm run test`             | Run tests in watch mode                  |
-| `npm run test:run`         | Run tests once                           |
-| `npm run lint`             | Run ESLint                               |
+| Script                      | Description                                      |
+| --------------------------- | ------------------------------------------------ |
+| `npm run dev:setup`         | Start infrastructure + dev server in one command |
+| `npm run docker:infra`      | Start only infrastructure (postgres, redis, etc) |
+| `npm run docker:infra:logs` | View logs from infrastructure containers         |
+| `npm run docker:infra:down` | Stop infrastructure containers                   |
+| `npm run docker:full`       | Start all services in Docker (full mode)         |
+| `npm run dev`               | Start dev server (auto-runs migrations)          |
+| `npm run dev:skip-migrate`  | Start dev server without migration check         |
+| `npm run build`             | Build for production                             |
+| `npm run worker`            | Start background job worker locally              |
+| `npm run test`              | Run tests in watch mode                          |
+| `npm run test:run`          | Run tests once                                   |
+| `npm run lint`              | Run ESLint                                       |
 
 ### Database Commands
 

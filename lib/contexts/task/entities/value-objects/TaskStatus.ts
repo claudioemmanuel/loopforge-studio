@@ -7,6 +7,7 @@ export type TaskStatus =
   | "planning"
   | "ready"
   | "executing"
+  | "review"
   | "done"
   | "stuck";
 
@@ -17,6 +18,7 @@ export function isValidTaskStatus(value: string): value is TaskStatus {
     "planning",
     "ready",
     "executing",
+    "review",
     "done",
     "stuck",
   ].includes(value);
@@ -37,7 +39,8 @@ export const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   brainstorming: ["planning", "todo"],
   planning: ["ready", "todo"],
   ready: ["executing", "todo"],
-  executing: ["done", "stuck", "ready"],
+  executing: ["review", "done", "stuck", "ready"],
+  review: ["done", "executing"],
   done: [],
   stuck: ["todo", "ready"],
 };

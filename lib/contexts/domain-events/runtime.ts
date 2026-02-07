@@ -90,7 +90,7 @@ export async function startDomainEventRuntime(
     return;
   }
 
-  const { getRedis } = await import("@/lib/queue");
+  const { getRedis } = await import("@/lib/queue/connection");
   const redis = getRedis();
   subscriber = EventSubscriber.getInstance(redis);
 

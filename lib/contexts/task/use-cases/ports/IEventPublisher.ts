@@ -1,4 +1,4 @@
-import type { DomainEvent } from "../../entities/events";
+import type { DomainEvent } from "@/lib/contexts/domain-events/types";
 import type { Result } from "@/lib/shared/Result";
 import type { PublisherError } from "@/lib/shared/errors";
 

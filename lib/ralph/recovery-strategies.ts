@@ -446,6 +446,14 @@ export class RecoveryOrchestrator {
   }
 
   /**
+   * Test helper: Set a custom strategy for a specific tier.
+   * Only use in tests.
+   */
+  __test_setStrategy(tier: RecoveryTier, strategy: RecoveryStrategy): void {
+    this.strategies.set(tier, strategy);
+  }
+
+  /**
    * Gets recommended tier based on signals and extraction quality.
    */
   getRecommendedTier(signals: StuckSignal[]): RecoveryTier {

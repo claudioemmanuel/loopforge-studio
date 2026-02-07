@@ -60,11 +60,16 @@ describe("Autonomous Flow", () => {
 
       expect(failureResult.success).toBe(false);
       expect(failureResult.finalStatus).toBe("stuck");
-      expect(failureResult.error).toBe("Failed to generate brainstorm: API rate limited");
+      expect(failureResult.error).toBe(
+        "Failed to generate brainstorm: API rate limited",
+      );
     });
 
     it("should only allow valid final status values", () => {
-      const validStatuses: AutonomousFlowJobResult["finalStatus"][] = ["executing", "stuck"];
+      const validStatuses: AutonomousFlowJobResult["finalStatus"][] = [
+        "executing",
+        "stuck",
+      ];
 
       validStatuses.forEach((status) => {
         const result: AutonomousFlowJobResult = {
@@ -241,7 +246,7 @@ describe("Autonomous Flow", () => {
 
       // Simulate the provider selection logic
       const providers = ["anthropic", "openai", "gemini"] as const;
-      let selectedProvider: typeof providers[number] | null = null;
+      let selectedProvider: (typeof providers)[number] | null = null;
 
       if (user.preferredProvider && user.openaiEncryptedApiKey) {
         selectedProvider = user.preferredProvider;
@@ -252,7 +257,7 @@ describe("Autonomous Flow", () => {
 
     it("should fallback to first configured provider", () => {
       const user = {
-        preferredProvider: null as unknown,
+        preferredProvider: null,
         encryptedApiKey: null,
         apiKeyIv: null,
         openaiEncryptedApiKey: "encrypted-openai",
@@ -262,7 +267,7 @@ describe("Autonomous Flow", () => {
       };
 
       const providers = ["anthropic", "openai", "gemini"] as const;
-      let selectedProvider: typeof providers[number] | null = null;
+      let selectedProvider: (typeof providers)[number] | null = null;
 
       for (const provider of providers) {
         if (provider === "anthropic" && user.encryptedApiKey) {
@@ -291,7 +296,7 @@ describe("Autonomous Flow", () => {
       };
 
       const providers = ["anthropic", "openai", "gemini"] as const;
-      let selectedProvider: typeof providers[number] | null = null;
+      const selectedProvider: (typeof providers)[number] | null = null;
 
       // No providers have keys configured
       expect(selectedProvider).toBeNull();
@@ -324,13 +329,20 @@ describe("Autonomous Flow", () => {
         preferredGeminiModel: null,
       };
 
-      const getModel = (provider: keyof typeof defaults, preference: string | null) => {
+      const getModel = (
+        provider: keyof typeof defaults,
+        preference: string | null,
+      ) => {
         return preference || defaults[provider];
       };
 
-      expect(getModel("anthropic", user.preferredAnthropicModel)).toBe("claude-sonnet-4-20250514");
+      expect(getModel("anthropic", user.preferredAnthropicModel)).toBe(
+        "claude-sonnet-4-20250514",
+      );
       expect(getModel("openai", user.preferredOpenaiModel)).toBe("gpt-4o");
-      expect(getModel("gemini", user.preferredGeminiModel)).toBe("gemini-2.5-pro");
+      expect(getModel("gemini", user.preferredGeminiModel)).toBe(
+        "gemini-2.5-pro",
+      );
     });
   });
 });

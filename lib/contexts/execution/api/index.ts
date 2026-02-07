@@ -2,7 +2,7 @@
  * Execution Context API (Public Interface)
  */
 
-import { getRedis } from "@/lib/queue";
+import { getRedis } from "@/lib/queue/connection";
 import { ExecutionService } from "../application/execution-service";
 import { WorkerMonitoringService } from "../application/worker-monitoring-service";
 import { ApproveDiffUseCase } from "../use-cases/approve-diff/ApproveDiffUseCase";

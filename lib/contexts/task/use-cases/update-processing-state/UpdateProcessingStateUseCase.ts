@@ -93,9 +93,9 @@ export class UpdateProcessingStateUseCase {
     const output: UpdateProcessingStateOutput = {
       id: state.id,
       status: state.status,
-      processingJobId: state.processingJobId || null,
-      processingStartedAt: state.processingStartedAt?.toISOString() || null,
-      processingStatusText: state.processingStatusText || null,
+      processingJobId: input.processingJobId ?? null,
+      processingStartedAt: input.processingStartedAt?.toISOString() ?? null,
+      processingStatusText: input.processingStatusText ?? null,
     };
 
     return Result.ok(output);

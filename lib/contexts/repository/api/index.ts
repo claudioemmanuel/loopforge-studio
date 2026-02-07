@@ -2,7 +2,7 @@
  * Repository Context API (Public Interface)
  */
 
-import { getRedis } from "@/lib/queue";
+import { getRedis } from "@/lib/queue/connection";
 import { RepositoryService } from "../application/repository-service";
 
 export function getRepositoryService(): RepositoryService {

@@ -19,6 +19,7 @@
     "activeTasks": "Active",
     "history": "History",
     "failed": "Failed",
+    "health": "Health",
     "settings": "Settings",
     "dangerZone": "Danger Zone",
     "signOut": "Sign Out"

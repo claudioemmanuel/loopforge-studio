@@ -67,16 +67,51 @@ function info(message) {
   log(`${colors.dim}  ${message}${colors.reset}`, 'reset');
 }
 
+function findRunningNextDevPids() {
+  try {
+    const output = execSync('ps -Ao pid=,command=', {
+      encoding: 'utf-8',
+      shell: '/bin/bash',
+    });
+
+    return output
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const firstSpace = line.indexOf(' ');
+        if (firstSpace === -1) return null;
+        return {
+          pid: line.slice(0, firstSpace).trim(),
+          command: line.slice(firstSpace + 1).trim(),
+        };
+      })
+      .filter((entry) => entry && /\bnext\s+dev\b/.test(entry.command))
+      .map((entry) => entry.pid);
+  } catch {
+    return [];
+  }
+}
+
 // Step 1: Clear Next.js cache
 step('Preparing development environment');
 const nextDir = path.join(__dirname, '..', '.next');
 
 if (fs.existsSync(nextDir)) {
-  try {
-    fs.rmSync(nextDir, { recursive: true, force: true });
-    info('Cleared build cache');
-  } catch (err) {
-    // Non-fatal, continue
+  const runningNextDevPids = findRunningNextDevPids();
+
+  if (runningNextDevPids.length > 0) {
+    warning(
+      `Detected running Next.js dev process(es): ${runningNextDevPids.join(', ')}. Skipping cache clear to avoid ENOENT runtime errors.`
+    );
+    info('Stop existing dev server(s) before forcing a clean .next wipe.');
+  } else {
+    try {
+      fs.rmSync(nextDir, { recursive: true, force: true });
+      info('Cleared build cache');
+    } catch (err) {
+      // Non-fatal, continue
+    }
   }
 }
 

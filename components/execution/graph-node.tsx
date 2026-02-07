@@ -20,7 +20,7 @@ import {
  */
 export interface GraphNodeComponentProps {
   node: GraphNode;
-  onClick: (node: GraphNode, e: React.MouseEvent) => void;
+  onClick: (node: GraphNode, e: React.MouseEvent | React.KeyboardEvent) => void;
   onHover?: (node: GraphNode | null, e?: React.MouseEvent) => void;
   isSelected: boolean;
   isUpdated?: boolean;
@@ -142,23 +142,11 @@ export const GraphNodeComponent = React.memo(function GraphNodeComponent({
   };
 
   // Handle keyboard
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<Element>) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      // Create synthetic mouse event for consistency
-      const syntheticEvent = {
-        ...e,
-        type: "click",
-        button: 0,
-        buttons: 0,
-        clientX: 0,
-        clientY: 0,
-        screenX: 0,
-        screenY: 0,
-        pageX: 0,
-        pageY: 0,
-      } as React.MouseEvent;
-      onClick(node, syntheticEvent);
+      // Pass keyboard event directly to onClick handler
+      onClick(node, e);
     }
   };
 

@@ -6,6 +6,7 @@
  */
 
 import { BusinessRuleError } from "@/lib/shared/errors";
+import type { DomainEvent } from "@/lib/contexts/domain-events/types";
 import type {
   TaskStatus,
   ProcessingPhase,

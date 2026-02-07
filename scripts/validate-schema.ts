@@ -12,6 +12,8 @@ import { getTableConfig, isPgEnum } from "drizzle-orm/pg-core";
 import { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import pg from "pg";
+import fs from "fs";
+import path from "path";
 import * as tables from "../lib/db/schema/tables";
 import * as enums from "../lib/db/schema/enums";
 
@@ -72,6 +74,40 @@ function buildAddColumnSQL(tableName: string, column: PgColumn): string {
   return sql;
 }
 
+async function loadDbColumns(pool: pg.Pool): Promise<Map<string, Set<string>>> {
+  const { rows } = await pool.query(`
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+  `);
+
+  const dbColumns = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (!dbColumns.has(row.table_name)) {
+      dbColumns.set(row.table_name, new Set());
+    }
+    dbColumns.get(row.table_name)!.add(row.column_name);
+  }
+
+  return dbColumns;
+}
+
+async function recoverActivityTrackingTables(pool: pg.Pool): Promise<boolean> {
+  const migrationPath = path.join(
+    process.cwd(),
+    "drizzle",
+    "0045_recover_activity_tracking_tables.sql",
+  );
+
+  if (!fs.existsSync(migrationPath)) {
+    return false;
+  }
+
+  const sql = fs.readFileSync(migrationPath, "utf-8");
+  await pool.query(sql);
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -97,6 +133,7 @@ async function main() {
   let fixedColumns = 0;
   const fixedTables = new Set<string>();
   let fixedEnums = 0;
+  let recoveredActivityTables = false;
 
   try {
     // -----------------------------------------------------------------------
@@ -151,19 +188,20 @@ async function main() {
     // 2. Validate Tables & Columns
     // -----------------------------------------------------------------------
 
-    // Get existing columns from database
-    const { rows: dbColumnRows } = await pool.query(`
-      SELECT table_name, column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-    `);
+    let dbColumns = await loadDbColumns(pool);
 
-    const dbColumns = new Map<string, Set<string>>();
-    for (const row of dbColumnRows) {
-      if (!dbColumns.has(row.table_name)) {
-        dbColumns.set(row.table_name, new Set());
+    // Some environments have historical migration journal drift where 0045
+    // is marked as applied but activity tracking tables are missing.
+    if (
+      !dbColumns.has("activity_events") ||
+      !dbColumns.has("activity_summaries")
+    ) {
+      const recovered = await recoverActivityTrackingTables(pool);
+      if (recovered) {
+        recoveredActivityTables = true;
+        console.log("  Fixed: Recovered activity tracking tables");
+        dbColumns = await loadDbColumns(pool);
       }
-      dbColumns.get(row.table_name)!.add(row.column_name);
     }
 
     // Check each TypeScript table definition
@@ -214,7 +252,7 @@ async function main() {
     // 3. Summary
     // -----------------------------------------------------------------------
 
-    if (fixedColumns > 0 || fixedEnums > 0) {
+    if (fixedColumns > 0 || fixedEnums > 0 || recoveredActivityTables) {
       const parts: string[] = [];
       if (fixedColumns > 0) {
         parts.push(
@@ -223,6 +261,9 @@ async function main() {
       }
       if (fixedEnums > 0) {
         parts.push(`${fixedEnums} enum fix(es)`);
+      }
+      if (recoveredActivityTables) {
+        parts.push("activity tracking tables recovered");
       }
       console.log(`  Schema drift fixed: ${parts.join(", ")}`);
     }

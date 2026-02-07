@@ -96,6 +96,8 @@ export interface ExecutionGraph {
 /**
  * Raw execution data from database (used to build graph)
  */
+import type { ExecutionEventMetadata } from "@/lib/ralph/types";
+
 export interface ExecutionData {
   taskId: string;
   executionId?: string;
@@ -106,7 +108,7 @@ export interface ExecutionData {
     eventType: string;
     title?: string;
     content: string;
-    metadata?: Record<string, unknown>;
+    metadata?: ExecutionEventMetadata;
     createdAt: Date | string;
   }>;
   commits?: string[];

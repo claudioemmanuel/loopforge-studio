@@ -4,7 +4,8 @@ import type { SkillInvocationContext } from "@/lib/skills/types";
 import type { AIClient } from "@/lib/ai";
 
 describe("Test-Driven Development Skill", () => {
-  const mockClient: Partial<AIClient> = {
+  const mockClient: AIClient = {
+    chat: async () => "",
     getProvider: () => "anthropic",
     getModel: () => "claude-sonnet-4",
   };

@@ -14,14 +14,9 @@ interface TaskNodeData {
   onToggleExpand?: () => void;
 }
 
-export const TaskGraphNode = memo(({ data }: NodeProps<TaskNodeData>) => {
-  const typedData = data;
-  const {
-    task,
-    isExpanded = false,
-    isSelected = false,
-    onToggleExpand,
-  } = typedData;
+export const TaskGraphNode = memo((props: NodeProps) => {
+  const data = props.data as unknown as TaskNodeData;
+  const { task, isExpanded = false, isSelected = false, onToggleExpand } = data;
 
   const statusColors: Record<string, string> = {
     todo: "border-gray-500 bg-gray-50 dark:bg-gray-900",

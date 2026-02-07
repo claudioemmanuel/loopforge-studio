@@ -103,7 +103,7 @@ describe("Domain Event Infrastructure", () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     expect(receivedEvent).not.toBeNull();
-    expect(receivedEvent as unknown as EventShape).toMatchObject({
+    expect(receivedEvent).toMatchObject<Partial<EventShape>>({
       eventType: "User.Registered",
       data: { email: "test@example.com" },
     });

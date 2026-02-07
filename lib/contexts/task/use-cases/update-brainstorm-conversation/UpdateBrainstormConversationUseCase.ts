@@ -9,7 +9,7 @@
 
 import type { TaskPersistenceAdapter } from "../../infrastructure/task-persistence-adapter";
 import { Result } from "@/lib/shared/Result";
-import { UseCaseError } from "@/lib/shared/errors";
+import { RepositoryError, UseCaseError } from "@/lib/shared/errors";
 
 export interface UpdateBrainstormConversationInput {
   taskId: string;
@@ -54,7 +54,7 @@ export class UpdateBrainstormConversationUseCase {
       return Result.ok({ success: true });
     } catch (error) {
       return Result.fail(
-        new UseCaseError(
+        new RepositoryError(
           "Failed to update brainstorm conversation",
           error as Error,
         ),

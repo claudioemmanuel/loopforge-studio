@@ -37,6 +37,8 @@ export interface ExecutionEventMetadata {
   errorDetails?: string;
   /** Agent ID (for multi-agent execution) */
   agentId?: string;
+  /** Agent type classification for graph building */
+  agentType?: "test" | "backend" | "frontend" | "general";
   /** Task ID (for multi-agent execution) */
   taskId?: string;
   /** Routing confidence (for multi-agent execution) */
@@ -47,8 +49,14 @@ export interface ExecutionEventMetadata {
   progressPercent?: number;
   /** Original event type (when mapped to db-compatible type) */
   originalEventType?: string;
-  /** Execution phase (setup or execution) */
-  phase?: "setup" | "execution" | "review_prep";
+  /** Execution phase (current + legacy naming support) */
+  phase?:
+    | "setup"
+    | "execution"
+    | "review_prep"
+    | "brainstorming"
+    | "planning"
+    | "executing";
   /** Repository name */
   repo?: string;
   /** Branch name */
@@ -81,8 +89,8 @@ export interface ExecutionEventMetadata {
   lastMethod?: string;
   /** Error message */
   error?: string;
-  /** Number of commits made */
-  commits?: number;
+  /** Number of commits made or legacy commit detail list */
+  commits?: number | Array<{ sha: string; message: string }>;
   /** Original status before verification */
   originalStatus?: string;
   /** Number of files written */
@@ -95,6 +103,10 @@ export interface ExecutionEventMetadata {
   testStatus?: string;
   /** Duration in milliseconds */
   durationMs?: number;
+  /** Legacy duration field used by older execution event payloads */
+  duration?: number;
+  /** Optional event-level status hint for graph/status derivation */
+  status?: "pending" | "in-progress" | "complete" | "failed" | "stuck";
   /** Manual steps for recovery (when recovery exhausted) */
   manualSteps?: string[];
   /** Reliability data for stuck detection and recovery */

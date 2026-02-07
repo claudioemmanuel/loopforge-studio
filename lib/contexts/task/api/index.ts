@@ -2,7 +2,7 @@
  * Task Context API (Public Interface)
  */
 
-import { getRedis } from "@/lib/queue";
+import { getRedis } from "@/lib/queue/connection";
 import { TaskService } from "../application/task-service";
 
 export function getTaskService(): TaskService {

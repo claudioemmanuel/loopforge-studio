@@ -5,7 +5,8 @@ import { usingSuperpowers } from "@/lib/skills/core/using-superpowers";
 import type { SkillInvocationContext } from "@/lib/skills/types";
 import type { AIClient } from "@/lib/ai";
 
-const mockClient: Partial<AIClient> = {
+const mockClient: AIClient = {
+  chat: async () => "",
   getProvider: () => "anthropic",
   getModel: () => "claude-sonnet-4",
 };

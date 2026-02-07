@@ -42,9 +42,9 @@ export async function GET(
         for (const e of existingEvents) {
           const event = {
             id: e.id,
-            type: e.type,
+            type: e.eventType,
             content: e.content,
-            timestamp: e.timestamp,
+            timestamp: e.createdAt,
             metadata: e.metadata,
           };
           controller.enqueue(

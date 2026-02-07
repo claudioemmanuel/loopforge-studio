@@ -27,6 +27,11 @@ type TaskContext = {
   taskId: string;
 };
 
+type RouteHandler = (
+  request: Request,
+  context: TaskContext,
+) => Promise<Response>;
+
 vi.mock("@/lib/api", () => ({
   withTask: (
     handler: (request: Request, context: TaskContext) => Promise<Response>,
@@ -94,12 +99,8 @@ describe("POST /api/tasks/[taskId]/plan/start", () => {
       },
     };
 
-    const response = await (
-      POST as unknown as (
-        request: Request,
-        context: TaskContext,
-      ) => Promise<Response>
-    )(new Request("http://localhost"), {
+    const testHandler = POST as unknown as RouteHandler;
+    const response = await testHandler(new Request("http://localhost"), {
       user: { id: "user-1" },
       task,
       taskId: task.id,

@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import type { IEventPublisher as ITaskEventPublisher } from "../../use-cases/ports/IEventPublisher";
-import type { DomainEvent as TaskDomainEvent } from "../../entities/events";
+import type { DomainEvent as TaskDomainEvent } from "@/lib/contexts/domain-events/types";
 import { Result } from "@/lib/shared/Result";
 import { PublisherError } from "@/lib/shared/errors";
 import { EventPublisher } from "@/lib/contexts/domain-events/event-publisher";
@@ -11,12 +11,13 @@ export class EventPublisherAdapter implements ITaskEventPublisher {
   async publish(event: TaskDomainEvent) {
     try {
       await this.eventPublisher.publish({
-        id: randomUUID(),
-        eventType: event.type,
+        id: event.id || randomUUID(),
+        eventType: event.eventType,
         aggregateId: event.aggregateId,
-        aggregateType: "Task",
+        aggregateType: event.aggregateType || "Task",
         occurredAt: event.occurredAt,
         data: event.data,
+        metadata: event.metadata,
       });
       return Result.ok<void, PublisherError>(undefined);
     } catch (error) {
