@@ -88,14 +88,7 @@ export async function POST(
       const clearUseCase = UseCaseFactory.clearProcessingSlot();
       await clearUseCase.execute({
         taskId,
-        revertToStatus: task.status as
-          | "todo"
-          | "brainstorming"
-          | "planning"
-          | "executing"
-          | "review"
-          | "done"
-          | "blocked",
+        revertToStatus: task.status as never,
       });
 
       apiLogger.error({ taskId, error }, "Failed to queue autonomous flow");
@@ -256,14 +249,7 @@ export async function POST(
     const clearUseCase = UseCaseFactory.clearProcessingSlot();
     await clearUseCase.execute({
       taskId,
-      revertToStatus: task.status as
-        | "todo"
-        | "brainstorming"
-        | "planning"
-        | "executing"
-        | "review"
-        | "done"
-        | "blocked",
+      revertToStatus: task.status as never,
     });
 
     return handleError(error);
