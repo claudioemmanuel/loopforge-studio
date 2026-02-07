@@ -3038,9 +3038,61 @@ planWorker.on("error", (err) => {
 
 workerLogger.info("Plan worker started");
 
+// Health check HTTP server
+import { createServer } from "http";
+
+const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || "3001", 10);
+
+const healthServer = createServer((req, res) => {
+  if (req.url === "/health" && req.method === "GET") {
+    // Check if workers are running
+    const workersHealthy =
+      !worker.closing &&
+      !autonomousWorker.closing &&
+      !brainstormWorker.closing &&
+      !planWorker.closing;
+
+    if (workersHealthy) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "healthy",
+          timestamp: new Date().toISOString(),
+          workers: {
+            execution: "running",
+            autonomous: "running",
+            brainstorm: "running",
+            plan: "running",
+          },
+        }),
+      );
+    } else {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "unhealthy",
+          timestamp: new Date().toISOString(),
+          message: "One or more workers are shutting down",
+        }),
+      );
+    }
+  } else {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not Found");
+  }
+});
+
+healthServer.listen(HEALTH_PORT, () => {
+  workerLogger.info({ port: HEALTH_PORT }, "Health check server started");
+});
+
 // Graceful shutdown handler
 async function gracefulShutdown(signal: string) {
   workerLogger.info({ signal }, "Received shutdown signal, closing workers...");
+
+  // Close health server first
+  healthServer.close();
+
   await Promise.allSettled([
     worker.close(),
     autonomousWorker.close(),

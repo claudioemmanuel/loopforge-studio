@@ -136,7 +136,8 @@ export default function RepoPage() {
           setRepo(await repoRes.json());
         }
         if (tasksRes.ok) {
-          setTasks(await tasksRes.json());
+          const data = await tasksRes.json();
+          setTasks(data.tasks || []);
         }
       } catch (error) {
         // Ignore abort errors
