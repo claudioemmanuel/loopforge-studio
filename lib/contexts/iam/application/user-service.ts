@@ -62,7 +62,7 @@ export class UserService {
     const { encryptApiKey } = await import("@/lib/crypto");
     const { encrypted, iv } = encryptApiKey(params.apiKey);
 
-    user.configureProvider(
+    await user.configureProvider(
       params.provider,
       encrypted,
       iv,
@@ -85,7 +85,7 @@ export class UserService {
       throw new Error(`User ${userId} not found`);
     }
 
-    user.removeProvider(provider);
+    await user.removeProvider(provider);
 
     await this.userRepository.save(user);
   }
@@ -108,7 +108,7 @@ export class UserService {
       throw new Error(`User ${params.userId} not found`);
     }
 
-    user.updatePreferences(params.preferences);
+    await user.updatePreferences(params.preferences);
 
     await this.userRepository.save(user);
   }
@@ -123,7 +123,7 @@ export class UserService {
       throw new Error(`User ${userId} not found`);
     }
 
-    user.completeOnboarding();
+    await user.completeOnboarding();
 
     await this.userRepository.save(user);
   }

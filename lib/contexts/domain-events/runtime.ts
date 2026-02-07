@@ -75,7 +75,13 @@ export async function startDomainEventRuntime(
   runtimeRole = options.role ?? resolveRole();
   consumerRole = options.consumerRole ?? resolveConsumerRole();
   const forceConsumer = options.forceConsumer ?? false;
-  runningAsConsumer = forceConsumer || runtimeRole === consumerRole;
+
+  // Allow web, worker, and event-consumer roles to run subscribers
+  // This enables event consumption in development (web) and production (worker/event-consumer)
+  const canConsumeEvents = ["web", "worker", "event-consumer"].includes(
+    runtimeRole,
+  );
+  runningAsConsumer = forceConsumer || canConsumeEvents;
 
   initialized = true;
 
@@ -87,37 +93,44 @@ export async function startDomainEventRuntime(
   const { getRedis } = await import("@/lib/queue");
   const redis = getRedis();
   subscriber = EventSubscriber.getInstance(redis);
-  billingHandler = new BillingEventHandlers(redis);
-  analyticsHandler = new AnalyticsEventSubscriber(redis);
 
-  try {
-    await billingHandler.start();
-    setHealth("BillingEventHandlers", {
-      initialized: true,
-      healthy: true,
-      error: undefined,
-    });
-  } catch (error) {
-    setHealth("BillingEventHandlers", {
-      initialized: true,
-      healthy: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
+  // Only event-consumer role should run side-effect handlers (billing, analytics)
+  // to prevent duplicate processing when multiple processes are running
+  const shouldRunSideEffectHandlers = runtimeRole === "event-consumer";
 
-  try {
-    await analyticsHandler.start();
-    setHealth("AnalyticsEventSubscriber", {
-      initialized: true,
-      healthy: true,
-      error: undefined,
-    });
-  } catch (error) {
-    setHealth("AnalyticsEventSubscriber", {
-      initialized: true,
-      healthy: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+  if (shouldRunSideEffectHandlers) {
+    billingHandler = new BillingEventHandlers(redis);
+    analyticsHandler = new AnalyticsEventSubscriber(redis);
+
+    try {
+      await billingHandler.start();
+      setHealth("BillingEventHandlers", {
+        initialized: true,
+        healthy: true,
+        error: undefined,
+      });
+    } catch (error) {
+      setHealth("BillingEventHandlers", {
+        initialized: true,
+        healthy: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+
+    try {
+      await analyticsHandler.start();
+      setHealth("AnalyticsEventSubscriber", {
+        initialized: true,
+        healthy: true,
+        error: undefined,
+      });
+    } catch (error) {
+      setHealth("AnalyticsEventSubscriber", {
+        initialized: true,
+        healthy: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
 
   try {

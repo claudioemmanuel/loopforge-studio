@@ -7,6 +7,8 @@
 
 import { randomUUID } from "crypto";
 import type { Redis } from "ioredis";
+import { EventPublisher } from "@/lib/contexts/domain-events";
+import { DomainEventTypes } from "@/lib/contexts/domain-events/event-taxonomy";
 
 export interface UserState {
   id: string;
@@ -60,16 +62,18 @@ export interface UserState {
 export class UserAggregate {
   private state: UserState;
   private redis: Redis;
+  private eventPublisher: EventPublisher;
 
   constructor(state: UserState, redis: Redis) {
     this.state = state;
     this.redis = redis;
+    this.eventPublisher = EventPublisher.getInstance(redis);
   }
 
   /**
    * Create a new user
    */
-  static create(
+  static async create(
     params: {
       id: string;
       email: string | null;
@@ -81,7 +85,7 @@ export class UserAggregate {
       githubTokenIv: string;
     },
     redis: Redis,
-  ): [UserAggregate, import("./events").UserRegisteredEvent] {
+  ): Promise<UserAggregate> {
     const now = new Date();
     const state: UserState = {
       ...params,
@@ -109,9 +113,12 @@ export class UserAggregate {
       updatedAt: now,
     };
 
-    const event: import("./events").UserRegisteredEvent = {
+    const aggregate = new UserAggregate(state, redis);
+
+    // Publish User.Registered event
+    await aggregate.eventPublisher.publish({
       id: randomUUID(),
-      eventType: "UserRegistered",
+      eventType: DomainEventTypes.user.registered,
       aggregateType: "User",
       aggregateId: params.id,
       occurredAt: now,
@@ -122,49 +129,49 @@ export class UserAggregate {
         email: params.email ?? undefined,
         avatarUrl: params.avatarUrl ?? undefined,
       },
-    };
+    });
 
-    return [new UserAggregate(state, redis), event];
+    return aggregate;
   }
 
   /**
    * Configure AI provider
    */
-  configureProvider(
+  async configureProvider(
     provider: "anthropic" | "openai" | "gemini",
     encryptedApiKey: string,
     apiKeyIv: string,
     preferredModel?: string | null,
-  ): [UserAggregate, import("./events").ProviderConfiguredEvent] {
+  ): Promise<void> {
     const now = new Date();
-    const newState = { ...this.state };
-    newState.preferredProvider = provider;
+    this.state.preferredProvider = provider;
 
     if (provider === "anthropic") {
-      newState.encryptedApiKey = encryptedApiKey;
-      newState.apiKeyIv = apiKeyIv;
+      this.state.encryptedApiKey = encryptedApiKey;
+      this.state.apiKeyIv = apiKeyIv;
       if (preferredModel !== undefined) {
-        newState.preferredAnthropicModel = preferredModel;
+        this.state.preferredAnthropicModel = preferredModel;
       }
     } else if (provider === "openai") {
-      newState.openaiEncryptedApiKey = encryptedApiKey;
-      newState.openaiApiKeyIv = apiKeyIv;
+      this.state.openaiEncryptedApiKey = encryptedApiKey;
+      this.state.openaiApiKeyIv = apiKeyIv;
       if (preferredModel !== undefined) {
-        newState.preferredOpenaiModel = preferredModel;
+        this.state.preferredOpenaiModel = preferredModel;
       }
     } else if (provider === "gemini") {
-      newState.geminiEncryptedApiKey = encryptedApiKey;
-      newState.geminiApiKeyIv = apiKeyIv;
+      this.state.geminiEncryptedApiKey = encryptedApiKey;
+      this.state.geminiApiKeyIv = apiKeyIv;
       if (preferredModel !== undefined) {
-        newState.preferredGeminiModel = preferredModel;
+        this.state.preferredGeminiModel = preferredModel;
       }
     }
 
-    newState.updatedAt = now;
+    this.state.updatedAt = now;
 
-    const event: import("./events").ProviderConfiguredEvent = {
+    // Publish User.ProviderConfigured event
+    await this.eventPublisher.publish({
       id: randomUUID(),
-      eventType: "ProviderConfigured",
+      eventType: DomainEventTypes.user.providerConfigured,
       aggregateType: "User",
       aggregateId: this.state.id,
       occurredAt: now,
@@ -173,44 +180,42 @@ export class UserAggregate {
         provider,
         hasApiKey: true,
       },
-    };
-
-    return [new UserAggregate(newState, this.redis), event];
+    });
   }
 
   /**
    * Remove provider configuration
    */
-  removeProvider(
+  async removeProvider(
     provider: "anthropic" | "openai" | "gemini",
-  ): [UserAggregate, import("./events").ProviderRemovedEvent] {
+  ): Promise<void> {
     const now = new Date();
-    const newState = { ...this.state };
 
     if (provider === "anthropic") {
-      newState.encryptedApiKey = null;
-      newState.apiKeyIv = null;
-      newState.preferredAnthropicModel = null;
+      this.state.encryptedApiKey = null;
+      this.state.apiKeyIv = null;
+      this.state.preferredAnthropicModel = null;
     } else if (provider === "openai") {
-      newState.openaiEncryptedApiKey = null;
-      newState.openaiApiKeyIv = null;
-      newState.preferredOpenaiModel = null;
+      this.state.openaiEncryptedApiKey = null;
+      this.state.openaiApiKeyIv = null;
+      this.state.preferredOpenaiModel = null;
     } else if (provider === "gemini") {
-      newState.geminiEncryptedApiKey = null;
-      newState.geminiApiKeyIv = null;
-      newState.preferredGeminiModel = null;
+      this.state.geminiEncryptedApiKey = null;
+      this.state.geminiApiKeyIv = null;
+      this.state.preferredGeminiModel = null;
     }
 
     // If removing the preferred provider, clear it
-    if (newState.preferredProvider === provider) {
-      newState.preferredProvider = null;
+    if (this.state.preferredProvider === provider) {
+      this.state.preferredProvider = null;
     }
 
-    newState.updatedAt = now;
+    this.state.updatedAt = now;
 
-    const event: import("./events").ProviderRemovedEvent = {
+    // Publish User.ProviderRemoved event
+    await this.eventPublisher.publish({
       id: randomUUID(),
-      eventType: "ProviderRemoved",
+      eventType: DomainEventTypes.user.providerRemoved,
       aggregateType: "User",
       aggregateId: this.state.id,
       occurredAt: now,
@@ -218,76 +223,67 @@ export class UserAggregate {
         userId: this.state.id,
         provider,
       },
-    };
-
-    return [new UserAggregate(newState, this.redis), event];
+    });
   }
 
   /**
    * Update user preferences
    */
-  updatePreferences(preferences: {
+  async updatePreferences(preferences: {
     defaultCloneDirectory?: string;
     defaultTestCommand?: string;
     defaultTestTimeout?: number;
     defaultTestGatePolicy?: "strict" | "warn" | "skip" | "autoApprove";
-  }): [UserAggregate, import("./events").UserPreferencesUpdatedEvent] {
+  }): Promise<void> {
     const now = new Date();
-    const newState = { ...this.state };
 
     if (preferences.defaultCloneDirectory !== undefined) {
-      newState.defaultCloneDirectory = preferences.defaultCloneDirectory;
+      this.state.defaultCloneDirectory = preferences.defaultCloneDirectory;
     }
     if (preferences.defaultTestCommand !== undefined) {
-      newState.defaultTestCommand = preferences.defaultTestCommand;
+      this.state.defaultTestCommand = preferences.defaultTestCommand;
     }
     if (preferences.defaultTestTimeout !== undefined) {
-      newState.defaultTestTimeout = preferences.defaultTestTimeout;
+      this.state.defaultTestTimeout = preferences.defaultTestTimeout;
     }
     if (preferences.defaultTestGatePolicy !== undefined) {
-      newState.defaultTestGatePolicy = preferences.defaultTestGatePolicy;
+      this.state.defaultTestGatePolicy = preferences.defaultTestGatePolicy;
     }
 
-    newState.updatedAt = now;
+    this.state.updatedAt = now;
 
-    const event: import("./events").UserPreferencesUpdatedEvent = {
+    // Publish User.PreferencesUpdated event
+    await this.eventPublisher.publish({
       id: randomUUID(),
-      eventType: "UserPreferencesUpdated",
+      eventType: DomainEventTypes.user.preferencesUpdated,
       aggregateType: "User",
       aggregateId: this.state.id,
       occurredAt: now,
       data: {
         userId: this.state.id,
       },
-    };
-
-    return [new UserAggregate(newState, this.redis), event];
+    });
   }
 
   /**
    * Complete onboarding
    */
-  completeOnboarding(): [
-    UserAggregate,
-    import("./events").OnboardingCompletedEvent,
-  ] {
+  async completeOnboarding(): Promise<void> {
     const now = new Date();
-    const newState = { ...this.state };
-    newState.onboardingCompleted = true;
-    newState.updatedAt = now;
+    this.state.onboardingCompleted = true;
+    this.state.updatedAt = now;
 
-    const event: import("./events").OnboardingCompletedEvent = {
+    // Publish User.OnboardingCompleted event
+    await this.eventPublisher.publish({
       id: randomUUID(),
-      eventType: "OnboardingCompleted",
+      eventType: DomainEventTypes.user.onboardingCompleted,
       aggregateType: "User",
       aggregateId: this.state.id,
       occurredAt: now,
       data: {
         userId: this.state.id,
       },
-    };
-
-    return [new UserAggregate(newState, this.redis), event];
+    });
   }
 
   /**
