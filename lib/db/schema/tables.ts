@@ -89,6 +89,9 @@ export const users = pgTable("users", {
   defaultTestCommand: text("default_test_command"),
   defaultTestTimeout: integer("default_test_timeout").default(300000), // 5 minutes default
   defaultTestGatePolicy: text("default_test_gate_policy").default("warn"), // strict | warn | skip | autoApprove
+  // Automation defaults (Workflow Automation Wizard 2026-02-07)
+  defaultBranchPrefix: text("default_branch_prefix").default("loopforge/"),
+  requirePlanApproval: boolean("require_plan_approval").default(true),
   // Billing fields
   billingMode: billingModeEnum("billing_mode").default("byok"),
   stripeCustomerId: text("stripe_customer_id"),

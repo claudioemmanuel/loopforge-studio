@@ -44,6 +44,8 @@ export interface UserApiResponse {
   defaultTestCommand: string | null;
   defaultTestTimeout: number | null;
   defaultTestGatePolicy: string | null;
+  defaultBranchPrefix: string | null;
+  requirePlanApproval: boolean | null;
 
   // Billing
   billingMode: string;
@@ -67,6 +69,8 @@ export interface UserSettingsRequest {
   defaultTestCommand?: string;
   defaultTestTimeout?: number;
   defaultTestGatePolicy?: string;
+  defaultBranchPrefix?: string;
+  requirePlanApproval?: boolean;
 }
 
 /**
@@ -97,6 +101,8 @@ export class UserAdapter {
       defaultTestCommand?: string | null;
       defaultTestTimeout?: number | null;
       defaultTestGatePolicy?: string | null;
+      defaultBranchPrefix?: string | null;
+      requirePlanApproval?: boolean | null;
       billingMode?: string;
       subscriptionTier?: string | null;
     },
@@ -151,6 +157,14 @@ export class UserAdapter {
         additionalData?.defaultTestGatePolicy ??
         state.defaultTestGatePolicy ??
         null,
+      defaultBranchPrefix:
+        additionalData?.defaultBranchPrefix ??
+        state.defaultBranchPrefix ??
+        null,
+      requirePlanApproval:
+        additionalData?.requirePlanApproval ??
+        state.requirePlanApproval ??
+        null,
 
       // Billing (from additional data)
       billingMode: additionalData?.billingMode ?? state.billingMode ?? "byok",
@@ -175,6 +189,8 @@ export class UserAdapter {
     preferredAnthropicModel?: string;
     preferredOpenaiModel?: string;
     preferredGeminiModel?: string;
+    defaultBranchPrefix?: string;
+    requirePlanApproval?: boolean;
   } {
     const result: {
       locale?: string;
@@ -182,6 +198,8 @@ export class UserAdapter {
       preferredAnthropicModel?: string;
       preferredOpenaiModel?: string;
       preferredGeminiModel?: string;
+      defaultBranchPrefix?: string;
+      requirePlanApproval?: boolean;
     } = {};
 
     // Locale
@@ -203,6 +221,12 @@ export class UserAdapter {
     }
     if (body.preferredGeminiModel !== undefined) {
       result.preferredGeminiModel = body.preferredGeminiModel;
+    }
+    if (body.defaultBranchPrefix !== undefined) {
+      result.defaultBranchPrefix = body.defaultBranchPrefix;
+    }
+    if (body.requirePlanApproval !== undefined) {
+      result.requirePlanApproval = body.requirePlanApproval;
     }
 
     return result;
@@ -236,6 +260,8 @@ export class UserAdapter {
     defaultTestCommand?: string | null;
     defaultTestTimeout?: number | null;
     defaultTestGatePolicy?: "strict" | "warn" | "skip" | "autoApprove" | null;
+    defaultBranchPrefix?: string | null;
+    requirePlanApproval?: boolean | null;
     subscriptionTier?: "free" | "pro" | "enterprise" | null;
     billingMode?: "byok" | "managed" | null;
     subscriptionStatus?: "active" | "canceled" | "past_due" | null;
@@ -268,6 +294,8 @@ export class UserAdapter {
       defaultTestCommand: row.defaultTestCommand ?? null,
       defaultTestTimeout: row.defaultTestTimeout ?? null,
       defaultTestGatePolicy: row.defaultTestGatePolicy ?? null,
+      defaultBranchPrefix: row.defaultBranchPrefix ?? "loopforge/",
+      requirePlanApproval: row.requirePlanApproval ?? true,
       subscriptionTier: row.subscriptionTier ?? "free",
       billingMode: row.billingMode ?? "byok",
       subscriptionStatus: row.subscriptionStatus ?? "active",

@@ -246,11 +246,31 @@
       "notifyWhenAvailable": "Notify me when available"
     },
     "workflowPage": {
-      "title": "Workflow Settings",
-      "subtitle": "Configure how Loopforge interacts with your repositories",
+      "title": "Automation Settings",
+      "subtitle": "Configure automation defaults and preview your workflow as a guided graph",
       "tabs": {
         "cloneDirectory": "Clone Directory",
         "testDefaults": "Test Defaults"
+      },
+      "flowTitle": "Automation Flow",
+      "flowSubtitle": "Click a node to configure each step in sequence",
+      "steps": {
+        "cloneDirectory": {
+          "title": "Clone Directory",
+          "description": "Choose where repositories are cloned"
+        },
+        "testDefaults": {
+          "title": "Test Defaults",
+          "description": "Define default test command, timeout, and policy"
+        },
+        "defaultBehaviors": {
+          "title": "Default Behaviors",
+          "description": "Set branch prefix and plan-approval defaults"
+        },
+        "review": {
+          "title": "Review",
+          "description": "Validate your automation setup before saving"
+        }
       },
       "cloneDirectory": "Clone Directory",
       "cloneDirectoryDescription": "Where repositories are cloned on your local machine. Use ~ for home directory.",
@@ -260,17 +280,45 @@
       "commonPaths": "Common Paths",
       "invalidDirectory": "Invalid directory",
       "pleaseEnterValid": "Please enter a valid directory path",
+      "invalidDefaults": "Invalid defaults",
+      "defaultBranchPrefixRequired": "Default branch prefix is required",
       "configurationSaved": "Configuration saved",
       "cloneDirectoryUpdated": "Clone directory updated successfully",
       "testDefaultsUpdated": "Test defaults updated successfully",
+      "automationDefaultsUpdated": "Automation defaults updated successfully",
       "failedToSave": "Failed to save",
+      "saveFailed": "Save failed",
       "unknownError": "Unknown error occurred",
+      "loadFailed": "Failed to load settings",
+      "validationFailed": "Failed to validate directory",
       "saving": "Saving...",
       "saveConfiguration": "Save Configuration",
       "path": "Path",
       "pathLabel": "Directory Path",
       "browse": "Browse",
       "selectDirectory": "Select Directory",
+      "actions": {
+        "back": "Back",
+        "next": "Next",
+        "saveAll": "Save All",
+        "saving": "Saving..."
+      },
+      "defaultBehaviors": {
+        "title": "Default Behaviors",
+        "description": "These defaults apply when creating new automated tasks and branches.",
+        "branchPrefix": "Default branch prefix",
+        "branchPrefixPlaceholder": "loopforge/",
+        "branchPrefixHint": "We normalize the prefix to end with / when saving.",
+        "requirePlanApproval": "Require plan approval before execution",
+        "requirePlanApprovalHint": "When enabled, execution waits until a plan is explicitly approved."
+      },
+      "review": {
+        "title": "Review Automation Configuration",
+        "description": "Confirm each step is configured before saving.",
+        "complete": "Complete",
+        "needsAttention": "Needs attention"
+      },
+      "testDefaultsDescription": "These settings will be used for new repositories. Existing repositories keep their current configuration.",
       "testDefaults": {
         "title": "Default Test Configuration",
         "description": "These settings will be used for new repositories. Existing repositories keep their current configuration.",
@@ -282,6 +330,12 @@
         "timeoutSeconds": "{seconds}s ({minutes} minutes)",
         "gatePolicy": "Test Gate Policy",
         "gatePolicyDescription": "How to handle test results before creating pull requests",
+        "policy": {
+          "strict": "Strict - Block PR if tests fail",
+          "warn": "Warn - Create PR with warning",
+          "skip": "Skip - No test enforcement",
+          "autoApprove": "Auto-Approve - Log only"
+        },
         "gatePolicyOptions": {
           "strict": "Strict - Block PR if tests fail",
           "strictDescription": "Pull requests will not be created if any tests fail",

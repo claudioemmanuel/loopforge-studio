@@ -100,6 +100,8 @@ export class UserService {
       defaultTestCommand?: string; // ✅ Fixed: correct field name
       defaultTestTimeout?: number; // ✅ Added: missing field
       defaultTestGatePolicy?: "strict" | "warn" | "skip" | "autoApprove"; // ✅ Fixed: correct field name
+      defaultBranchPrefix?: string;
+      requirePlanApproval?: boolean;
     };
   }): Promise<void> {
     const user = await this.userRepository.findById(params.userId);

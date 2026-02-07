@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { handleError, Errors } from "@/lib/errors";
 import { buildDependencyMap } from "@/lib/shared/graph-layout";
 import type { ExecutionGraph } from "@/lib/shared/graph-types";
+import { buildTaskLifecycleGraph } from "@/lib/shared/task-lifecycle-graph";
 import { getRepositoryService } from "@/lib/contexts/repository/api";
 import { getTaskService } from "@/lib/contexts/task/api";
 
@@ -36,6 +37,7 @@ export async function GET(
 
   // Build dependency map
   const dependencies = buildDependencyMap(allTasks);
+  const lifecycle = buildTaskLifecycleGraph(allTasks, dependencies);
 
   // Build execution graphs map for active tasks
   const executionGraphs: Record<string, ExecutionGraph> = {};
@@ -54,5 +56,6 @@ export async function GET(
     tasks: allTasks,
     dependencies,
     executions: executionGraphs,
+    lifecycle,
   });
 }

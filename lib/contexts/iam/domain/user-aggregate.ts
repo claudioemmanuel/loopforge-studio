@@ -43,6 +43,8 @@ export interface UserState {
   defaultTestCommand: string | null; // ✅ Fixed: schema uses defaultTestCommand
   defaultTestTimeout: number | null; // ✅ Added: missing field from schema
   defaultTestGatePolicy: "strict" | "warn" | "skip" | "autoApprove" | null; // ✅ Fixed: schema uses defaultTestGatePolicy
+  defaultBranchPrefix: string | null;
+  requirePlanApproval: boolean | null;
 
   // Subscription
   subscriptionTier: "free" | "pro" | "enterprise";
@@ -103,6 +105,8 @@ export class UserAggregate {
       defaultTestCommand: null,
       defaultTestTimeout: null,
       defaultTestGatePolicy: null,
+      defaultBranchPrefix: "loopforge/",
+      requirePlanApproval: true,
       subscriptionTier: "enterprise",
       billingMode: "byok",
       subscriptionStatus: "active",
@@ -234,6 +238,8 @@ export class UserAggregate {
     defaultTestCommand?: string;
     defaultTestTimeout?: number;
     defaultTestGatePolicy?: "strict" | "warn" | "skip" | "autoApprove";
+    defaultBranchPrefix?: string;
+    requirePlanApproval?: boolean;
   }): Promise<void> {
     const now = new Date();
 
@@ -248,6 +254,12 @@ export class UserAggregate {
     }
     if (preferences.defaultTestGatePolicy !== undefined) {
       this.state.defaultTestGatePolicy = preferences.defaultTestGatePolicy;
+    }
+    if (preferences.defaultBranchPrefix !== undefined) {
+      this.state.defaultBranchPrefix = preferences.defaultBranchPrefix;
+    }
+    if (preferences.requirePlanApproval !== undefined) {
+      this.state.requirePlanApproval = preferences.requirePlanApproval;
     }
 
     this.state.updatedAt = now;

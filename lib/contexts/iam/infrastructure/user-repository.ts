@@ -48,6 +48,8 @@ export class UserRepository {
         defaultTestCommand: state.defaultTestCommand, // ✅ Fixed: correct field name
         defaultTestTimeout: state.defaultTestTimeout, // ✅ Added: missing field
         defaultTestGatePolicy: state.defaultTestGatePolicy, // ✅ Fixed: correct field name
+        defaultBranchPrefix: state.defaultBranchPrefix,
+        requirePlanApproval: state.requirePlanApproval,
         subscriptionTier: state.subscriptionTier,
         billingMode: state.billingMode, // ✅ Added: missing field
         subscriptionStatus: state.subscriptionStatus, // ✅ Added: missing field
@@ -80,6 +82,8 @@ export class UserRepository {
           defaultTestCommand: state.defaultTestCommand, // ✅ Fixed: correct field name
           defaultTestTimeout: state.defaultTestTimeout, // ✅ Added: missing field
           defaultTestGatePolicy: state.defaultTestGatePolicy, // ✅ Fixed: correct field name
+          defaultBranchPrefix: state.defaultBranchPrefix,
+          requirePlanApproval: state.requirePlanApproval,
           subscriptionTier: state.subscriptionTier,
           billingMode: state.billingMode, // ✅ Added: missing field
           subscriptionStatus: state.subscriptionStatus, // ✅ Added: missing field
@@ -135,6 +139,8 @@ export class UserRepository {
         | "skip"
         | "autoApprove"
         | null, // ✅ Fixed: correct field name
+      defaultBranchPrefix: row.defaultBranchPrefix,
+      requirePlanApproval: row.requirePlanApproval,
       subscriptionTier: row.subscriptionTier as "free" | "pro" | "enterprise",
       billingMode: (row.billingMode as "byok" | "managed") || "byok", // ✅ Added: missing field
       subscriptionStatus:
@@ -194,6 +200,8 @@ export class UserRepository {
         | "skip"
         | "autoApprove"
         | null, // ✅ Fixed: correct field name
+      defaultBranchPrefix: row.defaultBranchPrefix,
+      requirePlanApproval: row.requirePlanApproval,
       subscriptionTier: row.subscriptionTier as "free" | "pro" | "enterprise",
       billingMode: (row.billingMode as "byok" | "managed") || "byok", // ✅ Added: missing field
       subscriptionStatus:

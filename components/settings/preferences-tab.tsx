@@ -19,16 +19,20 @@ export function PreferencesTab() {
     <div className="space-y-6">
       {/* Appearance */}
       <div className="p-6 rounded-xl border bg-card">
-        <h3 className="font-serif font-semibold tracking-tight mb-4">Appearance</h3>
+        <h3 className="font-serif font-semibold tracking-tight mb-4">
+          Appearance
+        </h3>
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium mb-2 block">Theme</label>
             <div className="flex gap-2">
-              {([
-                { value: "light", icon: Sun, label: "Light" },
-                { value: "dark", icon: Moon, label: "Dark" },
-                { value: "system", icon: Monitor, label: "System" },
-              ] as const).map(({ value, icon: Icon, label }) => (
+              {(
+                [
+                  { value: "light", icon: Sun, label: "Light" },
+                  { value: "dark", icon: Moon, label: "Dark" },
+                  { value: "system", icon: Monitor, label: "System" },
+                ] as const
+              ).map(({ value, icon: Icon, label }) => (
                 <Button
                   key={value}
                   variant={theme === value ? "default" : "outline"}
@@ -46,7 +50,9 @@ export function PreferencesTab() {
 
       {/* Notifications */}
       <div className="p-6 rounded-xl border bg-card">
-        <h3 className="font-serif font-semibold tracking-tight mb-4">Notifications</h3>
+        <h3 className="font-serif font-semibold tracking-tight mb-4">
+          Notifications
+        </h3>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">Email notifications</p>
           {[
@@ -57,10 +63,12 @@ export function PreferencesTab() {
             <div key={key} className="flex items-center justify-between">
               <span className="text-sm">{label}</span>
               <button
-                onClick={() => setNotifications(prev => ({
-                  ...prev,
-                  [key]: !prev[key as keyof typeof prev]
-                }))}
+                onClick={() =>
+                  setNotifications((prev) => ({
+                    ...prev,
+                    [key]: !prev[key as keyof typeof prev],
+                  }))
+                }
                 className={`w-10 h-6 rounded-full transition-colors ${
                   notifications[key as keyof typeof notifications]
                     ? "bg-primary"
@@ -81,7 +89,12 @@ export function PreferencesTab() {
           <div className="flex items-center justify-between">
             <span className="text-sm">Browser notifications</span>
             <button
-              onClick={() => setNotifications(prev => ({ ...prev, browser: !prev.browser }))}
+              onClick={() =>
+                setNotifications((prev) => ({
+                  ...prev,
+                  browser: !prev.browser,
+                }))
+              }
               className={`w-10 h-6 rounded-full transition-colors ${
                 notifications.browser ? "bg-primary" : "bg-muted"
               }`}
@@ -91,27 +104,6 @@ export function PreferencesTab() {
                   notifications.browser ? "translate-x-5" : "translate-x-1"
                 }`}
               />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Default Behaviors */}
-      <div className="p-6 rounded-xl border bg-card">
-        <h3 className="font-serif font-semibold tracking-tight mb-4">Default Behaviors</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium mb-2 block">Default branch prefix</label>
-            <select className="w-full px-3 py-2 rounded-md border bg-background text-sm">
-              <option value="loopforge/">loopforge/</option>
-              <option value="ai/">ai/</option>
-              <option value="feature/">feature/</option>
-            </select>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Require plan approval before execution</span>
-            <button className="w-10 h-6 rounded-full bg-primary">
-              <div className="w-4 h-4 rounded-full bg-white translate-x-5" />
             </button>
           </div>
         </div>

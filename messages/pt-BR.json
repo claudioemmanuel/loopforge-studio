@@ -246,11 +246,31 @@
       "notifyWhenAvailable": "Me notifique quando disponível"
     },
     "workflowPage": {
-      "title": "Configurações de Fluxo de Trabalho",
-      "subtitle": "Configure como o Loopforge interage com seus repositórios",
+      "title": "Configurações de Automação",
+      "subtitle": "Configure padrões de automação e visualize o fluxo guiado por nós",
       "tabs": {
         "cloneDirectory": "Diretório de Clone",
         "testDefaults": "Padrões de Teste"
+      },
+      "flowTitle": "Fluxo de Automação",
+      "flowSubtitle": "Clique em um nó para configurar cada etapa em sequência",
+      "steps": {
+        "cloneDirectory": {
+          "title": "Diretório de Clone",
+          "description": "Escolha onde os repositórios serão clonados"
+        },
+        "testDefaults": {
+          "title": "Padrões de Teste",
+          "description": "Defina comando, timeout e política de teste padrão"
+        },
+        "defaultBehaviors": {
+          "title": "Comportamentos Padrão",
+          "description": "Defina prefixo de branch e aprovação de plano"
+        },
+        "review": {
+          "title": "Revisão",
+          "description": "Valide a configuração antes de salvar"
+        }
       },
       "cloneDirectory": "Diretório de Clone",
       "cloneDirectoryDescription": "Onde os repositórios são clonados em sua máquina local. Use ~ para o diretório home.",
@@ -260,17 +280,45 @@
       "commonPaths": "Caminhos Comuns",
       "invalidDirectory": "Diretório inválido",
       "pleaseEnterValid": "Por favor, insira um caminho de diretório válido",
+      "invalidDefaults": "Padrões inválidos",
+      "defaultBranchPrefixRequired": "O prefixo padrão de branch é obrigatório",
       "configurationSaved": "Configuração salva",
       "cloneDirectoryUpdated": "Diretório de clone atualizado com sucesso",
       "testDefaultsUpdated": "Padrões de teste atualizados com sucesso",
+      "automationDefaultsUpdated": "Padrões de automação atualizados com sucesso",
       "failedToSave": "Falha ao salvar",
+      "saveFailed": "Falha ao salvar",
       "unknownError": "Erro desconhecido ocorreu",
+      "loadFailed": "Falha ao carregar configurações",
+      "validationFailed": "Falha ao validar diretório",
       "saving": "Salvando...",
       "saveConfiguration": "Salvar Configuração",
       "path": "Caminho",
       "pathLabel": "Caminho do Diretório",
       "browse": "Procurar",
       "selectDirectory": "Selecionar Diretório",
+      "actions": {
+        "back": "Voltar",
+        "next": "Próxima",
+        "saveAll": "Salvar Tudo",
+        "saving": "Salvando..."
+      },
+      "defaultBehaviors": {
+        "title": "Comportamentos Padrão",
+        "description": "Esses padrões serão aplicados ao criar novas tarefas e branches automáticas.",
+        "branchPrefix": "Prefixo padrão de branch",
+        "branchPrefixPlaceholder": "loopforge/",
+        "branchPrefixHint": "Normalizamos o prefixo para terminar com / ao salvar.",
+        "requirePlanApproval": "Exigir aprovação de plano antes da execução",
+        "requirePlanApprovalHint": "Quando habilitado, a execução aguarda aprovação explícita do plano."
+      },
+      "review": {
+        "title": "Revisar Configuração de Automação",
+        "description": "Confirme que cada etapa está configurada antes de salvar.",
+        "complete": "Concluído",
+        "needsAttention": "Requer atenção"
+      },
+      "testDefaultsDescription": "Estas configurações serão usadas para novos repositórios. Repositórios existentes mantêm sua configuração atual.",
       "testDefaults": {
         "title": "Configuração Padrão de Testes",
         "description": "Estas configurações serão usadas para novos repositórios. Repositórios existentes mantêm sua configuração atual.",
@@ -282,6 +330,12 @@
         "timeoutSeconds": "{seconds}s ({minutes} minutos)",
         "gatePolicy": "Política de Gate de Teste",
         "gatePolicyDescription": "Como lidar com resultados de teste antes de criar pull requests",
+        "policy": {
+          "strict": "Estrito - Bloquear PR se testes falharem",
+          "warn": "Avisar - Criar PR com aviso",
+          "skip": "Pular - Sem aplicação de testes",
+          "autoApprove": "Auto-Aprovar - Apenas log"
+        },
         "gatePolicyOptions": {
           "strict": "Estrito - Bloquear PR se testes falharem",
           "strictDescription": "Pull requests não serão criados se algum teste falhar",
