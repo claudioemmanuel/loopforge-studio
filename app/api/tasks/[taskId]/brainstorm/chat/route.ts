@@ -15,7 +15,7 @@ import {
   getPreferredModel,
 } from "@/lib/api";
 import { decryptApiKey } from "@/lib/crypto";
-import { getTaskService } from "@/lib/contexts/task/api";
+import { UseCaseFactory } from "@/lib/contexts/task/api/use-case-factory";
 import { apiLogger } from "@/lib/logger";
 
 export const POST = withTask(async (request, { user, task, taskId }) => {
@@ -159,17 +159,23 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     // Save updated conversation to memory
     setConversation(taskId, conversation);
 
-    // Persist to database - MUST await to prevent data loss
-    const taskService = getTaskService();
-    await taskService.updateFields(taskId, {
-      brainstormConversation: JSON.stringify(conversation.messages),
-      brainstormResult: conversation.currentPreview
+    // Persist to database via use case - MUST await to prevent data loss
+    const updateConversationUseCase =
+      UseCaseFactory.updateBrainstormConversation();
+    const updateResult = await updateConversationUseCase.execute({
+      taskId,
+      conversation: JSON.stringify(conversation.messages),
+      result: conversation.currentPreview
         ? JSON.stringify(conversation.currentPreview, null, 2)
         : undefined,
-      brainstormSummary: conversation.summary,
-      brainstormMessageCount: conversation.messageCount || 0,
-      brainstormCompactedAt: conversation.compactedAt,
+      summary: conversation.summary,
+      messageCount: conversation.messageCount || 0,
+      compactedAt: conversation.compactedAt,
     });
+
+    if (updateResult.isFailure) {
+      return handleError(updateResult.error);
+    }
 
     return NextResponse.json({
       message: response.message,

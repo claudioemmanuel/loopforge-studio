@@ -4,6 +4,7 @@
  */
 
 import { TaskRepository } from "../adapters/repositories/TaskRepository";
+import { TaskPersistenceAdapter } from "../infrastructure/task-persistence-adapter";
 import { EventPublisher } from "../../domain-events/event-publisher";
 import { AnalyticsServiceAdapter } from "../adapters/services/AnalyticsServiceAdapter";
 import { EventPublisherAdapter } from "../adapters/services/EventPublisherAdapter";
@@ -21,6 +22,7 @@ import { ListTasksByUserUseCase } from "../use-cases/list-tasks-by-user/ListTask
 // Brainstorming Flow
 import { ClaimBrainstormingSlotUseCase } from "../use-cases/claim-brainstorming-slot/ClaimBrainstormingSlotUseCase";
 import { SaveBrainstormResultUseCase } from "../use-cases/save-brainstorm-result/SaveBrainstormResultUseCase";
+import { UpdateBrainstormConversationUseCase } from "../use-cases/update-brainstorm-conversation/UpdateBrainstormConversationUseCase";
 import { FinalizeBrainstormUseCase } from "../use-cases/finalize-brainstorm/FinalizeBrainstormUseCase";
 import { ClearProcessingSlotUseCase } from "../use-cases/clear-processing-slot/ClearProcessingSlotUseCase";
 
@@ -63,6 +65,7 @@ import { UpdateProcessingStateUseCase } from "../use-cases/update-processing-sta
  * Shared infrastructure dependencies (singletons)
  */
 const taskRepository = new TaskRepository();
+const taskPersistence = new TaskPersistenceAdapter(getRedis());
 const eventPublisher = new EventPublisherAdapter(
   EventPublisher.getInstance(getRedis()),
 );
@@ -116,6 +119,10 @@ export class UseCaseFactory {
 
   static saveBrainstormResult() {
     return new SaveBrainstormResultUseCase(taskRepository, eventPublisher);
+  }
+
+  static updateBrainstormConversation() {
+    return new UpdateBrainstormConversationUseCase(taskPersistence);
   }
 
   static finalizeBrainstorm() {
