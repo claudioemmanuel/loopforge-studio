@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { systematicDebugging } from "@/lib/skills/core/systematic-debugging";
 import type { SkillInvocationContext } from "@/lib/skills/types";
+import type { AIClient } from "@/lib/ai";
 
 describe("Systematic Debugging Skill", () => {
-  const mockClient: any = {
+  const mockClient: Partial<AIClient> = {
     getProvider: () => "anthropic",
     getModel: () => "claude-sonnet-4",
   };
@@ -25,7 +26,7 @@ describe("Systematic Debugging Skill", () => {
 
       const result = await systematicDebugging.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -41,7 +42,7 @@ describe("Systematic Debugging Skill", () => {
 
       const result = await systematicDebugging.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("warning");
@@ -67,7 +68,7 @@ describe("Systematic Debugging Skill", () => {
 
       const result = await systematicDebugging.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("blocked");
@@ -97,15 +98,15 @@ describe("Systematic Debugging Skill", () => {
 
       const result = await systematicDebugging.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("blocked");
       expect(result.recommendations).toContain(
-        "Hypothesis about root cause (what, why, how to verify)"
+        "Hypothesis about root cause (what, why, how to verify)",
       );
       expect(result.recommendations).toContain(
-        "Verification of hypothesis (test, log output, reproduction)"
+        "Verification of hypothesis (test, log output, reproduction)",
       );
     });
 
@@ -130,7 +131,7 @@ describe("Systematic Debugging Skill", () => {
 
       const result = await systematicDebugging.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -168,7 +169,7 @@ describe("Systematic Debugging Skill", () => {
 
       const result = await systematicDebugging.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("blocked");
@@ -188,7 +189,7 @@ describe("Systematic Debugging Skill", () => {
 
     it("should have comprehensive system prompt", () => {
       expect(systematicDebugging.systemPrompt).toContain(
-        "UNDERSTAND BEFORE YOU FIX"
+        "UNDERSTAND BEFORE YOU FIX",
       );
       expect(systematicDebugging.systemPrompt).toContain("Scientific Method");
       expect(systematicDebugging.systemPrompt).toContain("OBSERVE");

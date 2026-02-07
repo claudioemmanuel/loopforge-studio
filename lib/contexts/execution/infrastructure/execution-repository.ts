@@ -34,9 +34,9 @@ type ExecutionRow = {
   errorMessage: string | null;
   branch: string | null;
   commits: string[] | null;
-  stuckSignals: unknown;
-  recoveryAttempts: unknown;
-  validationReport: unknown;
+  stuckSignals: StuckSignal[] | null | unknown;
+  recoveryAttempts: RecoveryAttempt[] | null | unknown;
+  validationReport: ValidationReport | null | unknown;
 };
 
 /**

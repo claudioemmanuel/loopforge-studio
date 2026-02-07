@@ -3,8 +3,9 @@ import { brainstorming } from "@/lib/skills/core/brainstorming";
 import { writingPlans } from "@/lib/skills/core/writing-plans";
 import { usingSuperpowers } from "@/lib/skills/core/using-superpowers";
 import type { SkillInvocationContext } from "@/lib/skills/types";
+import type { AIClient } from "@/lib/ai";
 
-const mockClient: any = {
+const mockClient: Partial<AIClient> = {
   getProvider: () => "anthropic",
   getModel: () => "claude-sonnet-4",
 };
@@ -33,9 +34,7 @@ describe("Brainstorming Skill", () => {
     it("should provide guidance when conversation just started", async () => {
       const context: SkillInvocationContext = {
         ...baseContext,
-        brainstormHistory: [
-          { role: "user", content: "Let's build auth" },
-        ],
+        brainstormHistory: [{ role: "user", content: "Let's build auth" }],
       };
 
       const result = await brainstorming.executeLogic(context, mockClient);
@@ -60,7 +59,7 @@ describe("Brainstorming Skill", () => {
       expect(result.status).toBe("warning");
       expect(result.message).toContain("incomplete");
       expect(result.metadata?.missingElements).toContain(
-        "Acceptance criteria (specific, testable conditions)"
+        "Acceptance criteria (specific, testable conditions)",
       );
     });
 
@@ -246,7 +245,7 @@ describe("Using Superpowers Skill", () => {
 
     it("should have invocation discipline prompt", () => {
       expect(usingSuperpowers.systemPrompt).toContain(
-        "CHECK FOR APPLICABLE SKILLS FIRST"
+        "CHECK FOR APPLICABLE SKILLS FIRST",
       );
       expect(usingSuperpowers.systemPrompt).toContain("Red Flags");
     });

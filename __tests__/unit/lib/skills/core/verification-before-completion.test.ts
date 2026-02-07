@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { verificationBeforeCompletion } from "@/lib/skills/core/verification-before-completion";
 import type { SkillInvocationContext } from "@/lib/skills/types";
+import type { AIClient } from "@/lib/ai";
 
 describe("Verification Before Completion Skill", () => {
-  const mockClient: any = {
+  const mockClient: Partial<AIClient> = {
     getProvider: () => "anthropic",
     getModel: () => "claude-sonnet-4",
   };
@@ -25,7 +26,7 @@ describe("Verification Before Completion Skill", () => {
 
       const result = await verificationBeforeCompletion.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -41,12 +42,14 @@ describe("Verification Before Completion Skill", () => {
 
       const result = await verificationBeforeCompletion.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("blocked");
       expect(result.message).toContain("BLOCKED");
-      expect(result.recommendations).toContain("npm test (show passing output)");
+      expect(result.recommendations).toContain(
+        "npm test (show passing output)",
+      );
     });
 
     it("should block when tests failing", async () => {
@@ -63,7 +66,7 @@ describe("Verification Before Completion Skill", () => {
 
       const result = await verificationBeforeCompletion.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("blocked");
@@ -84,7 +87,7 @@ describe("Verification Before Completion Skill", () => {
 
       const result = await verificationBeforeCompletion.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("blocked");
@@ -106,7 +109,7 @@ describe("Verification Before Completion Skill", () => {
 
       const result = await verificationBeforeCompletion.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       // This test depends on the actual plan coverage calculation
@@ -131,7 +134,7 @@ describe("Verification Before Completion Skill", () => {
 
       const result = await verificationBeforeCompletion.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       // May pass or have warnings depending on implementation details
@@ -152,7 +155,7 @@ describe("Verification Before Completion Skill", () => {
 
       const result = await verificationBeforeCompletion.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       if (result.status === "warning") {
@@ -164,7 +167,7 @@ describe("Verification Before Completion Skill", () => {
   describe("metadata", () => {
     it("should have correct skill metadata", () => {
       expect(verificationBeforeCompletion.id).toBe(
-        "verification-before-completion"
+        "verification-before-completion",
       );
       expect(verificationBeforeCompletion.category).toBe("quality-discipline");
       expect(verificationBeforeCompletion.enforcement).toBe("blocking");
@@ -174,11 +177,11 @@ describe("Verification Before Completion Skill", () => {
 
     it("should have evidence-focused system prompt", () => {
       expect(verificationBeforeCompletion.systemPrompt).toContain(
-        "EVIDENCE BEFORE ASSERTIONS"
+        "EVIDENCE BEFORE ASSERTIONS",
       );
       expect(verificationBeforeCompletion.systemPrompt).toContain("Tests Pass");
       expect(verificationBeforeCompletion.systemPrompt).toContain(
-        "Code Committed"
+        "Code Committed",
       );
     });
   });

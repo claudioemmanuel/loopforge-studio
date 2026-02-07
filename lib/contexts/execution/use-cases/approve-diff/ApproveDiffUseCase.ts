@@ -52,7 +52,7 @@ export interface ApproveDiffInput {
 
 export interface ApproveDiffOutput {
   success: boolean;
-  task: unknown;
+  task: Awaited<ReturnType<TaskService["getTaskFull"]>>;
   commit: {
     sha: string;
     message: string;

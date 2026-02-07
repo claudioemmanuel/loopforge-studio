@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { testDrivenDevelopment } from "@/lib/skills/core/test-driven-development";
 import type { SkillInvocationContext } from "@/lib/skills/types";
+import type { AIClient } from "@/lib/ai";
 
 describe("Test-Driven Development Skill", () => {
-  const mockClient: any = {
+  const mockClient: Partial<AIClient> = {
     getProvider: () => "anthropic",
     getModel: () => "claude-sonnet-4",
   };
@@ -24,7 +25,7 @@ describe("Test-Driven Development Skill", () => {
 
       const result = await testDrivenDevelopment.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -39,7 +40,7 @@ describe("Test-Driven Development Skill", () => {
 
       const result = await testDrivenDevelopment.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -55,7 +56,7 @@ describe("Test-Driven Development Skill", () => {
 
       const result = await testDrivenDevelopment.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("blocked");
@@ -74,13 +75,13 @@ describe("Test-Driven Development Skill", () => {
 
       const result = await testDrivenDevelopment.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("blocked");
       expect(result.message).toContain("Tests not executed");
       expect(result.recommendations).toContain(
-        "Run: npm test (or appropriate test command)"
+        "Run: npm test (or appropriate test command)",
       );
     });
 
@@ -98,12 +99,12 @@ describe("Test-Driven Development Skill", () => {
 
       const result = await testDrivenDevelopment.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("blocked");
       expect(result.message).toContain(
-        "Tests passing immediately. Must observe RED state first"
+        "Tests passing immediately. Must observe RED state first",
       );
     });
 
@@ -125,7 +126,7 @@ describe("Test-Driven Development Skill", () => {
 
       const result = await testDrivenDevelopment.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("warning");
@@ -150,7 +151,7 @@ describe("Test-Driven Development Skill", () => {
 
       const result = await testDrivenDevelopment.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
@@ -167,7 +168,7 @@ describe("Test-Driven Development Skill", () => {
 
       const result = await testDrivenDevelopment.executeLogic(
         context,
-        mockClient
+        mockClient,
       );
 
       expect(result.status).toBe("passed");
