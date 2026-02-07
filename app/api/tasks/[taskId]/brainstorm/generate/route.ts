@@ -88,7 +88,7 @@ export async function POST(
       const clearUseCase = UseCaseFactory.clearProcessingSlot();
       await clearUseCase.execute({
         taskId,
-        status: task.status as
+        revertToStatus: task.status as
           | "todo"
           | "brainstorming"
           | "planning"
@@ -256,7 +256,7 @@ export async function POST(
     const clearUseCase = UseCaseFactory.clearProcessingSlot();
     await clearUseCase.execute({
       taskId,
-      status: task.status as
+      revertToStatus: task.status as
         | "todo"
         | "brainstorming"
         | "planning"
