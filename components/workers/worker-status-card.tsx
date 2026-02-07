@@ -26,6 +26,7 @@ export function WorkerStatusCard({
       bgColor: "bg-green-50 dark:bg-green-950/50",
       label: t("status.running"),
       pulse: true,
+      pulseColor: "bg-green-400/75",
     },
     stopped: {
       icon: XCircle,
@@ -33,6 +34,7 @@ export function WorkerStatusCard({
       bgColor: "bg-gray-50 dark:bg-gray-950/50",
       label: t("status.stopped"),
       pulse: false,
+      pulseColor: "",
     },
     error: {
       icon: AlertCircle,
@@ -40,6 +42,7 @@ export function WorkerStatusCard({
       bgColor: "bg-red-50 dark:bg-red-950/50",
       label: t("status.error"),
       pulse: true,
+      pulseColor: "bg-red-400/75",
     },
   };
 
@@ -85,18 +88,17 @@ export function WorkerStatusCard({
         <div className="space-y-4">
           {/* Status Badge */}
           <div className="flex items-center gap-3">
-            <div className={`rounded-full p-2 ${config.bgColor}`}>
-              <Icon className={`h-5 w-5 ${config.color}`} />
-              {config.pulse && status === "running" && (
-                <span className="absolute ml-[-1.25rem] mt-[-1.25rem] flex h-9 w-9">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <div
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full ${config.bgColor}`}
+            >
+              {config.pulse && (
+                <span className="pointer-events-none absolute inset-0 rounded-full">
+                  <span
+                    className={`absolute inset-0 rounded-full animate-ping ${config.pulseColor}`}
+                  ></span>
                 </span>
               )}
-              {config.pulse && status === "error" && (
-                <span className="absolute ml-[-1.25rem] mt-[-1.25rem] flex h-9 w-9">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                </span>
-              )}
+              <Icon className={`relative z-10 h-5 w-5 ${config.color}`} />
             </div>
             <div>
               <p className="text-2xl font-bold">{config.label}</p>

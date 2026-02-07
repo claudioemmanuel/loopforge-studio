@@ -42,11 +42,11 @@ export function RedisStatusCard({
           <div className="flex items-center gap-3">
             {connected ? (
               <>
-                <div className="rounded-full p-2 bg-green-50 dark:bg-green-950/50 relative">
-                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-500" />
-                  <span className="absolute ml-[-1.25rem] mt-[-1.25rem] flex h-9 w-9">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <div className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-green-50 dark:bg-green-950/50">
+                  <span className="pointer-events-none absolute inset-0 rounded-full">
+                    <span className="absolute inset-0 rounded-full bg-green-400/75 animate-ping"></span>
                   </span>
+                  <CheckCircle className="relative z-10 h-5 w-5 text-green-600 dark:text-green-500" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-green-600 dark:text-green-500">

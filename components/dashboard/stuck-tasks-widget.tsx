@@ -60,8 +60,9 @@ export function StuckTasksWidget() {
     return () => clearInterval(interval);
   }, []);
 
-  // Don't show widget if no stuck/recovering tasks
-  if (!loading && data.totalCount === 0) {
+  // Keep this check fully background-only: never render warning surface
+  // unless we actually have tasks requiring attention.
+  if (data.totalCount === 0) {
     return null;
   }
 
