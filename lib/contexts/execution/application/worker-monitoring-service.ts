@@ -5,14 +5,9 @@
  */
 
 import type { Redis } from "ioredis";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
-import {
-  workerEvents,
-  workerHeartbeats,
-  workerJobs,
-} from "@/lib/db/schema/tables";
-import type { WorkerJobPhase, WorkerJobStatus } from "@/lib/db/schema";
+import { WorkerMonitoringRepository } from "../infrastructure/worker-monitoring-repository";
+
+type WorkerJobPhase = "brainstorming" | "planning" | "executing";
 
 export interface WorkerHistoryFilters {
   taskIds: string[];
@@ -25,34 +20,26 @@ export interface WorkerHistoryFilters {
 }
 
 export class WorkerMonitoringService {
-  constructor(redis: Redis) {
+  private repository: WorkerMonitoringRepository;
+
+  constructor(redis: Redis, repository?: WorkerMonitoringRepository) {
     void redis;
+    this.repository = repository || new WorkerMonitoringRepository();
   }
 
   async recordHeartbeat(params: {
     workerId: string;
     metadata: Record<string, unknown>;
   }): Promise<void> {
-    await db.insert(workerHeartbeats).values({
-      workerId: params.workerId,
-      timestamp: new Date(),
-      metadata: params.metadata,
-    });
+    await this.repository.recordHeartbeat(params);
   }
 
   async getLatestHeartbeat() {
-    return db.query.workerHeartbeats.findFirst({
-      orderBy: (heartbeats, { desc }) => [desc(heartbeats.timestamp)],
-    });
+    return this.repository.getLatestHeartbeat();
   }
 
   async getWorkerStatus() {
-    const latest = await db
-      .select()
-      .from(workerHeartbeats)
-      .orderBy(desc(workerHeartbeats.timestamp))
-      .limit(1)
-      .execute();
+    const latest = await this.repository.getRecentHeartbeats(1);
 
     if (!latest || latest.length === 0) {
       return {
@@ -77,13 +64,7 @@ export class WorkerMonitoringService {
     }
 
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    const oldestRecent = await db
-      .select()
-      .from(workerHeartbeats)
-      .where(sql`${workerHeartbeats.timestamp} > ${oneHourAgo}`)
-      .orderBy(workerHeartbeats.timestamp)
-      .limit(1)
-      .execute();
+    const oldestRecent = await this.repository.getHeartbeatsSince(oneHourAgo);
 
     const uptime = oldestRecent[0]
       ? now.getTime() - oldestRecent[0].timestamp.getTime()
@@ -98,18 +79,7 @@ export class WorkerMonitoringService {
   }
 
   async getRecentFailures(limit = 10) {
-    const failures = await db
-      .select({
-        taskId: workerJobs.taskId,
-        phase: workerJobs.phase,
-        error: workerJobs.errorMessage,
-        timestamp: workerJobs.completedAt,
-      })
-      .from(workerJobs)
-      .where(eq(workerJobs.status, "failed"))
-      .orderBy(desc(workerJobs.completedAt))
-      .limit(limit)
-      .execute();
+    const failures = await this.repository.getRecentFailures(limit);
 
     return {
       count: failures.length,
@@ -126,18 +96,7 @@ export class WorkerMonitoringService {
 
   async getStuckTasks(thresholdMinutes = 10, limit = 20) {
     const threshold = new Date(Date.now() - thresholdMinutes * 60 * 1000);
-
-    const stuckRows = await db.execute(sql`
-      SELECT
-        id as "taskId",
-        title,
-        EXTRACT(EPOCH FROM (NOW() - processing_started_at)) / 60 as "stuckMinutes"
-      FROM tasks
-      WHERE processing_phase IS NOT NULL
-        AND processing_started_at < ${threshold}
-      ORDER BY processing_started_at ASC
-      LIMIT ${limit}
-    `);
+    const stuckRows = await this.repository.getStuckTasks(threshold, limit);
 
     const taskRows = stuckRows.rows.map((row: unknown) => {
       const r = row as { taskId: string; title: string; stuckMinutes: number };
@@ -154,60 +113,13 @@ export class WorkerMonitoringService {
     };
   }
 
-  private buildHistoryConditions(filters: {
-    taskIds: string[];
-    phase?: WorkerJobPhase | "all" | null;
-    status?: "completed" | "failed" | "all" | null;
-    repoTaskIds?: string[];
-    searchTaskIds?: string[];
-  }) {
-    const conditions = [
-      inArray(workerJobs.taskId, filters.taskIds),
-      inArray(workerJobs.status, ["completed", "failed"] as WorkerJobStatus[]),
-    ];
-
-    if (filters.phase && filters.phase !== "all") {
-      conditions.push(eq(workerJobs.phase, filters.phase));
-    }
-
-    if (filters.status === "completed") {
-      conditions.push(eq(workerJobs.status, "completed"));
-    } else if (filters.status === "failed") {
-      conditions.push(eq(workerJobs.status, "failed"));
-    }
-
-    if (filters.repoTaskIds && filters.repoTaskIds.length > 0) {
-      conditions.push(inArray(workerJobs.taskId, filters.repoTaskIds));
-    }
-
-    if (filters.searchTaskIds && filters.searchTaskIds.length > 0) {
-      conditions.push(inArray(workerJobs.taskId, filters.searchTaskIds));
-    }
-
-    return conditions;
-  }
-
   async getHistory(filters: WorkerHistoryFilters) {
-    const conditions = this.buildHistoryConditions(filters);
-
-    const countResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(workerJobs)
-      .where(and(...conditions));
-
-    const totalCount = Number(countResult[0]?.count || 0);
-
-    const jobs = await db.query.workerJobs.findMany({
-      where: and(...conditions),
-      orderBy: [desc(workerJobs.completedAt), desc(workerJobs.createdAt)],
+    const conditions = this.repository.buildHistoryConditions(filters);
+    const totalCount = await this.repository.getJobCount(conditions);
+    const jobs = await this.repository.getJobHistory({
+      conditions,
       limit: filters.limit,
       offset: filters.offset,
-      with: {
-        events: {
-          limit: 10,
-          orderBy: [asc(workerEvents.createdAt)],
-        },
-      },
     });
 
     return {
@@ -221,7 +133,7 @@ export class WorkerMonitoringService {
     repoTaskIds?: string[];
     searchTaskIds?: string[];
   }) {
-    const conditions = this.buildHistoryConditions({
+    const conditions = this.repository.buildHistoryConditions({
       taskIds: params.taskIds,
       status: "all",
       phase: "all",
@@ -229,25 +141,15 @@ export class WorkerMonitoringService {
       searchTaskIds: params.searchTaskIds,
     });
 
-    const statsRows = await db
-      .select({
-        total: sql<number>`count(*)`,
-        completed: sql<number>`count(*) filter (where ${workerJobs.status} = 'completed')`,
-        failed: sql<number>`count(*) filter (where ${workerJobs.status} = 'failed')`,
-        brainstorming: sql<number>`count(*) filter (where ${workerJobs.phase} = 'brainstorming')`,
-        planning: sql<number>`count(*) filter (where ${workerJobs.phase} = 'planning')`,
-        executing: sql<number>`count(*) filter (where ${workerJobs.phase} = 'executing')`,
-      })
-      .from(workerJobs)
-      .where(and(...conditions));
+    const stats = await this.repository.getJobStats(conditions);
 
     return {
-      total: Number(statsRows[0]?.total || 0),
-      completed: Number(statsRows[0]?.completed || 0),
-      failed: Number(statsRows[0]?.failed || 0),
-      brainstorming: Number(statsRows[0]?.brainstorming || 0),
-      planning: Number(statsRows[0]?.planning || 0),
-      executing: Number(statsRows[0]?.executing || 0),
+      total: Number(stats?.total || 0),
+      completed: Number(stats?.completed || 0),
+      failed: Number(stats?.failed || 0),
+      brainstorming: Number(stats?.brainstorming || 0),
+      planning: Number(stats?.planning || 0),
+      executing: Number(stats?.executing || 0),
     };
   }
 }

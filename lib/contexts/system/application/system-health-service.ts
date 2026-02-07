@@ -2,12 +2,17 @@
  * System Health Service (Application Layer)
  */
 
-import { sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { SystemHealthRepository } from "../infrastructure/system-health-repository";
 
 export class SystemHealthService {
+  private repository: SystemHealthRepository;
+
+  constructor(repository?: SystemHealthRepository) {
+    this.repository = repository || new SystemHealthRepository();
+  }
+
   async checkDatabaseConnection(): Promise<boolean> {
-    await db.execute(sql`SELECT 1`);
+    await this.repository.checkConnection();
     return true;
   }
 
@@ -18,12 +23,7 @@ export class SystemHealthService {
 
     for (const { table, column } of requiredColumns) {
       try {
-        const result = await db.execute(sql`
-          SELECT column_name
-          FROM information_schema.columns
-          WHERE table_name = ${table}
-          AND column_name = ${column}
-        `);
+        const result = await this.repository.getColumnInfo(table, column);
 
         if (result.rows.length === 0) {
           missingColumns.push(`${table}.${column}`);
