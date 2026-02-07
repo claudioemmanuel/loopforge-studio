@@ -131,9 +131,6 @@ services:
       - DB_USER=loopforge
       - NEXTAUTH_URL=http://web:3000
       - WORKER_SECRET=${WORKER_SECRET:-development-worker-secret}
-      - HEALTH_PORT=3001
-    ports:
-      - "3001:3001" # Health endpoint port
     volumes:
       - .:/app
       - repos-dev-data:/app/repos
@@ -145,20 +142,6 @@ services:
         condition: service_healthy
     networks:
       - loopforge-studio-dev
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:3001/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
     command: npx tsx --watch workers/execution-worker.ts
 
   # ===========================================
