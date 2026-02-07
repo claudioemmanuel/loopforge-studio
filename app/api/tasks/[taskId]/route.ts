@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { queueExecution } from "@/lib/queue";
 import type { TaskStatus } from "@/lib/contexts/task/api";
 import {
@@ -321,16 +322,26 @@ export const PATCH = withTask(async (request, { user, task, taskId }) => {
     await Promise.all(activityPromises);
   }
 
+  // Invalidate caches for this task and related pages
+  revalidateTag(`task:${taskId}`);
+  revalidateTag("tasks");
+  revalidateTag(`repo:${task.repoId}`);
+
   return NextResponse.json(updatedTask);
 });
 
-export const DELETE = withTask(async (request, { taskId }) => {
+export const DELETE = withTask(async (request, { task, taskId }) => {
   const useCase = UseCaseFactory.deleteTask();
   const result = await useCase.execute({ taskId });
 
   if (result.isFailure) {
     return handleError(result.error);
   }
+
+  // Invalidate caches after deletion
+  revalidateTag(`task:${taskId}`);
+  revalidateTag("tasks");
+  revalidateTag(`repo:${task.repoId}`);
 
   return NextResponse.json({ success: true });
 });

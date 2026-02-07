@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { handleError, Errors } from "@/lib/errors";
@@ -91,6 +92,10 @@ export async function POST(
     }
     return handleError(result.error);
   }
+
+  // Invalidate caches after creating new task
+  revalidateTag("tasks");
+  revalidateTag(`repo:${repoId}`);
 
   return NextResponse.json(result.value);
 }

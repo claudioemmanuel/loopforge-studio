@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getUserGithubToken } from "@/lib/auth";
 import { buildPrContent, generateBranchName } from "@/lib/github/pr-builder";
 import {
@@ -166,6 +167,12 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
     await executionService.deletePendingChanges(taskId);
 
     const updatedTask = await taskService.getTaskFull(taskId);
+
+    // Invalidate caches after approving diff
+    revalidateTag(`task:${taskId}`);
+    revalidateTag("tasks");
+    revalidateTag(`repo:${task.repoId}`);
+    revalidateTag(`execution:${latestExecution.id}`);
 
     return NextResponse.json({
       success: true,

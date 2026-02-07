@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { auth } from "@/lib/auth";
 import { discardBranchChanges } from "@/lib/ralph/git-operations";
 import type { StatusHistoryEntry, TaskStatus } from "@/lib/contexts/task/api";
@@ -80,6 +81,14 @@ export async function POST(
     });
 
     const updatedTask = await taskService.getTaskFull(taskId);
+
+    // Invalidate caches after rejecting diff
+    revalidateTag(`task:${taskId}`);
+    revalidateTag("tasks");
+    revalidateTag(`repo:${task.repoId}`);
+    if (latestExecution) {
+      revalidateTag(`execution:${latestExecution.id}`);
+    }
 
     return NextResponse.json({
       success: true,
