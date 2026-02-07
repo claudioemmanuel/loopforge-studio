@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { SettingsProvider } from "./settings-context";
 import { getSettingsLayoutData } from "@/lib/contexts/settings/api";
 
+// Always fetch fresh settings data (security-sensitive)
+export const revalidate = false;
+
 export default async function SettingsLayout({
   children,
 }: {

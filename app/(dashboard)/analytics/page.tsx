@@ -6,6 +6,9 @@ import AnalyticsPageClient, {
   type AnalyticsData,
 } from "./analytics-page-client";
 
+// Cache analytics data for 5 minutes (historical data changes slowly)
+export const revalidate = 300;
+
 type DateRange = "today" | "week" | "month" | "year";
 
 function getDateRange(range: DateRange): { start: Date; end: Date } {
