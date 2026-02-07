@@ -31,10 +31,10 @@ export {
 };
 
 type ExecutionInsert = typeof executions.$inferInsert;
-type ExecutionUpdate = Record<string, unknown>;
+type ExecutionUpdate = Partial<typeof executions.$inferInsert>;
 type WorkerJobInsert = typeof workerJobs.$inferInsert;
-type WorkerJobUpdate = Record<string, unknown>;
-type TaskUpdate = Record<string, unknown>;
+type WorkerJobUpdate = Partial<typeof workerJobs.$inferInsert>;
+type TaskUpdate = Partial<typeof tasks.$inferInsert>;
 
 export async function createExecutionRecord(params: {
   taskId: string;
@@ -56,30 +56,21 @@ export async function updateExecutionRecord(
   executionId: string,
   values: ExecutionUpdate,
 ): Promise<void> {
-  await db
-    .update(executions)
-    .set(values as Partial<ExecutionInsert>)
-    .where(eq(executions.id, executionId));
+  await db.update(executions).set(values).where(eq(executions.id, executionId));
 }
 
 export async function updateTaskRecord(
   taskId: string,
   values: TaskUpdate,
 ): Promise<void> {
-  await db
-    .update(tasks)
-    .set(values as Partial<typeof tasks.$inferInsert>)
-    .where(eq(tasks.id, taskId));
+  await db.update(tasks).set(values).where(eq(tasks.id, taskId));
 }
 
 export async function updateWorkerJobRecord(
   workerJobId: string,
   values: WorkerJobUpdate,
 ): Promise<void> {
-  await db
-    .update(workerJobs)
-    .set(values as Partial<WorkerJobInsert>)
-    .where(eq(workerJobs.id, workerJobId));
+  await db.update(workerJobs).set(values).where(eq(workerJobs.id, workerJobId));
 }
 
 export async function insertExecutionEvent(params: {

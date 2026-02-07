@@ -120,7 +120,7 @@ export class ExecutionPersistenceAdapter {
     prUrl?: string;
     prNumber?: number;
   }): Promise<void> {
-    const updates: Record<string, unknown> = {
+    const updates: Partial<typeof executions.$inferInsert> = {
       status: "completed",
       completedAt: new Date(),
     };
@@ -130,7 +130,7 @@ export class ExecutionPersistenceAdapter {
 
     await db
       .update(executions)
-      .set(updates as typeof executions.$inferInsert)
+      .set(updates)
       .where(eq(executions.id, params.executionId));
   }
 
@@ -148,7 +148,7 @@ export class ExecutionPersistenceAdapter {
 
   /** Mark execution as stuck. */
   async markStuck(executionId: string, signals?: unknown[]): Promise<void> {
-    const updates: Record<string, unknown> = {
+    const updates: Partial<typeof executions.$inferInsert> = {
       status: "stuck",
       completedAt: new Date(),
     };
@@ -156,7 +156,7 @@ export class ExecutionPersistenceAdapter {
 
     await db
       .update(executions)
-      .set(updates as typeof executions.$inferInsert)
+      .set(updates)
       .where(eq(executions.id, executionId));
   }
 
@@ -189,11 +189,11 @@ export class ExecutionPersistenceAdapter {
   /** Generic partial update for execution rows. */
   async updateFields(
     executionId: string,
-    fields: Record<string, unknown>,
+    fields: Partial<typeof executions.$inferInsert>,
   ): Promise<void> {
     await db
       .update(executions)
-      .set(fields as Record<string, unknown>)
+      .set(fields)
       .where(eq(executions.id, executionId));
   }
 

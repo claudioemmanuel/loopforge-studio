@@ -161,22 +161,22 @@ export class TaskPersistenceAdapter {
 
   async updateFields(
     taskId: string,
-    fields: Record<string, unknown>,
+    fields: Partial<typeof tasks.$inferInsert>,
   ): Promise<void> {
     await db
       .update(tasks)
-      .set({ ...fields, updatedAt: new Date() } as Record<string, unknown>)
+      .set({ ...fields, updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
   }
 
   async updateIfStatus(
     taskId: string,
     expectedStatuses: TaskStatus[],
-    fields: Record<string, unknown>,
+    fields: Partial<typeof tasks.$inferInsert>,
   ): Promise<boolean> {
     const result = await db
       .update(tasks)
-      .set({ ...fields, updatedAt: new Date() } as Record<string, unknown>)
+      .set({ ...fields, updatedAt: new Date() })
       .where(and(eq(tasks.id, taskId), inArray(tasks.status, expectedStatuses)))
       .returning({ id: tasks.id });
 
@@ -224,14 +224,14 @@ export class TaskPersistenceAdapter {
 
   async clearProcessingSlot(
     taskId: string,
-    updates: Record<string, unknown> = {},
+    updates: Partial<typeof tasks.$inferInsert> = {},
   ): Promise<void> {
     const current = await db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),
       columns: { status: true },
     });
 
-    const setPayload: Record<string, unknown> = {
+    const setPayload: Partial<typeof tasks.$inferInsert> = {
       processingPhase: null,
       processingJobId: null,
       processingStartedAt: null,

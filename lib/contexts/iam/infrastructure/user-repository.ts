@@ -228,11 +228,11 @@ export class UserRepository {
    */
   async updateFields(
     userId: string,
-    fields: Record<string, unknown>,
+    fields: Partial<typeof users.$inferInsert>,
   ): Promise<void> {
     await db
       .update(users)
-      .set({ ...fields, updatedAt: new Date() } as Record<string, unknown>)
+      .set({ ...fields, updatedAt: new Date() })
       .where(eq(users.id, userId));
   }
 }
