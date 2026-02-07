@@ -15,6 +15,11 @@ const VALID_MODELS = {
 } as const;
 
 type Provider = keyof typeof VALID_MODELS;
+type ValidModel = (typeof VALID_MODELS)[Provider][number];
+
+function isValidModel(provider: Provider, model: string): model is ValidModel {
+  return (VALID_MODELS[provider] as readonly string[]).includes(model);
+}
 
 export const POST = withAuth(async (request, { user }) => {
   try {
@@ -30,7 +35,7 @@ export const POST = withAuth(async (request, { user }) => {
       );
     }
 
-    if (!model || !VALID_MODELS[provider].includes(model as never)) {
+    if (!model || !isValidModel(provider, model)) {
       return NextResponse.json(
         {
           error: `Invalid model for ${provider}. Valid models: ${VALID_MODELS[provider].join(", ")}`,

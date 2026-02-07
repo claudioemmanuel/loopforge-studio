@@ -14,8 +14,8 @@ interface TaskNodeData {
   onToggleExpand?: () => void;
 }
 
-export const TaskGraphNode = memo(({ data }: NodeProps) => {
-  const typedData = data as unknown as TaskNodeData;
+export const TaskGraphNode = memo(({ data }: NodeProps<TaskNodeData>) => {
+  const typedData = data;
   const {
     task,
     isExpanded = false,

@@ -98,7 +98,7 @@ export function useWorkerEvents(
         });
 
         // Helper to get default status text
-        function getDefaultStatusText(status: TaskStatus): string {
+        function getDefaultStatusText(status: TaskStatus): string | undefined {
           switch (status) {
             case "brainstorming":
               return "Starting brainstorm...";
@@ -107,7 +107,7 @@ export function useWorkerEvents(
             case "executing":
               return "Starting execution...";
             default:
-              return undefined as unknown as string;
+              return undefined;
           }
         }
 

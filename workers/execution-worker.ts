@@ -1854,8 +1854,9 @@ async function processExecution(
                     executionId,
                     eventType: "error",
                     content: `Test gate blocked: ${testGateReason}`,
-                    metadata:
-                      gateDecision.metadata as unknown as ExecutionEventMetadata,
+                    metadata: {
+                      errorDetails: JSON.stringify(gateDecision.metadata),
+                    },
                     createdAt: new Date(),
                   });
                   await publishExecutionEvent(executionId, {

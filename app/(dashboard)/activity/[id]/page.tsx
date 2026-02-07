@@ -35,7 +35,7 @@ export default async function ExecutionDetailPage({
       <ExecutionDetailView
         execution={detail.execution}
         task={detail.execution.task}
-        events={detail.events as never}
+        events={detail.events}
       />
     </div>
   );
