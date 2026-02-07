@@ -13,3 +13,12 @@ ALTER TABLE "repos" ADD COLUMN IF NOT EXISTS "critical_test_patterns" jsonb DEFA
 COMMENT ON COLUMN "repos"."auto_approve" IS 'When true, automatically commit and push changes when tests pass';
 COMMENT ON COLUMN "repos"."test_gate_policy" IS 'Test failure policy: strict | warn | skip | autoApprove';
 COMMENT ON COLUMN "repos"."critical_test_patterns" IS 'Array of test name patterns that must pass (e.g., ["auth", "payment"])';
+
+-- Now that repos.auto_approve exists, backfill tasks that were created before this migration
+-- This completes the migration started in 0028
+UPDATE "tasks" t
+SET "auto_approve" = r."auto_approve"
+FROM "repos" r
+WHERE t."repo_id" = r."id"
+  AND r."auto_approve" = true
+  AND t."auto_approve" = false; -- Only update tasks that haven't been manually configured

@@ -8,11 +8,14 @@ ALTER TABLE "execution_events" ADD COLUMN "task_id" uuid REFERENCES "tasks"("id"
 ALTER TABLE "execution_events" ADD COLUMN "title" text;
 
 -- Update existing records to have a title based on event_type
+-- Only handle event types that exist in the execution_event_type enum:
+-- ('thinking', 'file_read', 'file_write', 'command_run', 'commit', 'error', 'complete', 'stuck')
 UPDATE "execution_events" SET "title" = CASE
   WHEN "event_type" = 'thinking' THEN 'AI Thinking'
-  WHEN "event_type" = 'action' THEN 'Action Executed'
-  WHEN "event_type" = 'progress' THEN 'Progress Update'
-  WHEN "event_type" = 'tool_use' THEN 'Tool Used'
+  WHEN "event_type" = 'file_read' THEN 'File Read'
+  WHEN "event_type" = 'file_write' THEN 'File Written'
+  WHEN "event_type" = 'command_run' THEN 'Command Executed'
+  WHEN "event_type" = 'commit' THEN 'Code Committed'
   WHEN "event_type" = 'error' THEN 'Error Occurred'
   WHEN "event_type" = 'complete' THEN 'Execution Complete'
   WHEN "event_type" = 'stuck' THEN 'Task Stuck'
