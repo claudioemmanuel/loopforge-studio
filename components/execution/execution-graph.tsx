@@ -1,25 +1,37 @@
 "use client";
 
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Background,
+  BackgroundVariant,
+  MiniMap,
+  ReactFlow,
+  type Edge,
+  type NodeTypes,
+  type ReactFlowInstance,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import type { ExecutionGraph, GraphNode } from "@/lib/shared/graph-types";
-import { useGraphLayout } from "./use-graph-layout";
-import { useGraphViewport } from "./use-graph-viewport";
-import { GraphNodeComponent } from "./graph-node";
-import { GraphEdgeComponent } from "./graph-edge";
+import { ZOOM_CONFIG } from "@/lib/shared/graph-types";
 import { GraphControls } from "./graph-controls";
-import { GraphMinimap } from "./graph-minimap";
 import { GraphLegend } from "./graph-legend";
 import { GraphNodeTooltip } from "./graph-node-tooltip";
 import { useGraphRealtime } from "./use-graph-realtime";
 import { useGraphKeyboard } from "./use-graph-keyboard";
 import { GraphAnnouncer, prefersReducedMotion } from "./graph-accessibility";
 import { GraphKeyboardHelp } from "./graph-keyboard-help";
+import { useGraphLayout } from "./use-graph-layout";
 import {
-  getViewportBounds,
-  getVisibleNodes,
-  getVisibleEdges,
-  shouldUseCanvasRendering,
-} from "./graph-performance";
+  GraphFlowNode,
+  type ExecutionFlowNode,
+  type ExecutionFlowNodeData,
+} from "./graph-flow-node";
 
 /**
  * Props for ExecutionGraph component
@@ -35,6 +47,41 @@ export interface ExecutionGraphProps {
   showLegend?: boolean;
   showControls?: boolean;
   className?: string;
+}
+
+const NODE_TYPES: NodeTypes = {
+  executionNode: GraphFlowNode,
+};
+
+const STATUS_MINIMAP_COLORS: Record<GraphNode["status"], string> = {
+  pending: "#475569",
+  "in-progress": "#3b82f6",
+  complete: "#10b981",
+  failed: "#ef4444",
+  stuck: "#dc2626",
+};
+
+function getEdgeColor(
+  status: GraphNode["status"],
+  highlighted: boolean,
+): string {
+  if (highlighted) {
+    return "#10b981";
+  }
+
+  switch (status) {
+    case "pending":
+      return "#475569";
+    case "in-progress":
+      return "#3b82f6";
+    case "complete":
+      return "#10b981";
+    case "failed":
+    case "stuck":
+      return "#ef4444";
+    default:
+      return "#475569";
+  }
 }
 
 /**
@@ -54,25 +101,15 @@ export function ExecutionGraph({
   className = "",
 }: ExecutionGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [flowInstance, setFlowInstance] =
+    useState<ReactFlowInstance<ExecutionFlowNode> | null>(null);
+  const [currentZoom, setCurrentZoom] = useState<number>(ZOOM_CONFIG.default);
 
   // Calculate layout
   const layout = useGraphLayout(executionGraph);
-
-  // Viewport management
-  const { viewport, pan, zoomIn, zoomOut, fitToView, reset, setViewport } =
-    useGraphViewport(containerRef);
-
-  // Get container dimensions for minimap and culling.
-  const [containerDimensions, setContainerDimensions] = useState({
-    width: 800,
-    height: 600,
-  });
 
   // Real-time updates via SSE
   const { isConnected, updatedNodeIds } = useGraphRealtime({
@@ -95,7 +132,6 @@ export function ExecutionGraph({
   // Accessibility announcer
   const announcerRef = useRef<GraphAnnouncer | null>(null);
 
-  // Initialize announcer
   useEffect(() => {
     announcerRef.current = new GraphAnnouncer();
     return () => {
@@ -103,168 +139,162 @@ export function ExecutionGraph({
     };
   }, []);
 
-  // Announce connection status changes
   useEffect(() => {
     if (enableRealtime) {
       announcerRef.current?.announceConnectionStatus(isConnected);
     }
   }, [isConnected, enableRealtime]);
 
-  // Check for reduced motion preference
   const reducedMotion = prefersReducedMotion();
+  const focusedNodeId =
+    layout && layout.nodes[focusedNodeIndex]
+      ? layout.nodes[focusedNodeIndex].id
+      : null;
 
-  // Performance: viewport culling for large graphs
-  const useCanvasMode = layout
-    ? shouldUseCanvasRendering(layout.nodes.length)
-    : false;
-
-  // Calculate visible nodes/edges based on viewport
-  const visibleContent = React.useMemo(() => {
-    if (!layout || useCanvasMode) {
-      return { nodes: layout?.nodes || [], edges: layout?.edges || [] };
-    }
-
-    const bounds = getViewportBounds(
-      viewport,
-      containerDimensions.width,
-      containerDimensions.height,
-    );
-
-    const visibleNodes = getVisibleNodes(layout.nodes, bounds);
-    const visibleNodeIds = new Set(visibleNodes.map((n) => n.id));
-    const visibleEdges = getVisibleEdges(
-      layout.edges,
-      layout.nodes,
-      visibleNodeIds,
-    );
-
-    return { nodes: visibleNodes, edges: visibleEdges };
-  }, [layout, viewport, containerDimensions, useCanvasMode]);
-
-  useEffect(() => {
-    if (containerRef.current) {
-      const updateDimensions = () => {
-        setContainerDimensions({
-          width: containerRef.current?.clientWidth || 800,
-          height: containerRef.current?.clientHeight || 600,
-        });
-      };
-
-      updateDimensions();
-      window.addEventListener("resize", updateDimensions);
-      return () => window.removeEventListener("resize", updateDimensions);
-    }
-  }, []);
-
-  // Handle node click
-  const handleNodeClick = useCallback(
-    (node: GraphNode, e: React.MouseEvent) => {
-      setSelectedNodeId(node.id);
-      setHoveredNode(node);
-      setMousePosition({ x: e.clientX, y: e.clientY });
-      onNodeClick?.(node);
-    },
-    [onNodeClick],
-  );
-
-  // Handle node hover
   const handleNodeHover = useCallback(
-    (node: GraphNode | null, e?: React.MouseEvent) => {
+    (node: GraphNode | null, event?: React.MouseEvent) => {
       setHoveredNode(node);
-      if (e) {
-        setMousePosition({ x: e.clientX, y: e.clientY });
+      if (event) {
+        setMousePosition({ x: event.clientX, y: event.clientY });
       }
     },
     [],
   );
 
-  // Handle fit to view with dimensions
-  const handleFitToView = useCallback(() => {
-    if (layout && containerRef.current) {
-      fitToView({
-        width: layout.width,
-        height: layout.height,
-        containerWidth: containerDimensions.width,
-        containerHeight: containerDimensions.height,
-      });
-    }
-  }, [layout, fitToView, containerDimensions]);
+  const handleNodeActivate = useCallback(
+    (node: GraphNode, event: React.MouseEvent | React.KeyboardEvent) => {
+      setSelectedNodeId(node.id);
+      setHoveredNode(node);
 
-  // Handle viewport change from minimap
-  const handleViewportChange = useCallback(
-    (x: number, y: number) => {
-      setViewport({ x, y });
-    },
-    [setViewport],
-  );
-
-  // Mouse pan handlers
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent<SVGSVGElement>) => {
-      // Only pan with left mouse button and no modifier keys
-      if (e.button === 0 && !e.ctrlKey && !e.metaKey) {
-        setIsPanning(true);
-        setPanStart({ x: e.clientX - viewport.x, y: e.clientY - viewport.y });
-        e.preventDefault();
-      }
-    },
-    [viewport.x, viewport.y],
-  );
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<SVGSVGElement>) => {
-      if (isPanning) {
-        const dx = e.clientX - panStart.x - viewport.x;
-        const dy = e.clientY - panStart.y - viewport.y;
-        pan(dx, dy);
-      } else if (hoveredNode) {
-        setMousePosition({ x: e.clientX, y: e.clientY });
-      }
-    },
-    [isPanning, panStart, viewport.x, viewport.y, pan, hoveredNode],
-  );
-
-  const handleMouseUp = useCallback(() => {
-    setIsPanning(false);
-  }, []);
-
-  // Touch pan handlers
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent<SVGSVGElement>) => {
-      if (e.touches.length === 1) {
-        setIsPanning(true);
-        setPanStart({
-          x: e.touches[0].clientX - viewport.x,
-          y: e.touches[0].clientY - viewport.y,
+      if ("clientX" in event && "clientY" in event) {
+        setMousePosition({ x: event.clientX, y: event.clientY });
+      } else {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setMousePosition({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
         });
       }
+
+      onNodeClick?.(node);
     },
-    [viewport.x, viewport.y],
+    [onNodeClick],
   );
 
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent<SVGSVGElement>) => {
-      if (isPanning && e.touches.length === 1) {
-        const dx = e.touches[0].clientX - panStart.x - viewport.x;
-        const dy = e.touches[0].clientY - panStart.y - viewport.y;
-        pan(dx, dy);
-        e.preventDefault();
-      }
-    },
-    [isPanning, panStart, viewport.x, viewport.y, pan],
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    setIsPanning(false);
-  }, []);
-
-  // Fit to view on initial load
-  useEffect(() => {
-    if (layout && containerDimensions.width && containerDimensions.height) {
-      handleFitToView();
+  const flowNodes = useMemo<ExecutionFlowNode[]>(() => {
+    if (!layout) {
+      return [];
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout]);
+
+    return layout.nodes.map((node) => ({
+      id: node.id,
+      type: "executionNode",
+      position: {
+        x: node.x - node.width / 2,
+        y: node.y - node.height / 2,
+      },
+      draggable: false,
+      selectable: true,
+      selected: selectedNodeId === node.id,
+      data: {
+        graphNode: node,
+        compact,
+        isFocused: focusedNodeId === node.id,
+        isUpdated: updatedNodeIds.has(node.id) && !reducedMotion,
+        onActivate: handleNodeActivate,
+        onHover: handleNodeHover,
+      },
+      style: {
+        width: node.width,
+        height: node.height,
+      },
+    }));
+  }, [
+    layout,
+    selectedNodeId,
+    compact,
+    focusedNodeId,
+    updatedNodeIds,
+    reducedMotion,
+    handleNodeActivate,
+    handleNodeHover,
+  ]);
+
+  const flowEdges = useMemo<Edge[]>(() => {
+    if (!layout) {
+      return [];
+    }
+
+    const nodeById = new Map(layout.nodes.map((node) => [node.id, node]));
+
+    return layout.edges.map((edge) => {
+      const targetNode = nodeById.get(edge.target);
+      const highlighted =
+        selectedNodeId === edge.source || selectedNodeId === edge.target;
+      const color = getEdgeColor(targetNode?.status ?? "pending", highlighted);
+
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: "smoothstep",
+        animated: !reducedMotion && Boolean(edge.animated),
+        label: edge.label,
+        selectable: false,
+        style: {
+          stroke: color,
+          strokeWidth: highlighted ? 2.75 : 2,
+          opacity: highlighted ? 1 : 0.7,
+        },
+        markerEnd: {
+          type: "arrowclosed",
+          color,
+        },
+        labelStyle: {
+          fill: "#94a3b8",
+          fontSize: 10,
+        },
+      };
+    });
+  }, [layout, selectedNodeId, reducedMotion]);
+
+  const hasFitOnLoad = useRef(false);
+
+  useEffect(() => {
+    hasFitOnLoad.current = false;
+  }, [taskId]);
+
+  useEffect(() => {
+    if (!flowInstance || !layout || hasFitOnLoad.current) {
+      return;
+    }
+
+    flowInstance.fitView({
+      padding: 0.24,
+      duration: 250,
+    });
+
+    hasFitOnLoad.current = true;
+  }, [flowInstance, layout]);
+
+  const handleZoomIn = useCallback(() => {
+    flowInstance?.zoomIn({ duration: 180 });
+  }, [flowInstance]);
+
+  const handleZoomOut = useCallback(() => {
+    flowInstance?.zoomOut({ duration: 180 });
+  }, [flowInstance]);
+
+  const handleFitToView = useCallback(() => {
+    flowInstance?.fitView({ padding: 0.24, duration: 220 });
+  }, [flowInstance]);
+
+  const handleReset = useCallback(() => {
+    flowInstance?.setViewport(
+      { x: 0, y: 0, zoom: ZOOM_CONFIG.default },
+      { duration: 220 },
+    );
+  }, [flowInstance]);
 
   // Loading state
   if (!layout) {
@@ -311,14 +341,6 @@ export function ExecutionGraph({
     );
   }
 
-  // Calculate viewBox
-  const viewBoxX = -viewport.x / viewport.zoom;
-  const viewBoxY = -viewport.y / viewport.zoom;
-  const viewBoxWidth =
-    (containerRef.current?.clientWidth || 800) / viewport.zoom;
-  const viewBoxHeight =
-    (containerRef.current?.clientHeight || 600) / viewport.zoom;
-
   return (
     <div
       ref={containerRef}
@@ -326,9 +348,8 @@ export function ExecutionGraph({
       role="img"
       aria-label={`Execution graph for task ${taskId} with ${layout.nodes.length} nodes`}
     >
-      {/* Real-time connection indicator */}
       {enableRealtime && (
-        <div className="absolute top-4 left-4 z-10">
+        <div className="absolute top-4 left-4 z-20">
           <div
             className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/90 backdrop-blur-sm border ${
               isConnected ? "border-emerald-500/50" : "border-slate-700"
@@ -346,143 +367,97 @@ export function ExecutionGraph({
         </div>
       )}
 
-      {/* Performance indicator for large graphs */}
-      {layout && layout.nodes.length > 30 && (
+      {layout.nodes.length > 30 && (
         <div
-          className="absolute top-4 left-4 z-10"
+          className="absolute top-4 left-4 z-20"
           style={{ marginTop: enableRealtime ? "48px" : "0" }}
         >
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/90 backdrop-blur-sm border border-slate-700 text-xs">
             <span className="text-slate-400">
-              {useCanvasMode
-                ? `Canvas mode (${layout.nodes.length} nodes)`
-                : `Rendering ${visibleContent.nodes.length}/${layout.nodes.length} nodes`}
+              React Flow mode ({layout.nodes.length} nodes)
             </span>
           </div>
         </div>
       )}
 
-      {/* Graph Controls */}
       {showControls && (
-        <div className="absolute bottom-4 right-4 z-10">
+        <div className="absolute bottom-4 right-4 z-20">
           <GraphControls
-            onZoomIn={zoomIn}
-            onZoomOut={zoomOut}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
             onFitToView={handleFitToView}
-            onReset={reset}
-            currentZoom={viewport.zoom}
+            onReset={handleReset}
+            currentZoom={currentZoom}
           />
         </div>
       )}
 
-      {/* Graph Minimap */}
-      {showMinimap && !compact && layout && (
-        <div className="absolute bottom-4 left-4 z-10 hidden md:block">
-          <GraphMinimap
-            nodes={layout.nodes}
-            edges={layout.edges}
-            graphWidth={layout.width}
-            graphHeight={layout.height}
-            viewport={viewport}
-            containerWidth={containerDimensions.width}
-            containerHeight={containerDimensions.height}
-            onViewportChange={handleViewportChange}
-          />
-        </div>
-      )}
-
-      {/* Graph Legend */}
       {showLegend && (
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute top-4 right-4 z-20">
           <GraphLegend />
         </div>
       )}
 
-      {/* Keyboard shortcuts help */}
       {showControls && <GraphKeyboardHelp />}
 
-      <svg
-        ref={svgRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-        viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}`}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+      <ReactFlow<ExecutionFlowNode>
+        nodes={flowNodes}
+        edges={flowEdges}
+        nodeTypes={NODE_TYPES}
+        fitView
+        minZoom={ZOOM_CONFIG.min}
+        maxZoom={ZOOM_CONFIG.max}
+        defaultViewport={{ x: 0, y: 0, zoom: ZOOM_CONFIG.default }}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable
+        panOnScroll
+        selectionOnDrag={false}
+        onInit={(instance) => setFlowInstance(instance)}
+        onMove={(_, viewport) => setCurrentZoom(viewport.zoom)}
+        onPaneClick={() => setHoveredNode(null)}
+        onNodeClick={(event, node) =>
+          handleNodeActivate(node.data.graphNode, event)
+        }
+        onNodeMouseMove={(event, node) => {
+          setHoveredNode(node.data.graphNode);
+          setMousePosition({ x: event.clientX, y: event.clientY });
+        }}
+        onNodeMouseEnter={(event, node) => {
+          setHoveredNode(node.data.graphNode);
+          setMousePosition({ x: event.clientX, y: event.clientY });
+        }}
+        onNodeMouseLeave={() => setHoveredNode(null)}
+        className="h-full w-full"
+        proOptions={{ hideAttribution: true }}
       >
-        {/* Grid pattern for background */}
-        <defs>
-          <pattern
-            id="grid"
-            width="40"
-            height="40"
-            patternUnits="userSpaceOnUse"
-          >
-            <path
-              d="M 40 0 L 0 0 0 40"
-              fill="none"
-              stroke="rgb(30 41 59 / 0.4)"
-              strokeWidth="1"
-            />
-          </pattern>
-        </defs>
-
-        <rect
-          x={viewBoxX}
-          y={viewBoxY}
-          width={viewBoxWidth}
-          height={viewBoxHeight}
-          fill="url(#grid)"
+        <Background
+          variant={BackgroundVariant.Dots}
+          size={1}
+          gap={22}
+          color="rgba(51, 65, 85, 0.55)"
         />
+        {showMinimap && !compact && (
+          <MiniMap
+            pannable
+            zoomable
+            nodeStrokeWidth={2}
+            maskColor="rgba(15,23,42,0.65)"
+            className="!left-4 !bottom-4 !top-auto !h-[132px] !w-[188px] !rounded-lg !border !border-slate-700 !bg-slate-800/90"
+            nodeColor={(node) => {
+              const data = node.data as unknown as
+                | ExecutionFlowNodeData
+                | undefined;
+              const status = data?.graphNode.status;
+              if (!status) {
+                return "#475569";
+              }
+              return STATUS_MINIMAP_COLORS[status];
+            }}
+          />
+        )}
+      </ReactFlow>
 
-        {/* Render edges first (behind nodes) */}
-        <g className="edges" aria-hidden="true">
-          {visibleContent.edges.map((edge) => {
-            const sourceNode = layout.nodes.find((n) => n.id === edge.source);
-            const targetNode = layout.nodes.find((n) => n.id === edge.target);
-
-            if (!sourceNode || !targetNode) return null;
-
-            return (
-              <GraphEdgeComponent
-                key={edge.id}
-                edge={edge}
-                sourceNode={sourceNode}
-                targetNode={targetNode}
-                isHighlighted={
-                  selectedNodeId === edge.source ||
-                  selectedNodeId === edge.target
-                }
-              />
-            );
-          })}
-        </g>
-
-        {/* Render nodes */}
-        <g className="nodes">
-          {visibleContent.nodes.map((node) => {
-            const index = layout.nodes.findIndex((n) => n.id === node.id);
-            return (
-              <GraphNodeComponent
-                key={node.id}
-                node={node}
-                onClick={handleNodeClick}
-                onHover={handleNodeHover}
-                isSelected={
-                  selectedNodeId === node.id || focusedNodeIndex === index
-                }
-                isUpdated={updatedNodeIds.has(node.id) && !reducedMotion}
-                compact={compact}
-              />
-            );
-          })}
-        </g>
-      </svg>
-
-      {/* Live region for status updates (screen reader) */}
       <div
         className="sr-only"
         role="status"
@@ -494,7 +469,6 @@ export function ExecutionGraph({
           : ""}
       </div>
 
-      {/* Tooltip for node details */}
       <GraphNodeTooltip
         node={hoveredNode}
         mouseX={mousePosition.x}
