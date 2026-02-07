@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const claimExecute = vi.fn().mockResolvedValue({ isFailure: false });
 const clearExecute = vi.fn().mockResolvedValue(undefined);
+const updateStateExecute = vi.fn().mockResolvedValue(undefined);
 const claimPlanningSlot = vi.fn(() => ({ execute: claimExecute }));
 const clearProcessingSlot = vi.fn(() => ({ execute: clearExecute }));
-const updateFields = vi.fn().mockResolvedValue(undefined);
+const updateProcessingState = vi.fn(() => ({ execute: updateStateExecute }));
 const queuePlan = vi.fn().mockResolvedValue({ id: "job-2" });
 const publishProcessingEvent = vi.fn();
 const createProcessingEvent = vi.fn(() => ({ type: "processing_start" }));
@@ -34,9 +35,7 @@ vi.mock("@/lib/api", () => ({
   findConfiguredProvider: vi.fn(() => "anthropic"),
 }));
 
-vi.mock("@/lib/contexts/task/api", () => ({
-  getTaskService: () => ({ updateFields }),
-}));
+// TaskService not directly used in this route anymore
 
 vi.mock("@/lib/queue", () => ({
   queuePlan,
@@ -58,6 +57,7 @@ vi.mock("@/lib/contexts/task/api/use-case-factory", () => ({
   UseCaseFactory: {
     claimPlanningSlot,
     clearProcessingSlot,
+    updateProcessingState,
   },
 }));
 
@@ -122,13 +122,17 @@ describe("POST /api/tasks/[taskId]/plan/start", () => {
       workerId: "user-1",
     });
 
-    expect(updateFields).toHaveBeenNthCalledWith(1, task.id, {
-      status: "planning",
-      processingStartedAt: expect.any(Date),
-      processingStatusText: "Reviewing brainstorm...",
-      updatedAt: expect.any(Date),
-    });
-    expect(updateFields).toHaveBeenNthCalledWith(2, task.id, {
+    expect(updateProcessingState).toHaveBeenCalled();
+    expect(updateStateExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: task.id,
+        status: "planning",
+        processingStartedAt: expect.any(Date),
+        processingStatusText: "Reviewing brainstorm...",
+      }),
+    );
+    expect(updateStateExecute).toHaveBeenCalledWith({
+      taskId: task.id,
       processingJobId: "job-2",
     });
 

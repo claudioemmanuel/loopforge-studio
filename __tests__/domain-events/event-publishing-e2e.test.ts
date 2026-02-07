@@ -16,9 +16,9 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { getRedis } from "@/lib/queue";
-import { EventPublisher } from "@/lib/contexts/domain-events/infrastructure/event-publisher";
+import { EventPublisher } from "@/lib/contexts/domain-events/event-publisher";
 import { startDomainEventRuntime } from "@/lib/contexts/domain-events/runtime";
-import { DomainEventTypes } from "@/lib/contexts/domain-events/domain/event-types";
+import { DomainEventTypes } from "@/lib/contexts/domain-events/event-taxonomy";
 import { getTaskService } from "@/lib/contexts/task/api";
 import { getExecutionService } from "@/lib/contexts/execution/api";
 import { getUserService } from "@/lib/contexts/iam/api";

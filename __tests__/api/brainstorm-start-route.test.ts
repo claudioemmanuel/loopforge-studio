@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const claimExecute = vi.fn().mockResolvedValue({ isFailure: false });
 const clearExecute = vi.fn().mockResolvedValue(undefined);
+const updateStateExecute = vi.fn().mockResolvedValue(undefined);
 const claimBrainstormingSlot = vi.fn(() => ({ execute: claimExecute }));
 const clearProcessingSlot = vi.fn(() => ({ execute: clearExecute }));
-const updateFields = vi.fn().mockResolvedValue(undefined);
+const updateProcessingState = vi.fn(() => ({ execute: updateStateExecute }));
 const queueBrainstorm = vi.fn().mockResolvedValue({ id: "job-1" });
 const publishProcessingEvent = vi.fn();
 const createProcessingEvent = vi.fn(() => ({ type: "processing_start" }));
@@ -33,9 +34,7 @@ vi.mock("@/lib/api", () => ({
   findConfiguredProvider: vi.fn(() => "anthropic"),
 }));
 
-vi.mock("@/lib/contexts/task/api", () => ({
-  getTaskService: () => ({ updateFields }),
-}));
+// TaskService not directly used in this route anymore
 
 vi.mock("@/lib/queue", () => ({
   queueBrainstorm,
@@ -57,6 +56,7 @@ vi.mock("@/lib/contexts/task/api/use-case-factory", () => ({
   UseCaseFactory: {
     claimBrainstormingSlot,
     clearProcessingSlot,
+    updateProcessingState,
   },
 }));
 
@@ -129,7 +129,9 @@ describe("POST /api/tasks/[taskId]/brainstorm/start", () => {
       taskTitle: task.title,
     });
 
-    expect(updateFields).toHaveBeenCalledWith(task.id, {
+    expect(updateProcessingState).toHaveBeenCalled();
+    expect(updateStateExecute).toHaveBeenCalledWith({
+      taskId: task.id,
       processingJobId: "job-1",
     });
     expect(publishProcessingEvent).toHaveBeenCalled();

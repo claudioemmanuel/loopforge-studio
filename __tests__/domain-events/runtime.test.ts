@@ -46,7 +46,7 @@ describe("domain event runtime", () => {
     vi.clearAllMocks();
   });
 
-  it("does not start subscribers for non-owner role", async () => {
+  it("starts event subscriber for web role but not side-effect handlers", async () => {
     const { startDomainEventRuntime } =
       await import("@/lib/contexts/domain-events/runtime");
 
@@ -55,26 +55,36 @@ describe("domain event runtime", () => {
       consumerRole: "worker",
     });
 
+    // Side-effect handlers (billing, analytics) should NOT run for web role
     expect(billingStart).not.toHaveBeenCalled();
     expect(analyticsStart).not.toHaveBeenCalled();
-    expect(subscriberStart).not.toHaveBeenCalled();
+
+    // But EventSubscriber SHOULD start for web role (canConsumeEvents includes "web")
+    expect(subscriberStart).toHaveBeenCalled();
   });
 
-  it("starts runtime once for owner role and ignores duplicate start", async () => {
-    const { startDomainEventRuntime } =
+  it("starts runtime once for event-consumer role and ignores duplicate start", async () => {
+    const { startDomainEventRuntime, stopDomainEventRuntime } =
       await import("@/lib/contexts/domain-events/runtime");
 
+    // First call should start handlers
     await startDomainEventRuntime({
-      role: "worker",
-      consumerRole: "worker",
-    });
-    await startDomainEventRuntime({
-      role: "worker",
+      role: "event-consumer",
       consumerRole: "worker",
     });
 
+    // Second call should be ignored (already initialized)
+    await startDomainEventRuntime({
+      role: "event-consumer",
+      consumerRole: "worker",
+    });
+
+    // Should only be called once due to idempotency
     expect(billingStart).toHaveBeenCalledTimes(1);
     expect(analyticsStart).toHaveBeenCalledTimes(1);
     expect(subscriberStart).toHaveBeenCalledTimes(1);
+
+    // Clean up for next test
+    await stopDomainEventRuntime();
   });
 });

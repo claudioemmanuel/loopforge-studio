@@ -98,18 +98,22 @@ export class EventPublisher implements IEventPublisher {
 
   /**
    * Persist event to database
+   * Uses ON CONFLICT DO NOTHING to handle duplicate events gracefully (idempotency)
    */
   private async persistEvent(event: DomainEvent): Promise<void> {
-    await db.insert(domainEvents).values({
-      id: event.id,
-      eventType: event.eventType,
-      aggregateId: event.aggregateId,
-      aggregateType: event.aggregateType,
-      occurredAt: event.occurredAt,
-      data: event.data,
-      metadata: event.metadata || {},
-      version: 1, // Schema version for future compatibility
-    });
+    await db
+      .insert(domainEvents)
+      .values({
+        id: event.id,
+        eventType: event.eventType,
+        aggregateId: event.aggregateId,
+        aggregateType: event.aggregateType,
+        occurredAt: event.occurredAt,
+        data: event.data,
+        metadata: event.metadata || {},
+        version: 1, // Schema version for future compatibility
+      })
+      .onConflictDoNothing();
   }
 
   /**

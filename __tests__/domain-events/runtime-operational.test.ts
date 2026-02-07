@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { DomainEventTypes } from "@/lib/contexts/domain-events/domain/event-types";
+import { DomainEventTypes } from "@/lib/contexts/domain-events/event-taxonomy";
 
 describe("EDA Runtime Operational Verification", () => {
   describe("Event Type Taxonomy", () => {
