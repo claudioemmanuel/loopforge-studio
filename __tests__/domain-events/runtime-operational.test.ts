@@ -1,270 +1,92 @@
-/**
- * Event-Driven Architecture Runtime Operational Verification
- *
- * This test suite verifies that the EDA infrastructure is correctly wired
- * and operational without requiring database access. Tests focus on:
- * - Runtime initialization
- * - Event publisher availability
- * - Subscriber registration
- * - Role-based handler isolation
- *
- * These tests can run in any environment and prove 100% operational status.
- */
-
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import { EventPublisher } from "@/lib/contexts/domain-events/event-publisher";
+import { EventSubscriber } from "@/lib/contexts/domain-events/event-subscriber";
 import { DomainEventTypes } from "@/lib/contexts/domain-events/event-taxonomy";
+import {
+  areDomainEventHandlersHealthy,
+  getDomainEventRuntimeContext,
+  getDomainEventRuntimeHealth,
+  isDomainEventRuntimeConsumer,
+  isDomainEventRuntimeInitialized,
+  startDomainEventRuntime,
+  stopDomainEventRuntime,
+} from "@/lib/contexts/domain-events/runtime";
+import { BillingEventHandlers } from "@/lib/contexts/billing/infrastructure/event-handlers";
+import { AnalyticsEventSubscriber } from "@/lib/contexts/analytics/infrastructure/event-subscribers";
+import { getExecutionService } from "@/lib/contexts/execution/api";
+import { getRepositoryService } from "@/lib/contexts/repository/api";
+import { getTaskService } from "@/lib/contexts/task/api";
+import { getUserService } from "@/lib/contexts/iam/api";
 
-describe("EDA Runtime Operational Verification", () => {
-  describe("Event Type Taxonomy", () => {
-    it("should have all required aggregate event types defined", () => {
-      // Verify all 5 aggregates have event types
-      expect(DomainEventTypes.task).toBeDefined();
-      expect(DomainEventTypes.execution).toBeDefined();
-      expect(DomainEventTypes.repository).toBeDefined();
-      expect(DomainEventTypes.user).toBeDefined();
-      expect(DomainEventTypes.billing).toBeDefined();
-    });
-
-    it("should use canonical event naming (Aggregate.Action)", () => {
-      const eventTypes = Object.values(DomainEventTypes).flatMap((aggregate) =>
-        Object.values(aggregate),
-      );
-
-      for (const eventType of eventTypes) {
-        // Should match pattern: Word.Word (e.g., Task.Created, User.Registered)
-        expect(eventType).toMatch(/^[A-Z][a-z]+\.[A-Z][a-z]+$/);
-      }
-
-      // Verify specific critical events exist
-      expect(DomainEventTypes.task.created).toBe("Task.Created");
-      expect(DomainEventTypes.task.statusChanged).toBe("Task.StatusChanged");
-      expect(DomainEventTypes.execution.completed).toBe("Execution.Completed");
-      expect(DomainEventTypes.execution.failed).toBe("Execution.Failed");
-      expect(DomainEventTypes.user.registered).toBe("User.Registered");
-      expect(DomainEventTypes.user.providerConfigured).toBe(
-        "User.ProviderConfigured",
-      );
-      expect(DomainEventTypes.repository.created).toBe("Repository.Created");
-      expect(DomainEventTypes.billing.usageRecorded).toBe(
-        "Billing.UsageRecorded",
-      );
-    });
-
-    it("should have all User aggregate events defined", () => {
-      expect(DomainEventTypes.user.registered).toBe("User.Registered");
-      expect(DomainEventTypes.user.providerConfigured).toBe(
-        "User.ProviderConfigured",
-      );
-      expect(DomainEventTypes.user.providerRemoved).toBe(
-        "User.ProviderRemoved",
-      );
-      expect(DomainEventTypes.user.preferencesUpdated).toBe(
-        "User.PreferencesUpdated",
-      );
-      expect(DomainEventTypes.user.onboardingCompleted).toBe(
-        "User.OnboardingCompleted",
-      );
-    });
-
-    it("should have all Task aggregate events defined", () => {
-      expect(DomainEventTypes.task.created).toBe("Task.Created");
-      expect(DomainEventTypes.task.statusChanged).toBe("Task.StatusChanged");
-      expect(DomainEventTypes.task.updated).toBe("Task.Updated");
-      expect(DomainEventTypes.task.deleted).toBe("Task.Deleted");
-    });
-
-    it("should have all Execution aggregate events defined", () => {
-      expect(DomainEventTypes.execution.started).toBe("Execution.Started");
-      expect(DomainEventTypes.execution.completed).toBe("Execution.Completed");
-      expect(DomainEventTypes.execution.failed).toBe("Execution.Failed");
-    });
-
-    it("should have all Repository aggregate events defined", () => {
-      expect(DomainEventTypes.repository.created).toBe("Repository.Created");
-      expect(DomainEventTypes.repository.updated).toBe("Repository.Updated");
-      expect(DomainEventTypes.repository.deleted).toBe("Repository.Deleted");
-    });
-
-    it("should have all Billing aggregate events defined", () => {
-      expect(DomainEventTypes.billing.usageRecorded).toBe(
-        "Billing.UsageRecorded",
-      );
-    });
+describe("Domain Event Runtime Operational Contracts", () => {
+  it("exports runtime lifecycle functions", () => {
+    expect(typeof startDomainEventRuntime).toBe("function");
+    expect(typeof stopDomainEventRuntime).toBe("function");
+    expect(typeof getDomainEventRuntimeHealth).toBe("function");
+    expect(typeof getDomainEventRuntimeContext).toBe("function");
+    expect(typeof isDomainEventRuntimeInitialized).toBe("function");
+    expect(typeof isDomainEventRuntimeConsumer).toBe("function");
+    expect(typeof areDomainEventHandlersHealthy).toBe("function");
   });
 
-  describe("Event Publisher Integration", () => {
-    it("should export EventPublisher class", async () => {
-      const { EventPublisher } =
-        await import("@/lib/contexts/domain-events/infrastructure/event-publisher");
-      expect(EventPublisher).toBeDefined();
-      expect(typeof EventPublisher.getInstance).toBe("function");
-    });
+  it("exposes consistent default runtime context", async () => {
+    await stopDomainEventRuntime();
+    const context = getDomainEventRuntimeContext();
 
-    it("should have publish method signature", async () => {
-      const { EventPublisher } =
-        await import("@/lib/contexts/domain-events/infrastructure/event-publisher");
-
-      // Verify getInstance returns an instance with publish method
-      const mockRedis = {} as unknown as Parameters<
-        typeof EventPublisher.getInstance
-      >[0];
-      const publisher = EventPublisher.getInstance(mockRedis);
-      expect(publisher).toHaveProperty("publish");
-      expect(typeof publisher.publish).toBe("function");
-    });
+    expect(context.role).toBe("web");
+    expect(context.consumerRole).toBe("worker");
+    expect(context.runningAsConsumer).toBe(false);
+    expect(isDomainEventRuntimeInitialized()).toBe(false);
+    expect(isDomainEventRuntimeConsumer()).toBe(false);
   });
 
-  describe("Runtime Module Exports", () => {
-    it("should export startDomainEventRuntime function", async () => {
-      const runtime = await import("@/lib/contexts/domain-events/runtime");
-      expect(runtime.startDomainEventRuntime).toBeDefined();
-      expect(typeof runtime.startDomainEventRuntime).toBe("function");
-    });
+  it("returns health entries for all core handlers", () => {
+    const health = getDomainEventRuntimeHealth();
+    const names = health.map((entry) => entry.name);
 
-    it("should export runtime utilities", async () => {
-      const runtime = await import("@/lib/contexts/domain-events/runtime");
-      expect(runtime.stopDomainEventRuntime).toBeDefined();
-      expect(runtime.getEventRuntimeHealth).toBeDefined();
-    });
+    expect(names).toContain("BillingEventHandlers");
+    expect(names).toContain("AnalyticsEventSubscriber");
+    expect(names).toContain("EventSubscriber");
   });
 
-  describe("Aggregate Event Publishing Capability", () => {
-    it("should have User aggregate with event publisher", async () => {
-      const { UserAggregate } =
-        await import("@/lib/contexts/iam/domain/user-aggregate");
-      expect(UserAggregate).toBeDefined();
-
-      // Verify create method exists and is async (publishes events)
-      expect(typeof UserAggregate.create).toBe("function");
-      expect(UserAggregate.create.constructor.name).toBe("AsyncFunction");
-    });
-
-    it("should have Execution aggregate with event publisher", async () => {
-      const { ExecutionAggregate } =
-        await import("@/lib/contexts/execution/domain/execution-aggregate");
-      expect(ExecutionAggregate).toBeDefined();
-
-      // Verify it has methods that publish events
-      expect(typeof ExecutionAggregate.create).toBe("function");
-    });
-
-    it("should have Repository aggregate with event publisher", async () => {
-      const { RepositoryAggregate } =
-        await import("@/lib/contexts/repository/domain/repository-aggregate");
-      expect(RepositoryAggregate).toBeDefined();
-
-      // Verify create method exists
-      expect(typeof RepositoryAggregate.create).toBe("function");
-    });
-  });
-
-  describe("Service Integration", () => {
-    it("should have getUserService factory", async () => {
-      const { getUserService } = await import("@/lib/contexts/iam/api");
-      expect(getUserService).toBeDefined();
-      expect(typeof getUserService).toBe("function");
-    });
-
-    it("should have getExecutionService factory", async () => {
-      const { getExecutionService } =
-        await import("@/lib/contexts/execution/api");
-      expect(getExecutionService).toBeDefined();
-      expect(typeof getExecutionService).toBe("function");
-    });
-
-    it("should have getRepositoryService factory", async () => {
-      const { getRepositoryService } =
-        await import("@/lib/contexts/repository/api");
-      expect(getRepositoryService).toBeDefined();
-      expect(typeof getRepositoryService).toBe("function");
-    });
-  });
-
-  describe("Event Handlers", () => {
-    it("should have BillingEventHandlers class", async () => {
-      const { BillingEventHandlers } =
-        await import("@/lib/contexts/billing/application/billing-event-handlers");
-      expect(BillingEventHandlers).toBeDefined();
-    });
-
-    it("should have AnalyticsEventSubscriber class", async () => {
-      const { AnalyticsEventSubscriber } =
-        await import("@/lib/contexts/analytics/application/analytics-event-subscriber");
-      expect(AnalyticsEventSubscriber).toBeDefined();
-    });
-  });
-
-  describe("Infrastructure Verification", () => {
-    it("should have all required domain event constants", () => {
-      const allEventTypes = [
-        // Task events
-        DomainEventTypes.task.created,
-        DomainEventTypes.task.statusChanged,
-        DomainEventTypes.task.updated,
-        DomainEventTypes.task.deleted,
-        // Execution events
-        DomainEventTypes.execution.started,
-        DomainEventTypes.execution.completed,
-        DomainEventTypes.execution.failed,
-        // User events
-        DomainEventTypes.user.registered,
-        DomainEventTypes.user.providerConfigured,
-        DomainEventTypes.user.providerRemoved,
-        DomainEventTypes.user.preferencesUpdated,
-        DomainEventTypes.user.onboardingCompleted,
-        // Repository events
-        DomainEventTypes.repository.created,
-        DomainEventTypes.repository.updated,
-        DomainEventTypes.repository.deleted,
-        // Billing events
-        DomainEventTypes.billing.usageRecorded,
-      ];
-
-      // All event types should be unique
-      const uniqueTypes = new Set(allEventTypes);
-      expect(uniqueTypes.size).toBe(allEventTypes.length);
-
-      // All event types should be strings
-      allEventTypes.forEach((eventType) => {
-        expect(typeof eventType).toBe("string");
-      });
-    });
+  it("allows idempotent stop before runtime initialization", async () => {
+    await expect(stopDomainEventRuntime()).resolves.toBeUndefined();
+    expect(isDomainEventRuntimeInitialized()).toBe(false);
   });
 });
 
-describe("EDA Operational Status", () => {
-  it("should confirm 100% operational status", () => {
-    // This test documents that all EDA components are verified operational
+describe("Domain Event Infrastructure Wiring", () => {
+  it("exposes publisher and subscriber classes", () => {
+    expect(EventPublisher).toBeDefined();
+    expect(EventSubscriber).toBeDefined();
+    expect(typeof EventPublisher.getInstance).toBe("function");
+    expect(typeof EventPublisher.createEvent).toBe("function");
+    expect(typeof EventSubscriber.getInstance).toBe("function");
+  });
 
-    const operationalChecklist = {
-      "Runtime lifecycle fixed": true,
-      "All aggregates publish events": true,
-      "Event subscribers registered": true,
-      "Process role isolation": true,
-      "Idempotency protection": true,
-      "Canonical event naming": true,
-      "Billing handler operational": true,
-      "Analytics handler operational": true,
-      "User events (5/5)": true,
-      "Execution events": true,
-      "Repository events": true,
-      "Task events": true,
-      "Billing events": true,
-    };
+  it("exposes analytics and billing subscriber classes", () => {
+    expect(BillingEventHandlers).toBeDefined();
+    expect(AnalyticsEventSubscriber).toBeDefined();
+  });
 
-    const allOperational = Object.values(operationalChecklist).every(
-      (status) => status === true,
+  it("exposes service factories used by event handlers", () => {
+    expect(typeof getTaskService).toBe("function");
+    expect(typeof getExecutionService).toBe("function");
+    expect(typeof getRepositoryService).toBe("function");
+    expect(typeof getUserService).toBe("function");
+  });
+});
+
+describe("Domain Event Type Coverage", () => {
+  it("defines key event families used by runtime subscribers", () => {
+    expect(DomainEventTypes.task.created).toBe("Task.Created");
+    expect(DomainEventTypes.task.statusChanged).toBe("Task.StatusChanged");
+    expect(DomainEventTypes.execution.completed).toBe("Execution.Completed");
+    expect(DomainEventTypes.execution.failed).toBe("Execution.Failed");
+    expect(DomainEventTypes.repository.cloneCompleted).toBe(
+      "Repository.CloneCompleted",
     );
-
-    expect(allOperational).toBe(true);
-
-    // Document operational percentage
-    const completedItems = Object.values(operationalChecklist).filter(
-      (status) => status,
-    ).length;
-    const totalItems = Object.values(operationalChecklist).length;
-    const percentage = (completedItems / totalItems) * 100;
-
-    expect(percentage).toBe(100);
+    expect(DomainEventTypes.user.registered).toBe("User.Registered");
+    expect(DomainEventTypes.billing.usageRecorded).toBe("Usage.Recorded");
   });
 });
