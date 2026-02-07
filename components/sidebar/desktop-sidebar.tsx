@@ -22,6 +22,7 @@ import {
   Activity,
   Play,
   History,
+  HeartPulse,
   FolderGit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ import { LoopforgeIcon } from "@/components/loopforge-logo";
 import { NotificationBellClient } from "@/components/workers";
 import { RepoStatusDot } from "@/components/repo-status-indicator";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { useWorkerHealthStatus } from "@/components/hooks/use-worker-health-status";
 import {
   Tooltip,
   TooltipContent,
@@ -74,6 +76,7 @@ const activitySubItems = [
   { href: "/activity/active", labelKey: "activeTasks", icon: Play },
   { href: "/activity/history", labelKey: "history", icon: History },
   { href: "/activity/failed", labelKey: "failed", icon: AlertTriangle },
+  { href: "/activity/health", labelKey: "health", icon: HeartPulse },
 ];
 
 export function Sidebar({ user, repos = [] }: SidebarProps) {
@@ -106,6 +109,13 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
   const isActivityActive = pathname.startsWith("/activity");
   const isAnalyticsActive = pathname === "/analytics";
   const isSettingsActive = pathname.startsWith("/settings");
+  const { isUnhealthy: isHealthUnhealthy, isLoading: isHealthLoading } =
+    useWorkerHealthStatus();
+  const healthDotClass = isHealthLoading
+    ? "bg-muted-foreground/40"
+    : isHealthUnhealthy
+      ? "bg-red-500"
+      : "bg-green-500";
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -317,13 +327,19 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                     <PopoverTrigger asChild>
                       <button
                         className={cn(
-                          "flex items-center justify-center p-2 rounded-lg transition-colors w-full",
+                          "relative flex items-center justify-center p-2 rounded-lg transition-colors w-full",
                           isActivityActive
                             ? "bg-primary/10 text-primary"
                             : "text-muted-foreground hover:text-foreground",
                         )}
                       >
                         <Activity className="w-5 h-5" />
+                        <span
+                          className={cn(
+                            "absolute top-1.5 right-1.5 h-2 w-2 rounded-full",
+                            healthDotClass,
+                          )}
+                        />
                       </button>
                     </PopoverTrigger>
                     <PopoverContent side="right" className="w-52 p-2">
@@ -356,6 +372,14 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                                 )}
                               />
                               {t(item.labelKey as string)}
+                              {item.href === "/activity/health" && (
+                                <span
+                                  className={cn(
+                                    "ml-auto h-2 w-2 rounded-full",
+                                    healthDotClass,
+                                  )}
+                                />
+                              )}
                             </Link>
                           );
                         })}
@@ -402,6 +426,14 @@ export function Sidebar({ user, repos = [] }: SidebarProps) {
                               )}
                             />
                             {t(item.labelKey as string)}
+                            {item.href === "/activity/health" && (
+                              <span
+                                className={cn(
+                                  "ml-auto h-2 w-2 rounded-full",
+                                  healthDotClass,
+                                )}
+                              />
+                            )}
                           </Link>
                         );
                       })}

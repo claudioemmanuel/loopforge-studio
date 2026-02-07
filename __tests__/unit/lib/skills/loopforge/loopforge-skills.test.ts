@@ -5,11 +5,10 @@ import { gitWorkflowAutomation } from "@/lib/skills/loopforge/git-workflow-autom
 import { contextAccumulation } from "@/lib/skills/loopforge/context-accumulation";
 import { promptEngineering } from "@/lib/skills/loopforge/prompt-engineering";
 import type { SkillInvocationContext } from "@/lib/skills/types";
+import type { AIClient } from "@/lib/ai";
 
-const mockClient: {
-  getProvider: () => string;
-  getModel: () => string;
-} = {
+const mockClient: AIClient = {
+  chat: async () => "",
   getProvider: () => "anthropic",
   getModel: () => "claude-sonnet-4",
 };

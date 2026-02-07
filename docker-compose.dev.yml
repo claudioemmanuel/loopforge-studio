@@ -121,6 +121,8 @@ services:
         BUILDKIT_INLINE_CACHE: 1
     container_name: loopforge-studio-worker-dev
     restart: unless-stopped
+    ports:
+      - "3001:3001" # Health endpoint port
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://loopforge:loopforge@postgres:5432/loopforge
@@ -132,8 +134,6 @@ services:
       - NEXTAUTH_URL=http://web:3000
       - WORKER_SECRET=${WORKER_SECRET:-development-worker-secret}
       - HEALTH_PORT=3001
-    ports:
-      - "3001:3001" # Health endpoint port
     volumes:
       - .:/app
       - repos-dev-data:/app/repos
@@ -143,8 +143,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - loopforge-studio-dev
     healthcheck:
       test:
         [
@@ -159,6 +157,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    networks:
+      - loopforge-studio-dev
     command: npx tsx --watch workers/execution-worker.ts
 
   # ===========================================

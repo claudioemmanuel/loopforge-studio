@@ -21,12 +21,14 @@ import {
   Activity,
   Play,
   History,
+  HeartPulse,
   FolderGit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LoopforgeIcon } from "@/components/loopforge-logo";
 import { RepoStatusDot } from "@/components/repo-status-indicator";
+import { useWorkerHealthStatus } from "@/components/hooks/use-worker-health-status";
 import { useSidebar } from "./sidebar-context";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import type { IndexingStatus } from "@/lib/db/schema";
@@ -62,6 +64,7 @@ const activitySubItems = [
   { href: "/activity/active", labelKey: "activeTasks", icon: Play },
   { href: "/activity/history", labelKey: "history", icon: History },
   { href: "/activity/failed", labelKey: "failed", icon: AlertTriangle },
+  { href: "/activity/health", labelKey: "health", icon: HeartPulse },
 ];
 
 export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
@@ -71,11 +74,14 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
   const tSettings = useTranslations("settings");
 
   const isDashboardActive = pathname === "/dashboard";
-  const isRepositoriesActive =
-    pathname === "/repositories" || pathname.startsWith("/repos/");
-  const isActivityActive = pathname.startsWith("/activity");
   const isAnalyticsActive = pathname === "/analytics";
-  const isSettingsActive = pathname.startsWith("/settings");
+  const { isUnhealthy: isHealthUnhealthy, isLoading: isHealthLoading } =
+    useWorkerHealthStatus();
+  const healthDotClass = isHealthLoading
+    ? "bg-muted-foreground/40"
+    : isHealthUnhealthy
+      ? "bg-red-500"
+      : "bg-green-500";
 
   // Close sidebar on route change
   useEffect(() => {
@@ -244,6 +250,14 @@ export function MobileSidebar({ user, repos = [] }: MobileSidebarProps) {
                       )}
                     />
                     {t(item.labelKey as string)}
+                    {item.href === "/activity/health" && (
+                      <span
+                        className={cn(
+                          "ml-auto h-2 w-2 rounded-full",
+                          healthDotClass,
+                        )}
+                      />
+                    )}
                   </Link>
                 );
               })}

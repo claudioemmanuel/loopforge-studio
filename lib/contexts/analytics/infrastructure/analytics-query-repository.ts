@@ -26,6 +26,26 @@ export interface DateRange {
  * Analytics query repository - handles all read-only analytics queries
  */
 export class AnalyticsQueryRepository {
+  private toIsoTimestamp(value: Date | string): string {
+    return value instanceof Date ? value.toISOString() : value;
+  }
+
+  private isMissingRelationError(
+    error: unknown,
+    relationName: string,
+  ): boolean {
+    if (!error || typeof error !== "object") {
+      return false;
+    }
+
+    const record = error as { code?: string; message?: string };
+    return (
+      record.code === "42P01" &&
+      typeof record.message === "string" &&
+      record.message.includes(`relation "${relationName}" does not exist`)
+    );
+  }
+
   // =========================================================================
   // Dashboard analytics queries
   // =========================================================================
@@ -257,73 +277,99 @@ export class AnalyticsQueryRepository {
   // =========================================================================
 
   async getActivityFeed(repoId: string, limit: number) {
-    const events = await db
-      .select({
-        id: activityEvents.id,
-        eventType: activityEvents.eventType,
-        title: activityEvents.title,
-        content: activityEvents.content,
-        createdAt: activityEvents.createdAt,
-        taskId: tasks.id,
-        taskTitle: tasks.title,
-        metadata: activityEvents.metadata,
-      })
-      .from(activityEvents)
-      .innerJoin(tasks, eq(activityEvents.taskId, tasks.id))
-      .where(eq(tasks.repoId, repoId))
-      .orderBy(desc(activityEvents.createdAt))
-      .limit(limit);
+    let events;
+
+    try {
+      events = await db
+        .select({
+          id: activityEvents.id,
+          eventType: activityEvents.eventType,
+          title: activityEvents.title,
+          content: activityEvents.content,
+          createdAt: activityEvents.createdAt,
+          taskId: tasks.id,
+          taskTitle: tasks.title,
+          metadata: activityEvents.metadata,
+        })
+        .from(activityEvents)
+        .innerJoin(tasks, eq(activityEvents.taskId, tasks.id))
+        .where(eq(tasks.repoId, repoId))
+        .orderBy(desc(activityEvents.createdAt))
+        .limit(limit);
+    } catch (error) {
+      if (this.isMissingRelationError(error, "activity_events")) {
+        return [];
+      }
+      throw error;
+    }
 
     return events.map((e) => ({
       id: e.id,
       eventType: e.eventType,
       title: e.title || `${e.eventType} event`,
       content: e.content,
-      createdAt: e.createdAt.toISOString(),
+      createdAt: this.toIsoTimestamp(e.createdAt),
       task: e.taskId ? { id: e.taskId, title: e.taskTitle } : undefined,
       metadata: e.metadata,
     }));
   }
 
   async getActivityHistory(repoId: string, limit: number) {
-    return db
-      .select({
-        id: activityEvents.id,
-        taskId: tasks.id,
-        taskTitle: tasks.title,
-        eventType: activityEvents.eventType,
-        eventCategory: activityEvents.eventCategory,
-        title: activityEvents.title,
-        content: activityEvents.content,
-        createdAt: activityEvents.createdAt,
-        metadata: activityEvents.metadata,
-      })
-      .from(activityEvents)
-      .innerJoin(tasks, eq(activityEvents.taskId, tasks.id))
-      .where(eq(tasks.repoId, repoId))
-      .orderBy(desc(activityEvents.createdAt))
-      .limit(limit);
+    try {
+      return await db
+        .select({
+          id: activityEvents.id,
+          taskId: tasks.id,
+          taskTitle: tasks.title,
+          eventType: activityEvents.eventType,
+          eventCategory: activityEvents.eventCategory,
+          title: activityEvents.title,
+          content: activityEvents.content,
+          createdAt: activityEvents.createdAt,
+          metadata: activityEvents.metadata,
+        })
+        .from(activityEvents)
+        .innerJoin(tasks, eq(activityEvents.taskId, tasks.id))
+        .where(eq(tasks.repoId, repoId))
+        .orderBy(desc(activityEvents.createdAt))
+        .limit(limit);
+    } catch (error) {
+      if (this.isMissingRelationError(error, "activity_events")) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   async getActivityChanges(repoId: string, limit: number) {
-    return db
-      .select({
-        id: activityEvents.id,
-        taskId: tasks.id,
-        taskTitle: tasks.title,
-        eventType: activityEvents.eventType,
-        title: activityEvents.title,
-        content: activityEvents.content,
-        createdAt: activityEvents.createdAt,
-        metadata: activityEvents.metadata,
-      })
-      .from(activityEvents)
-      .innerJoin(tasks, eq(activityEvents.taskId, tasks.id))
-      .where(
-        and(eq(tasks.repoId, repoId), eq(activityEvents.eventCategory, "git")),
-      )
-      .orderBy(desc(activityEvents.createdAt))
-      .limit(limit);
+    try {
+      return await db
+        .select({
+          id: activityEvents.id,
+          taskId: tasks.id,
+          taskTitle: tasks.title,
+          eventType: activityEvents.eventType,
+          title: activityEvents.title,
+          content: activityEvents.content,
+          createdAt: activityEvents.createdAt,
+          metadata: activityEvents.metadata,
+        })
+        .from(activityEvents)
+        .innerJoin(tasks, eq(activityEvents.taskId, tasks.id))
+        .where(
+          and(
+            eq(tasks.repoId, repoId),
+            eq(activityEvents.eventCategory, "git"),
+          ),
+        )
+        .orderBy(desc(activityEvents.createdAt))
+        .limit(limit);
+    } catch (error) {
+      if (this.isMissingRelationError(error, "activity_events")) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   async getActivitySummary(repoId: string, days: number) {

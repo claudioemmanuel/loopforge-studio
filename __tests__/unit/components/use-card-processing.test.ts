@@ -43,13 +43,12 @@ class MockEventSource {
   }
 }
 
-// Global mock - create a factory class that captures the instance
-let capturedEventSource: MockEventSource | null = null;
-
 class CapturedEventSource extends MockEventSource {
+  static latest: MockEventSource | null = null;
+
   constructor(url: string) {
     super(url);
-    capturedEventSource = this;
+    CapturedEventSource.latest = this;
   }
 
   static CONNECTING = 0;
@@ -58,28 +57,28 @@ class CapturedEventSource extends MockEventSource {
 }
 
 // Set the global mock
-(global as unknown as { EventSource: typeof CapturedEventSource }).EventSource = CapturedEventSource;
+globalThis.EventSource = CapturedEventSource as unknown as typeof EventSource;
 
 describe("useCardProcessing hook", () => {
   let mockEventSource: MockEventSource;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    capturedEventSource = null;
+    CapturedEventSource.latest = null;
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-    capturedEventSource = null;
+    CapturedEventSource.latest = null;
   });
 
   // Helper to get the captured mock after hook renders
   const getEventSource = () => {
-    if (!capturedEventSource) {
+    if (!CapturedEventSource.latest) {
       throw new Error("EventSource not yet created");
     }
-    return capturedEventSource;
+    return CapturedEventSource.latest;
   };
 
   describe("Initial state", () => {
@@ -106,7 +105,9 @@ describe("useCardProcessing hook", () => {
     });
 
     it("should not connect when disabled", () => {
-      const { result } = renderHook(() => useCardProcessing({ enabled: false }));
+      const { result } = renderHook(() =>
+        useCardProcessing({ enabled: false }),
+      );
 
       expect(result.current.isConnected).toBe(false);
     });
@@ -206,7 +207,7 @@ describe("useCardProcessing hook", () => {
     it("should remove card on processing_complete", async () => {
       const onComplete = vi.fn();
       const { result } = renderHook(() =>
-        useCardProcessing({ onProcessingComplete: onComplete })
+        useCardProcessing({ onProcessingComplete: onComplete }),
       );
 
       await act(async () => {
@@ -265,7 +266,7 @@ describe("useCardProcessing hook", () => {
     it("should remove card and call error callback on processing_error", async () => {
       const onError = vi.fn();
       const { result } = renderHook(() =>
-        useCardProcessing({ onProcessingError: onError })
+        useCardProcessing({ onProcessingError: onError }),
       );
 
       await act(async () => {

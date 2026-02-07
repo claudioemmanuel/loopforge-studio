@@ -48,7 +48,18 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   // Parse query parameters
-  const phase = searchParams.get("phase") as WorkerJobPhase | "all" | null;
+  const phaseParam = searchParams.get("phase");
+  let phase: WorkerJobPhase | "all" | null = null;
+  if (phaseParam) {
+    if (
+      phaseParam === "brainstorming" ||
+      phaseParam === "planning" ||
+      phaseParam === "executing" ||
+      phaseParam === "all"
+    ) {
+      phase = phaseParam;
+    }
+  }
   const status = searchParams.get("status") as
     | "completed"
     | "failed"

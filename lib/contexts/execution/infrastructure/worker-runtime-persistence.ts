@@ -1,4 +1,5 @@
 import { eq, sql } from "drizzle-orm";
+import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   users,
@@ -34,7 +35,7 @@ type ExecutionInsert = typeof executions.$inferInsert;
 type ExecutionUpdate = Partial<typeof executions.$inferInsert>;
 type WorkerJobInsert = typeof workerJobs.$inferInsert;
 type WorkerJobUpdate = Partial<typeof workerJobs.$inferInsert>;
-type TaskUpdate = Partial<typeof tasks.$inferInsert>;
+type TaskUpdate = PgUpdateSetSource<typeof tasks>;
 
 export async function createExecutionRecord(params: {
   taskId: string;

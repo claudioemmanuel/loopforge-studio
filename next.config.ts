@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   // Enable standalone output for Docker (production only)
   ...(process.env.NODE_ENV === "production" && { output: "standalone" }),
 
+  // Keep BullMQ as a server-side external package to avoid bundling warnings.
+  serverExternalPackages: ["bullmq"],
+
   // Enable server actions and View Transitions API
   experimental: {
     serverActions: {
@@ -88,6 +91,11 @@ const nextConfig: NextConfig = {
       permanent: true,
     },
     {
+      source: "/workers/health",
+      destination: "/activity/health",
+      permanent: true,
+    },
+    {
       source: "/workers/history",
       destination: "/activity/history",
       permanent: true,
@@ -131,6 +139,15 @@ const nextConfig: NextConfig = {
 
   // Webpack configuration (fallback when not using Turbopack)
   webpack: (config, { isServer }) => {
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      {
+        module: /node_modules\/bullmq\/dist\/esm\/classes\/child-processor\.js/,
+        message:
+          /Critical dependency: the request of a dependency is an expression/,
+      },
+    ];
+
     if (isServer) {
       // Fix worker thread module resolution issues
       config.externals = config.externals || [];

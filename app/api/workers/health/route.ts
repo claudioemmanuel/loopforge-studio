@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api";
 import { handleError, Errors } from "@/lib/errors";
-import { connectionOptions } from "@/lib/queue";
-import { Queue } from "bullmq";
+import { connectionOptions } from "@/lib/queue/connection";
 import { Redis } from "ioredis";
 import { getWorkerMonitoringService } from "@/lib/contexts/execution/api";
 
@@ -54,29 +53,49 @@ interface WorkerHealthResponse {
 }
 
 async function getQueueStats(queueName: string): Promise<QueueStats> {
+  let connection: Redis | null = null;
+
   try {
-    const queue = new Queue(queueName, {
-      connection: connectionOptions,
-    });
+    connection = new Redis(connectionOptions);
+    const queuePrefix = `bull:${queueName}`;
+    const results = await connection
+      .multi()
+      .llen(`${queuePrefix}:wait`)
+      .zcard(`${queuePrefix}:prioritized`)
+      .zcard(`${queuePrefix}:waiting-children`)
+      .llen(`${queuePrefix}:active`)
+      .zcard(`${queuePrefix}:completed`)
+      .zcard(`${queuePrefix}:failed`)
+      .zcard(`${queuePrefix}:delayed`)
+      .llen(`${queuePrefix}:paused`)
+      .exec();
 
-    const counts = await queue.getJobCounts(
-      "waiting",
-      "active",
-      "completed",
-      "failed",
-      "delayed",
-      "paused",
-    );
+    if (!results) {
+      throw new Error(`No Redis response for queue ${queueName}`);
+    }
 
-    await queue.close();
+    const countFrom = (entry: [Error | null, unknown] | undefined): number => {
+      if (!entry || entry[0]) {
+        return 0;
+      }
+      return Number(entry[1] ?? 0);
+    };
+
+    const waiting =
+      countFrom(results[0]) + countFrom(results[1]) + countFrom(results[2]);
+    const active = countFrom(results[3]);
+    const completed = countFrom(results[4]);
+    const failed = countFrom(results[5]);
+    const delayed = countFrom(results[6]);
+    const paused = countFrom(results[7]);
 
     return {
-      waiting: counts.waiting,
-      active: counts.active,
-      completed: counts.completed,
-      failed: counts.failed,
-      delayed: counts.delayed,
-      paused: counts.paused,
+      waiting,
+      active,
+      completed,
+      failed,
+      delayed,
+      paused,
     };
   } catch (error) {
     console.error(`Error getting stats for queue ${queueName}:`, error);
@@ -88,6 +107,14 @@ async function getQueueStats(queueName: string): Promise<QueueStats> {
       delayed: 0,
       paused: 0,
     };
+  } finally {
+    if (connection) {
+      try {
+        await connection.quit();
+      } catch {
+        // Ignore connection teardown errors in health polling.
+      }
+    }
   }
 }
 

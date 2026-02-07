@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, X, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 interface SystemIssue {
@@ -15,12 +14,11 @@ interface SystemIssue {
 }
 
 export function SystemStatusBanner() {
-  const t = useTranslations("system.banner");
   const [issues, setIssues] = useState<SystemIssue[]>([]);
   const [dismissed, setDismissed] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
-  const checkSystemHealth = async () => {
+  const checkSystemHealth = useCallback(async () => {
     try {
       const response = await fetch("/api/workers/health");
       if (!response.ok) {
@@ -45,7 +43,7 @@ export function SystemStatusBanner() {
           severity: "critical",
           message: "Worker offline - tasks not processing",
           actionLabel: "View Worker Health",
-          actionUrl: "/workers/health",
+          actionUrl: "/activity/health",
         });
       } else if (health.worker.status === "error") {
         detectedIssues.push({
@@ -53,7 +51,7 @@ export function SystemStatusBanner() {
           severity: "critical",
           message: "Worker error detected - check logs",
           actionLabel: "View Worker Health",
-          actionUrl: "/workers/health",
+          actionUrl: "/activity/health",
         });
       }
 
@@ -64,7 +62,7 @@ export function SystemStatusBanner() {
           severity: "critical",
           message: "Redis connection lost - real-time updates unavailable",
           actionLabel: "View Worker Health",
-          actionUrl: "/workers/health",
+          actionUrl: "/activity/health",
         });
       }
 
@@ -80,7 +78,7 @@ export function SystemStatusBanner() {
           severity: "warning",
           message: `Queue backed up - ${totalWaiting} tasks waiting`,
           actionLabel: "View Queues",
-          actionUrl: "/workers/health",
+          actionUrl: "/activity/health",
         });
       }
 
@@ -91,7 +89,7 @@ export function SystemStatusBanner() {
           severity: "warning",
           message: `${health.stuck.count} task${health.stuck.count > 1 ? "s" : ""} stuck`,
           actionLabel: "View Details",
-          actionUrl: "/workers/health",
+          actionUrl: "/activity/health",
         });
       }
 
@@ -115,7 +113,7 @@ export function SystemStatusBanner() {
       console.error("Error checking system health:", error);
       // Don't show banner for fetch errors to avoid false positives
     }
-  };
+  }, [dismissed]);
 
   useEffect(() => {
     // Check immediately
@@ -137,7 +135,7 @@ export function SystemStatusBanner() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [dismissed]);
+  }, [checkSystemHealth]);
 
   const handleDismiss = () => {
     setDismissed(true);

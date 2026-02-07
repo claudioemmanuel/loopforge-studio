@@ -3,6 +3,7 @@
  * Atomically claims a task for planning phase
  */
 
+import { randomUUID } from "crypto";
 import type { ITaskRepository } from "../ports/ITaskRepository";
 import type { IEventPublisher } from "../ports/IEventPublisher";
 import { Result } from "@/lib/shared/Result";
@@ -71,8 +72,10 @@ export class ClaimPlanningSlotUseCase {
 
     // 4. Emit planning started event
     const event = {
-      type: "PlanningStarted" as const,
+      id: randomUUID(),
+      eventType: "PlanningStarted",
       aggregateId: task.id,
+      aggregateType: "Task",
       occurredAt: new Date(),
       data: { workerId: input.workerId },
     };

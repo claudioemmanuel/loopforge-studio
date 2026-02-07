@@ -3,6 +3,7 @@
  * Bulk deletes all tasks for given repository IDs
  */
 
+import { randomUUID } from "crypto";
 import type { ITaskRepository } from "../ports/ITaskRepository";
 import type { IEventPublisher } from "../ports/IEventPublisher";
 import type { IAnalyticsService } from "../ports/IAnalyticsService";
@@ -61,8 +62,10 @@ export class DeleteTasksByRepoIdsUseCase {
     // 4. Publish domain events for each deleted task
     for (const taskId of taskIds) {
       const event = {
-        type: "TaskDeleted" as const,
+        id: randomUUID(),
+        eventType: "TaskDeleted",
         aggregateId: taskId,
+        aggregateType: "Task",
         occurredAt: new Date(),
         data: {},
       };

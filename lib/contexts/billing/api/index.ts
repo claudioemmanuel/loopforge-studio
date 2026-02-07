@@ -2,7 +2,7 @@
  * Billing Context API (Public Interface)
  */
 
-import { getRedis } from "@/lib/queue";
+import { getRedis } from "@/lib/queue/connection";
 import { BillingService } from "../application/billing-service";
 import { SubscriptionRepository } from "../infrastructure/subscription-repository";
 import { UsageRepository } from "../infrastructure/usage-repository";

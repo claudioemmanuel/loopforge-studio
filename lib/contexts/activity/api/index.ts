@@ -1,5 +1,7 @@
 import { getExecutionService } from "@/lib/contexts/execution/api";
 
+import type { ExecutionEvent } from "@/lib/db/schema";
+
 type ExecutionWithOwnership = NonNullable<
   Awaited<
     ReturnType<
@@ -7,15 +9,6 @@ type ExecutionWithOwnership = NonNullable<
     >
   >
 >;
-
-type ExecutionEvent = {
-  id: string;
-  executionId: string;
-  eventType: string;
-  content: string;
-  metadata: Record<string, unknown> | null;
-  createdAt: Date;
-};
 
 export async function getExecutionDetailForUser(
   userId: string,

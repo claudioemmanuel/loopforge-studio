@@ -4,7 +4,7 @@
  * Service factory and type exports for IAM bounded context.
  */
 
-import { getRedis } from "@/lib/queue";
+import { getRedis } from "@/lib/queue/connection";
 import { UserService } from "../application/user-service";
 
 /**

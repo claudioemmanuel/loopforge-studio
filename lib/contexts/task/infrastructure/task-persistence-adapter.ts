@@ -1,5 +1,6 @@
 import type { Redis } from "ioredis";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   tasks,
@@ -17,6 +18,8 @@ const ACTIVE_WORKER_STATUSES = [
   "executing",
   "stuck",
 ] as const;
+
+type TaskUpdate = PgUpdateSetSource<typeof tasks>;
 
 export function getWorkerStatusesForFilter(filter?: string): TaskStatus[] {
   if (!filter || filter === "all") {
@@ -159,10 +162,7 @@ export class TaskPersistenceAdapter {
     await db.delete(tasks).where(inArray(tasks.repoId, repoIds));
   }
 
-  async updateFields(
-    taskId: string,
-    fields: Partial<typeof tasks.$inferInsert>,
-  ): Promise<void> {
+  async updateFields(taskId: string, fields: TaskUpdate): Promise<void> {
     await db
       .update(tasks)
       .set({ ...fields, updatedAt: new Date() })
@@ -172,7 +172,7 @@ export class TaskPersistenceAdapter {
   async updateIfStatus(
     taskId: string,
     expectedStatuses: TaskStatus[],
-    fields: Partial<typeof tasks.$inferInsert>,
+    fields: TaskUpdate,
   ): Promise<boolean> {
     const result = await db
       .update(tasks)
@@ -224,14 +224,14 @@ export class TaskPersistenceAdapter {
 
   async clearProcessingSlot(
     taskId: string,
-    updates: Partial<typeof tasks.$inferInsert> = {},
+    updates: TaskUpdate = {},
   ): Promise<void> {
     const current = await db.query.tasks.findFirst({
       where: eq(tasks.id, taskId),
       columns: { status: true },
     });
 
-    const setPayload: Partial<typeof tasks.$inferInsert> = {
+    const setPayload: TaskUpdate = {
       processingPhase: null,
       processingJobId: null,
       processingStartedAt: null,

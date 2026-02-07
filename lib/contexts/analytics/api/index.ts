@@ -2,7 +2,7 @@
  * Analytics Context API (Public Interface)
  */
 
-import { getRedis } from "@/lib/queue";
+import { getRedis } from "@/lib/queue/connection";
 import { AnalyticsService } from "../application/analytics-service";
 
 /**

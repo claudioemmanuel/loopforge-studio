@@ -227,7 +227,7 @@ export async function POST(
     const clearUseCase = UseCaseFactory.clearProcessingSlot();
     await clearUseCase.execute({
       taskId,
-      status: "brainstorming",
+      revertToStatus: "brainstorming",
     });
 
     // Get updated task

@@ -10,7 +10,11 @@
 import type { ExecutionService } from "../../application/execution-service";
 import type { TaskService } from "../../../task/application/task-service";
 import { Result } from "@/lib/shared/Result";
-import { UseCaseError } from "@/lib/shared/errors";
+import {
+  UseCaseError,
+  BusinessRuleError,
+  RepositoryError,
+} from "@/lib/shared/errors";
 import {
   commitAndPush,
   createFilesFromChanges,
@@ -18,6 +22,7 @@ import {
 } from "@/lib/ralph/git-operations";
 import { createPullRequest } from "@/lib/github/client";
 import { buildPrContent, generateBranchName } from "@/lib/github/pr-builder";
+import type { Task, Repo } from "@/lib/db/schema";
 import path from "path";
 
 const REPOS_DIR = process.env.REPOS_DIR || "/app/repos";
@@ -77,7 +82,8 @@ export class ApproveDiffUseCase {
       // 1. Validate task is in review status
       if (input.task.status !== "review") {
         return Result.fail(
-          new UseCaseError(
+          new BusinessRuleError(
+            "Task must be in review status",
             `Cannot approve changes: task status is ${input.task.status}`,
           ),
         );
@@ -89,7 +95,12 @@ export class ApproveDiffUseCase {
       );
 
       if (pendingChanges.length === 0) {
-        return Result.fail(new UseCaseError("No pending changes to approve"));
+        return Result.fail(
+          new BusinessRuleError(
+            "Pending changes required",
+            "No pending changes to approve",
+          ),
+        );
       }
 
       // 3. Get latest execution
@@ -98,11 +109,16 @@ export class ApproveDiffUseCase {
       );
 
       if (!latestExecution) {
-        return Result.fail(new UseCaseError("No execution found for task"));
+        return Result.fail(new RepositoryError("No execution found for task"));
       }
 
       // 4. Prepare git operations
-      const branch = input.task.branch || generateBranchName(input.task);
+      const branch =
+        input.task.branch ||
+        generateBranchName({
+          id: input.taskId,
+          title: input.task.title,
+        } as Task);
       const repoPath =
         input.task.repo.localPath ||
         path.join(REPOS_DIR, input.task.repo.fullName.replace("/", "_"));
@@ -151,8 +167,8 @@ export class ApproveDiffUseCase {
         );
 
         const prContent = buildPrContent({
-          task: input.task,
-          repo: input.task.repo,
+          task: input.task as unknown as Task,
+          repo: input.task.repo as unknown as Repo,
           execution: latestExecution,
           testRun,
           filesChanged,
@@ -193,7 +209,10 @@ export class ApproveDiffUseCase {
         status: "done",
         prUrl,
         prNumber,
-        statusHistory: [...(input.task.statusHistory || []), historyEntry],
+        statusHistory: [
+          ...(input.task.statusHistory || []),
+          historyEntry,
+        ] as unknown as Task["statusHistory"],
       });
 
       // 11. Clean up pending changes
@@ -201,6 +220,12 @@ export class ApproveDiffUseCase {
 
       // 12. Get updated task
       const updatedTask = await this.taskService.getTaskFull(input.taskId);
+
+      if (!updatedTask) {
+        return Result.fail(
+          new RepositoryError("Failed to retrieve updated task after approval"),
+        );
+      }
 
       return Result.ok({
         success: true,
@@ -210,11 +235,12 @@ export class ApproveDiffUseCase {
           message: commitMessage,
           filesChanged,
         },
-        pr: prUrl ? { url: prUrl, number: prNumber } : null,
+        pr:
+          prUrl && prNumber !== null ? { url: prUrl, number: prNumber } : null,
       });
     } catch (error) {
       return Result.fail(
-        new UseCaseError("Failed to approve changes", error as Error),
+        new RepositoryError("Failed to approve changes", error),
       );
     }
   }

@@ -548,18 +548,16 @@ describe("Integration: Full Reliability Pipeline", () => {
       "format_guidance",
       "simplified_prompt",
       "context_reset",
-    ]) {
+    ] as const) {
       const mockStrategy = {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tier: tier as any,
+        tier: tier,
         execute: vi.fn().mockResolvedValue({
           success: false,
           tier,
           message: "Failed",
         }),
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (orchestrator as any).strategies.set(tier, mockStrategy);
+      orchestrator.__test_setStrategy(tier, mockStrategy);
     }
 
     // Attempt recovery - should escalate to manual fallback

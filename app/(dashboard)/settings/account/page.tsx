@@ -4,12 +4,11 @@ import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { User, AlertTriangle, BarChart3, Download, Unplug } from "lucide-react";
+import { User, AlertTriangle, Download, Unplug } from "lucide-react";
 import { useSettings } from "../settings-context";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { UsageDashboard } from "@/components/billing/usage-dashboard";
 import { toast } from "@/components/ui/use-toast";
 import { clientLogger } from "@/lib/logger";
 
@@ -107,17 +106,6 @@ export default function AccountPage() {
             <p className="text-muted-foreground">{user.email}</p>
           </div>
         </div>
-      </div>
-
-      {/* Usage */}
-      <div className="p-6 rounded-xl border bg-card" id="usage">
-        <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-4 h-4" />
-          <h3 className="font-serif font-semibold tracking-tight">
-            {t("usage.title")}
-          </h3>
-        </div>
-        <UsageDashboard />
       </div>
 
       {/* Danger Zone */}

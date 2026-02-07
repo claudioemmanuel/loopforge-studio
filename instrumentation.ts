@@ -9,15 +9,30 @@ export async function register() {
   // Suppress MaxListenersExceededWarning in development
   // These warnings are common with SSE connections and HMR
   if (process.env.NODE_ENV === "development") {
+    const devMaxListeners = 100;
+
     // Increase default max listeners globally
-    EventEmitter.defaultMaxListeners = 20;
+    EventEmitter.defaultMaxListeners = Math.max(
+      EventEmitter.defaultMaxListeners,
+      devMaxListeners,
+    );
+
+    if (process.setMaxListeners) {
+      process.setMaxListeners(
+        Math.max(process.getMaxListeners(), devMaxListeners),
+      );
+    }
 
     // Also increase for stdout/stderr streams specifically
     if (process.stdout?.setMaxListeners) {
-      process.stdout.setMaxListeners(20);
+      process.stdout.setMaxListeners(
+        Math.max(process.stdout.getMaxListeners(), devMaxListeners),
+      );
     }
     if (process.stderr?.setMaxListeners) {
-      process.stderr.setMaxListeners(20);
+      process.stderr.setMaxListeners(
+        Math.max(process.stderr.getMaxListeners(), devMaxListeners),
+      );
     }
   }
 

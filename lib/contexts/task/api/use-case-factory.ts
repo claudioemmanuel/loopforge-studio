@@ -8,7 +8,7 @@ import { TaskPersistenceAdapter } from "../infrastructure/task-persistence-adapt
 import { EventPublisher } from "../../domain-events/event-publisher";
 import { AnalyticsServiceAdapter } from "../adapters/services/AnalyticsServiceAdapter";
 import { EventPublisherAdapter } from "../adapters/services/EventPublisherAdapter";
-import { getRedis } from "@/lib/queue";
+import { getRedis } from "@/lib/queue/connection";
 
 // Core CRUD
 import { CreateTaskUseCase } from "../use-cases/create-task/CreateTaskUseCase";

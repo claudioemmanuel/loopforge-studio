@@ -3,6 +3,7 @@
  * Deletes a task from the repository
  */
 
+import { randomUUID } from "crypto";
 import type { ITaskRepository } from "../ports/ITaskRepository";
 import type { IEventPublisher } from "../ports/IEventPublisher";
 import type { IAnalyticsService } from "../ports/IAnalyticsService";
@@ -12,7 +13,6 @@ import {
   RepositoryError,
   UseCaseError,
 } from "@/lib/shared/errors";
-import type { DomainEvent } from "../../entities/events";
 
 export interface DeleteTaskInput {
   taskId: string;
@@ -56,9 +56,11 @@ export class DeleteTaskUseCase {
     }
 
     // 3. Publish domain event
-    const event: DomainEvent = {
-      type: "TaskDeleted",
+    const event = {
+      id: randomUUID(),
+      eventType: "TaskDeleted",
       aggregateId: input.taskId,
+      aggregateType: "Task",
       occurredAt: new Date(),
       data: {},
     };

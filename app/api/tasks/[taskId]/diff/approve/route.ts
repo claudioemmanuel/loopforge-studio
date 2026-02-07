@@ -46,7 +46,13 @@ export const POST = withTask(async (request, { user, task, taskId }) => {
         prTargetBranch: task.repo.prTargetBranch,
       },
       repoId: task.repoId,
-      statusHistory: task.statusHistory,
+      statusHistory: task.statusHistory
+        ?.filter((entry) => entry.from !== null && entry.userId !== undefined)
+        .map((entry) => ({
+          ...entry,
+          from: entry.from as string,
+          userId: entry.userId as string,
+        })),
     },
   });
 

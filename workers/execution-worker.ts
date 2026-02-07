@@ -14,7 +14,6 @@ import type {
   TaskStatus,
   RepoIndex,
 } from "../lib/db/schema";
-import type { ExecutionEventMetadata } from "../lib/ralph/types";
 import { getBillingService } from "../lib/contexts/billing/api";
 import { runLoop, type LoopContext, type ExecutionMode } from "../lib/ralph";
 import {
@@ -74,14 +73,19 @@ import { startDomainEventRuntime } from "../lib/contexts/domain-events/runtime";
 import { getUserService } from "../lib/contexts/iam/api";
 import { getTaskService } from "../lib/contexts/task/api";
 import { getRepositoryService } from "../lib/contexts/repository/api";
-import { getExecutionService } from "../lib/contexts/execution/api";
+import {
+  getExecutionService,
+  getWorkerMonitoringService,
+} from "../lib/contexts/execution/api";
 import { getAnalyticsService } from "../lib/contexts/analytics/api";
+import { startWorkerHeartbeat } from "./worker-heartbeat";
 
 const REPOS_DIR = process.env.REPOS_DIR || "/app/repos";
 const userService = getUserService();
 const taskService = getTaskService();
 const repositoryService = getRepositoryService();
 const executionService = getExecutionService();
+const workerMonitoringService = getWorkerMonitoringService();
 const billingService = getBillingService();
 const analyticsService = getAnalyticsService();
 
@@ -107,6 +111,20 @@ function parseBoolean(
     normalized === "yes" ||
     normalized === "on"
   );
+}
+
+function parsePositiveInteger(
+  value: string | undefined,
+  defaultValue: number,
+): number {
+  if (!value) return defaultValue;
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return defaultValue;
+  }
+
+  return parsed;
 }
 
 // Centralized error handling for execution failures
@@ -3038,9 +3056,88 @@ planWorker.on("error", (err) => {
 
 workerLogger.info("Plan worker started");
 
+// Health check HTTP server
+import { createServer } from "http";
+
+const WORKER_HEARTBEAT_INTERVAL_MS = parsePositiveInteger(
+  process.env.WORKER_HEARTBEAT_INTERVAL_MS,
+  30_000,
+);
+const WORKER_HEARTBEAT_ID = process.env.WORKER_ID || "worker-1";
+const HEALTH_PORT = parsePositiveInteger(process.env.HEALTH_PORT, 3001);
+
+const workerHeartbeat = startWorkerHeartbeat({
+  service: workerMonitoringService,
+  workerId: WORKER_HEARTBEAT_ID,
+  intervalMs: WORKER_HEARTBEAT_INTERVAL_MS,
+  getUptime: () => process.uptime(),
+  getVersion: () => process.env.npm_package_version || "unknown",
+  onError: (error) => {
+    workerLogger.error({ error }, "Failed to record worker heartbeat");
+  },
+});
+
+workerLogger.info(
+  {
+    workerId: WORKER_HEARTBEAT_ID,
+    intervalMs: WORKER_HEARTBEAT_INTERVAL_MS,
+  },
+  "Worker heartbeat reporting started",
+);
+
+const healthServer = createServer((req, res) => {
+  if (req.url === "/health" && req.method === "GET") {
+    // Check if workers are running
+    const workersHealthy =
+      !worker.closing &&
+      !autonomousWorker.closing &&
+      !brainstormWorker.closing &&
+      !planWorker.closing;
+
+    if (workersHealthy) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "healthy",
+          timestamp: new Date().toISOString(),
+          workers: {
+            execution: "running",
+            autonomous: "running",
+            brainstorm: "running",
+            plan: "running",
+          },
+        }),
+      );
+    } else {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "unhealthy",
+          timestamp: new Date().toISOString(),
+          message: "One or more workers are shutting down",
+        }),
+      );
+    }
+  } else {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not Found");
+  }
+});
+
+healthServer.listen(HEALTH_PORT, () => {
+  workerLogger.info({ port: HEALTH_PORT }, "Health check server started");
+});
+
 // Graceful shutdown handler
 async function gracefulShutdown(signal: string) {
   workerLogger.info({ signal }, "Received shutdown signal, closing workers...");
+
+  // Stop heartbeat reporting before shutdown.
+  workerHeartbeat.stop();
+
+  // Close health server first
+  healthServer.close();
+
   await Promise.allSettled([
     worker.close(),
     autonomousWorker.close(),

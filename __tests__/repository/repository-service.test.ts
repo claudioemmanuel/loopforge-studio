@@ -80,6 +80,7 @@ describe("RepositoryService", () => {
     const found = await repositoryService.findByOwner(repoId!, userId);
     expect(found?.id).toBe(repoId);
     expect(found?.fullName).toBe("owner/repo-owned");
+    expect(found?.isCloned).toBe(false);
 
     const list = await repositoryService.listUserRepositories(userId);
     expect(list.some((repo) => repo.id === repoId)).toBe(true);
@@ -107,7 +108,10 @@ describe("RepositoryService", () => {
     await repositoryService.markCloneCompleted(repoId!, "/tmp/repo-clone");
     repo = await repositoryService.getById(repoId!);
     expect(repo?.cloneStatus).toBe("cloned");
+    expect(repo?.isCloned).toBe(true);
     expect(repo?.localPath).toBe("/tmp/repo-clone");
+    expect(repo?.clonePath).toBe("/tmp/repo-clone");
+    expect(repo?.clonedAt).toBeTruthy();
 
     await repositoryService.markCloneFailed(repoId!);
     repo = await repositoryService.getById(repoId!);
