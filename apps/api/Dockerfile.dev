@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache openssl && \
+    corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /app
+
+# Install dependencies only (layer-cached separately from source)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/api/package.json ./apps/api/
+
+RUN pnpm install --frozen-lockfile
+
+# Source is mounted as a volume at runtime — not copied here
+# Generate Prisma client from the mounted schema
+CMD ["sh", "-c", \
+  "pnpm --filter @loopforge/shared build && \
+   pnpm --filter @loopforge/api exec prisma generate && \
+   pnpm --filter @loopforge/api exec prisma migrate deploy && \
+   pnpm --filter @loopforge/api dev"]

@@ -1,0 +1,328 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ──────────────────────────────────────────────────────────────────────
+
+enum Stage {
+  TODO
+  BRAINSTORMING
+  PLANNING
+  READY
+  EXECUTING
+  CODE_REVIEW
+  DONE
+  STUCK
+}
+
+enum Provider {
+  ANTHROPIC
+  OPENAI
+  GOOGLE
+}
+
+enum PlanStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum LogLevel {
+  INFO
+  ACTION
+  ERROR
+  COMMIT
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+enum EventType {
+  TASK_CREATED
+  STAGE_CHANGED
+  PLAN_APPROVED
+  PLAN_REJECTED
+  EXECUTION_STARTED
+  EXECUTION_COMPLETED
+  STUCK_DETECTED
+  COMMIT_PUSHED
+  PR_CREATED
+  PR_MERGED
+  PR_MERGE_FAILED
+}
+
+enum AgentCategory {
+  META_ORCHESTRATION
+  CORE_DEVELOPMENT
+  QUALITY_SECURITY
+  LANGUAGE_SPECIALIST
+  INFRASTRUCTURE
+  DATA_AI
+  DEVELOPER_EXPERIENCE
+  SPECIALIZED_DOMAIN
+  BUSINESS_PRODUCT
+  RESEARCH_ANALYSIS
+}
+
+enum AgentExecutionStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ── Models ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id                   String          @id @default(uuid())
+  githubId             String          @unique
+  username             String
+  avatarUrl            String
+  encryptedGithubToken String
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  repositories    Repository[]
+  tasks           Task[]
+  providerConfigs ProviderConfig[]
+  analyticsEvents AnalyticsEvent[]
+
+  @@map("users")
+}
+
+model Repository {
+  id           String   @id @default(uuid())
+  userId       String
+  githubRepoId String
+  owner        String
+  name         String
+  fullName     String
+  defaultBranch String
+  connectedAt  DateTime @default(now())
+
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks           Task[]
+  commits         Commit[]
+  analyticsEvents AnalyticsEvent[]
+  agentSettings   ProjectAgentSettings[]
+
+  @@unique([userId, githubRepoId])
+  @@index([userId])
+  @@map("repositories")
+}
+
+model Task {
+  id             String   @id @default(uuid())
+  userId         String
+  repositoryId   String?
+  title          String   @db.VarChar(200)
+  description    String   @db.Text
+  stage          Stage    @default(TODO)
+  featureBranch  String?
+  autonomousMode Boolean  @default(false)
+  pullRequestUrl String?  @db.VarChar(500)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository      Repository?      @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+  executionPlan   ExecutionPlan?
+  chatMessages    ChatMessage[]
+  executionLogs   ExecutionLog[]
+  commits         Commit[]
+  analyticsEvents AnalyticsEvent[]
+  agentExecutions AgentExecution[]
+
+  @@index([userId, stage])
+  @@index([repositoryId, stage])
+  @@map("tasks")
+}
+
+model ExecutionPlan {
+  id                String     @id @default(uuid())
+  taskId            String     @unique
+  steps             Json
+  status            PlanStatus @default(PENDING_REVIEW)
+  rejectionFeedback String?    @db.Text
+  approvedAt        DateTime?
+  createdAt         DateTime   @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("execution_plans")
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  taskId     String
+  role       ChatRole
+  content    String   @db.Text
+  provider   String?
+  model      String?
+  tokenCount Int?
+  createdAt  DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("chat_messages")
+}
+
+model ProviderConfig {
+  id              String   @id @default(uuid())
+  userId          String
+  provider        Provider
+  encryptedApiKey String
+  defaultModel    String
+  isDefault       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@map("provider_configs")
+}
+
+model ExecutionLog {
+  id        String   @id @default(uuid())
+  taskId    String
+  sequence  Int
+  level     LogLevel
+  message   String   @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, sequence])
+  @@map("execution_logs")
+}
+
+model Commit {
+  id           String   @id @default(uuid())
+  taskId       String
+  repositoryId String
+  sha          String
+  branch       String
+  message      String
+  filesChanged Int      @default(0)
+  committedAt  DateTime
+
+  task       Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@map("commits")
+}
+
+model AnalyticsEvent {
+  id           String    @id @default(uuid())
+  userId       String
+  taskId       String
+  repositoryId String?
+  eventType    EventType
+  fromStage    Stage?
+  toStage      Stage?
+  provider     String?
+  model        String?
+  tokensUsed   Int?
+  metadata     Json?
+  occurredAt   DateTime  @default(now())
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task       Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  repository Repository? @relation(fields: [repositoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, occurredAt])
+  @@index([repositoryId, occurredAt])
+  @@map("analytics_events")
+}
+
+// ── Agent System ───────────────────────────────────────────────────────────────
+
+model Agent {
+  id          String        @id @default(uuid())
+  name        String
+  displayName String
+  description String        @db.Text
+  category    AgentCategory
+  version     String        @default("1.0.0")
+
+  systemPrompt String @db.Text
+  capabilities Json
+
+  isActive Boolean @default(true)
+  isCore   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  executions      AgentExecution[]
+  projectSettings ProjectAgentSettings[]
+
+  @@unique([name, version])
+  @@index([category, isActive])
+  @@map("agents")
+}
+
+model ProjectAgentSettings {
+  id           String  @id @default(uuid())
+  repositoryId String
+  agentId      String
+
+  isEnabled    Boolean @default(true)
+  customPrompt String? @db.Text
+  config       Json?
+
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  agent      Agent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, agentId])
+  @@map("project_agent_settings")
+}
+
+model AgentExecution {
+  id        String               @id @default(uuid())
+  taskId    String
+  agentId   String
+  stage     Stage
+
+  status    AgentExecutionStatus
+  startedAt DateTime             @default(now())
+  endedAt   DateTime?
+
+  contextKey String
+  output     Json?
+  metrics    Json?
+
+  task  Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent Agent      @relation(fields: [agentId], references: [id])
+  logs  AgentLog[]
+
+  @@index([taskId, stage])
+  @@index([agentId, status])
+  @@map("agent_executions")
+}
+
+model AgentLog {
+  id          String   @id @default(uuid())
+  executionId String
+
+  level       LogLevel
+  message     String   @db.Text
+  timestamp   DateTime @default(now())
+  sequenceNum Int
+
+  execution AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId, sequenceNum])
+  @@map("agent_logs")
+}

@@ -1,0 +1,551 @@
+openapi: 3.1.0
+info:
+  title: Loopforge Studio API
+  version: 1.0.0
+  description: REST + SSE API for Loopforge Studio backend
+
+servers:
+  - url: http://localhost:3001
+    description: Local development
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Task:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        stage:
+          type: string
+          enum: [TODO, BRAINSTORMING, PLANNING, READY, EXECUTING, DONE, STUCK]
+        repositoryId: { type: string, format: uuid, nullable: true }
+        featureBranch: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Repository:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        owner: { type: string }
+        name: { type: string }
+        fullName: { type: string }
+        defaultBranch: { type: string }
+        connectedAt: { type: string, format: date-time }
+
+    ChatMessage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        role: { type: string, enum: [USER, ASSISTANT] }
+        content: { type: string }
+        provider: { type: string, nullable: true }
+        model: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    ExecutionPlan:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        taskId: { type: string, format: uuid }
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              stepNumber: { type: integer }
+              description: { type: string }
+              estimatedChanges: { type: string }
+        status:
+          type: string
+          enum: [PENDING_REVIEW, APPROVED, REJECTED]
+        createdAt: { type: string, format: date-time }
+
+    ProviderConfig:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        provider: { type: string, enum: [ANTHROPIC, OPENAI, GOOGLE] }
+        defaultModel: { type: string }
+        isDefault: { type: boolean }
+        hasKey: { type: boolean, description: "True if key is set; raw key never returned" }
+
+    AnalyticsSummary:
+      type: object
+      properties:
+        totalTasks: { type: integer }
+        completedTasks: { type: integer }
+        stuckTasks: { type: integer }
+        successRate: { type: number, format: float }
+        totalTokensUsed: { type: integer }
+        byRepository:
+          type: array
+          items:
+            type: object
+            properties:
+              repositoryId: { type: string }
+              fullName: { type: string }
+              taskCount: { type: integer }
+              tokensUsed: { type: integer }
+        byProvider:
+          type: array
+          items:
+            type: object
+            properties:
+              provider: { type: string }
+              model: { type: string }
+              tokensUsed: { type: integer }
+
+security:
+  - bearerAuth: []
+
+paths:
+
+  # ── Auth ──────────────────────────────────────────────────────────────────
+
+  /auth/github:
+    get:
+      summary: Initiate GitHub OAuth flow
+      security: []
+      responses:
+        302:
+          description: Redirect to GitHub authorization URL
+
+  /auth/github/callback:
+    get:
+      summary: GitHub OAuth callback — issues JWT
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema: { type: string }
+        - name: state
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        302:
+          description: Redirect to frontend with JWT in secure cookie
+        400:
+          description: Invalid state or code
+
+  /auth/me:
+    get:
+      summary: Get current authenticated user
+      responses:
+        200:
+          description: User profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  username: { type: string }
+                  avatarUrl: { type: string }
+        401:
+          description: Unauthorized
+
+  /auth/logout:
+    post:
+      summary: Invalidate session
+      responses:
+        204:
+          description: Session cleared
+
+  # ── Repositories ─────────────────────────────────────────────────────────
+
+  /repositories:
+    get:
+      summary: List connected repositories
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Repository' }
+
+  /repositories/github:
+    get:
+      summary: List user's GitHub repos available to connect
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    githubRepoId: { type: string }
+                    fullName: { type: string }
+                    defaultBranch: { type: string }
+                    alreadyConnected: { type: boolean }
+
+  /repositories:
+    post:
+      summary: Connect a GitHub repository
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [githubRepoId]
+              properties:
+                githubRepoId: { type: string }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Repository' }
+
+  /repositories/{id}:
+    delete:
+      summary: Disconnect a repository
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        204:
+          description: Disconnected
+
+  # ── Tasks ─────────────────────────────────────────────────────────────────
+
+  /tasks:
+    get:
+      summary: List all tasks (board view)
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Task' }
+
+    post:
+      summary: Create a new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description]
+              properties:
+                title: { type: string, maxLength: 200 }
+                description: { type: string }
+                repositoryId: { type: string, format: uuid }
+      responses:
+        201:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+
+  /tasks/{id}:
+    get:
+      summary: Get task detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        404:
+          description: Not found
+
+    patch:
+      summary: Update task (title, description, repositoryId)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+                repositoryId: { type: string, format: uuid }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+
+    delete:
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        204:
+          description: Deleted
+
+  /tasks/{id}/stage:
+    post:
+      summary: Transition task to next stage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stage]
+              properties:
+                stage:
+                  type: string
+                  enum: [BRAINSTORMING, PLANNING, READY, BRAINSTORMING, STUCK]
+                feedback:
+                  type: string
+                  description: Required when rejecting plan (stage=BRAINSTORMING from PLANNING)
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        422:
+          description: Invalid transition
+
+  # ── Brainstorming Chat ────────────────────────────────────────────────────
+
+  /tasks/{id}/chat:
+    get:
+      summary: Get chat history for a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ChatMessage' }
+
+  /tasks/{id}/chat/stream:
+    post:
+      summary: Send a message and stream AI response (SSE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+                provider: { type: string, enum: [ANTHROPIC, OPENAI, GOOGLE] }
+                model: { type: string }
+      responses:
+        200:
+          description: Server-Sent Events stream of AI response chunks
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Events:
+                  data: {"type":"chunk","content":"..."}\n\n
+                  data: {"type":"done","tokenCount":123}\n\n
+                  data: {"type":"error","message":"..."}\n\n
+
+  # ── Execution Plan ────────────────────────────────────────────────────────
+
+  /tasks/{id}/plan:
+    get:
+      summary: Get execution plan for a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExecutionPlan' }
+        404:
+          description: No plan yet
+
+  /tasks/{id}/plan/approve:
+    post:
+      summary: Approve the execution plan (task → READY)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+
+  /tasks/{id}/plan/reject:
+    post:
+      summary: Reject the execution plan (task → BRAINSTORMING)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [feedback]
+              properties:
+                feedback: { type: string }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+
+  # ── Execution Logs ────────────────────────────────────────────────────────
+
+  /tasks/{id}/logs:
+    get:
+      summary: Get persisted execution logs for a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    sequence: { type: integer }
+                    level: { type: string }
+                    message: { type: string }
+                    createdAt: { type: string, format: date-time }
+
+  /tasks/{id}/logs/stream:
+    get:
+      summary: Stream live execution logs (SSE) during EXECUTING stage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        200:
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Events:
+                  data: {"sequence":1,"level":"ACTION","message":"Reading src/main.ts"}\n\n
+                  data: {"sequence":2,"level":"COMMIT","message":"Committed abc123 to loopforge/task-id-slug"}\n\n
+                  data: {"type":"done"}\n\n
+
+  # ── Provider Config ───────────────────────────────────────────────────────
+
+  /settings/providers:
+    get:
+      summary: List provider configurations (keys masked)
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProviderConfig' }
+
+  /settings/providers/{provider}:
+    put:
+      summary: Set or update API key and model for a provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [ANTHROPIC, OPENAI, GOOGLE]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [apiKey]
+              properties:
+                apiKey: { type: string }
+                defaultModel: { type: string }
+                isDefault: { type: boolean }
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProviderConfig' }
+
+    delete:
+      summary: Remove provider configuration
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        204:
+          description: Removed
+
+  # ── Analytics ─────────────────────────────────────────────────────────────
+
+  /analytics:
+    get:
+      summary: Get analytics summary for the authenticated user
+      parameters:
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+          description: Filter events from this date
+      responses:
+        200:
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsSummary' }
