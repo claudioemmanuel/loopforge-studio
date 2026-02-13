@@ -6,12 +6,11 @@ const config: Config = {
   theme: {
     extend: {
       /* ------------------------------------------------------------------ */
-      /*  Typography System                                                  */
+      /*  Typography System (Inter-based, GitLab-style)                      */
       /* ------------------------------------------------------------------ */
       fontFamily: {
-        // Greenhouse typography: Nunito Sans for UI/body
         sans: [
-          '"Nunito Sans"',
+          'Inter',
           'ui-sans-serif',
           '-apple-system',
           'BlinkMacSystemFont',
@@ -19,7 +18,6 @@ const config: Config = {
           'Roboto',
           'sans-serif',
         ],
-        // JetBrains Mono for code
         mono: [
           '"JetBrains Mono"',
           'ui-monospace',
@@ -29,20 +27,12 @@ const config: Config = {
           '"Liberation Mono"',
           'monospace',
         ],
-        // Greenhouse typography: Merriweather for headings/display
-        display: [
-          'Merriweather',
-          'Georgia',
-          'Cambria',
-          '"Times New Roman"',
-          'serif',
-        ],
       },
       fontSize: {
         /* Typographic scale -- optimised for UI-dense dev tools            */
         /* [fontSize, { lineHeight, letterSpacing, fontWeight }]            */
-        'display-lg': ['2.25rem', { lineHeight: '2.5rem', letterSpacing: '-0.025em', fontWeight: '700' }],
-        'display':    ['1.875rem', { lineHeight: '2.25rem', letterSpacing: '-0.025em', fontWeight: '700' }],
+        'display-lg': ['2rem', { lineHeight: '2.5rem', letterSpacing: '-0.025em', fontWeight: '600' }],
+        'display':    ['1.5rem', { lineHeight: '2rem', letterSpacing: '-0.02em', fontWeight: '600' }],
         'heading-lg': ['1.25rem', { lineHeight: '1.75rem', letterSpacing: '-0.015em', fontWeight: '600' }],
         'heading':    ['1rem', { lineHeight: '1.5rem', letterSpacing: '-0.011em', fontWeight: '600' }],
         'heading-sm': ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '-0.006em', fontWeight: '600' }],
@@ -64,7 +54,7 @@ const config: Config = {
       },
 
       /* ------------------------------------------------------------------ */
-      /*  Colors (existing)                                                  */
+      /*  Colors                                                             */
       /* ------------------------------------------------------------------ */
       colors: {
         border: 'hsl(var(--border))',
@@ -100,11 +90,25 @@ const config: Config = {
           DEFAULT: 'hsl(var(--popover))',
           foreground: 'hsl(var(--popover-foreground))',
         },
+        sidebar: {
+          DEFAULT: 'hsl(var(--sidebar-bg))',
+          foreground: 'hsl(var(--sidebar-fg))',
+          accent: 'hsl(var(--sidebar-accent))',
+          hover: 'hsl(var(--sidebar-hover))',
+          border: 'hsl(var(--sidebar-border))',
+        },
+        success: 'hsl(var(--success))',
+        warning: 'hsl(var(--warning))',
+        info: 'hsl(var(--info))',
       },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      width: {
+        sidebar: 'var(--sidebar-width)',
+        'sidebar-collapsed': 'var(--sidebar-collapsed-width)',
       },
     },
   },

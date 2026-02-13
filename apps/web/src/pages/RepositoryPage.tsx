@@ -6,6 +6,7 @@ import { TaskFilterBar } from '../components/repository/TaskFilterBar'
 import { CreateTaskDialog } from '../components/board/CreateTaskDialog'
 import { Plus, Inbox } from 'lucide-react'
 import { Skeleton } from '../components/ui/skeleton'
+import { Breadcrumb } from '../components/layout/Breadcrumb'
 import type { Stage } from '@loopforge/shared'
 
 export function RepositoryPage() {
@@ -43,28 +44,31 @@ export function RepositoryPage() {
   }, [setFilter, filters.order, fetchRepoTasks, repoId])
 
   return (
-    <div className="flex h-[calc(100vh-57px)] flex-col">
-      <div className="flex items-center justify-between border-b px-6 py-3">
-        <div>
-          {repository ? (
-            <>
-              <h1 className="text-lg font-semibold">{repository.name}</h1>
-              <p className="text-xs text-muted-foreground">{repository.fullName}</p>
-            </>
-          ) : (
-            <>
-              <Skeleton className="h-6 w-40" />
-              <Skeleton className="mt-1 h-4 w-56" />
-            </>
-          )}
+    <div className="flex h-full flex-col">
+      <div className="page-header">
+        <Breadcrumb />
+        <div className="mt-2 flex items-center justify-between">
+          <div>
+            {repository ? (
+              <>
+                <h1 className="text-lg font-semibold">{repository.name}</h1>
+                <p className="text-xs text-muted-foreground">{repository.fullName}</p>
+              </>
+            ) : (
+              <>
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="mt-1 h-4 w-56" />
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+          >
+            <Plus className="h-4 w-4" />
+            New Task
+          </button>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" />
-          New Task
-        </button>
       </div>
 
       <div className="border-b px-6 py-3">
@@ -88,7 +92,7 @@ export function RepositoryPage() {
                   <Skeleton className="mt-1.5 h-3 w-[80%]" />
                 </div>
                 <div className="flex items-center gap-3">
-                  <Skeleton className="h-6 w-24 rounded-full" />
+                  <Skeleton className="h-6 w-24 rounded" />
                   <Skeleton className="h-2 w-16" />
                 </div>
                 <div className="flex items-center gap-3">

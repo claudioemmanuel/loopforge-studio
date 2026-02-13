@@ -10,7 +10,7 @@ export function StageProgressDots({ currentStage }: StageProgressDotsProps) {
   const isStuck = currentStage === Stage.STUCK
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
       {STAGE_ORDER.map((stage, i) => {
         const config = STAGE_CONFIG[stage]
         let bgClass: string
@@ -28,7 +28,7 @@ export function StageProgressDots({ currentStage }: StageProgressDotsProps) {
         return (
           <div
             key={stage}
-            className={`h-2 w-2 rounded-full ${bgClass}`}
+            className={`h-1.5 w-3 first:rounded-l last:rounded-r ${bgClass}`}
             title={config.label}
           />
         )

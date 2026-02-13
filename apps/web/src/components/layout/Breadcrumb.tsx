@@ -18,7 +18,7 @@ export function Breadcrumb() {
   const segments: BreadcrumbSegment[] = []
 
   // Always start with dashboard
-  segments.push({ label: 'Dashboard', to: '/', icon: Home })
+  segments.push({ label: 'Projects', to: '/', icon: Home })
 
   // Repository level
   if (repoId) {
@@ -48,7 +48,7 @@ export function Breadcrumb() {
 
         return (
           <div key={segment.to} className="flex items-center gap-1">
-            {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+            {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/50" />}
             {isLast ? (
               <span className="flex items-center gap-1 font-medium text-foreground truncate max-w-[200px]">
                 {Icon && <Icon className="h-3.5 w-3.5" />}

@@ -34,7 +34,7 @@ export function ProviderConfigCard({ provider, value, onChange, onDelete }: Prov
   const keyUrl = PROVIDER_KEY_URLS[provider]
 
   return (
-    <div className="rounded-xl border bg-card p-5">
+    <div className="rounded-md border bg-card p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="font-semibold">{provider}</h3>
