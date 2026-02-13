@@ -1,9 +1,22 @@
+/* ==========================================================================
+   Loopforge Studio -- Typography & Design System (Greenhouse-inspired)
+   ==========================================================================
+   Font Stack:
+     Display: Merriweather (serif)    -- Headlines only (per Greenhouse guidelines)
+     Sans   : Nunito Sans (variable)  -- UI text, body, subheadings
+     Mono   : JetBrains Mono (var)    -- Code, logs, branch names, terminals
+   ========================================================================== */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* --------------------------------------------------------------------------
+   1. CSS Custom Properties
+   -------------------------------------------------------------------------- */
 @layer base {
   :root {
+    /* Color tokens (existing) */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -24,6 +37,22 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+
+    /* Typography tokens - Greenhouse style */
+    --font-sans: 'Nunito Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', Roboto, sans-serif;
+    --font-display: 'Merriweather', Georgia, Cambria, 'Times New Roman', serif;
+    --font-mono: 'JetBrains Mono', ui-monospace,
+      SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+
+    /* Nunito Sans OpenType feature settings for UI */
+    --font-feature-settings-sans: 'tnum' 1;
+    /* tnum: tabular numbers for better data alignment                */
+
+    /* JetBrains Mono feature settings for code */
+    --font-feature-settings-mono: 'liga' 1, 'calt' 1, 'zero' 1;
+    /* liga/calt: ligatures (==, !==, =>, ->, etc.)
+       zero: slashed zero                                       */
   }
 
   .dark {
@@ -49,15 +78,120 @@
   }
 }
 
+/* --------------------------------------------------------------------------
+   2. Base Typography Reset
+   -------------------------------------------------------------------------- */
 @layer base {
   * {
     @apply border-border;
   }
+
+  html {
+    font-feature-settings: var(--font-feature-settings-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-size: 0.875rem;            /* 14px -- matches dense dev-tool UIs */
+    line-height: 1.3;                /* Greenhouse: body copy = size × 1.3 */
+    letter-spacing: 0;               /* Nunito Sans default spacing */
+  }
+
+  /* Headings: Merriweather serif (per Greenhouse guidelines) */
+  h1, h2, h3 {
+    @apply font-display;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.0; /* Greenhouse: headline line-height = size × 1.0 */
+  }
+
+  /* Subheadings: Nunito Sans (Greenhouse utility font) */
+  h4, h5, h6 {
+    @apply font-sans;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1.27; /* Greenhouse: subhead line-height = size × 1.27 */
+  }
+
+  h1 { @apply text-display-lg; }
+  h2 { @apply text-display; }
+  h3 { @apply text-heading-lg; }
+  h4 { @apply text-heading; }
+  h5, h6 { @apply text-heading-sm; }
+
+  /* Monospace elements */
+  code, kbd, samp, pre {
+    @apply font-mono;
+    font-feature-settings: var(--font-feature-settings-mono);
+    font-size: 0.8125em;             /* slightly smaller than surrounding text */
+  }
+
+  /* Tabular numbers for data and timestamps */
+  .tabular-nums,
+  time,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Improved focus indicators */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
   }
 }
 
+/* --------------------------------------------------------------------------
+   3. Utility Classes -- Typography
+   -------------------------------------------------------------------------- */
+@layer components {
+  /* Semantic text utilities */
+  .text-label {
+    @apply text-overline uppercase tracking-wide text-muted-foreground;
+  }
+
+  .text-code {
+    @apply font-mono text-code;
+    font-feature-settings: var(--font-feature-settings-mono);
+  }
+
+  .text-code-sm {
+    @apply font-mono text-code-sm;
+    font-feature-settings: var(--font-feature-settings-mono);
+  }
+
+  /* Monospace inline code snippet */
+  .code-inline {
+    @apply font-mono text-code-sm rounded-[4px] bg-muted px-1.5 py-0.5;
+    font-feature-settings: var(--font-feature-settings-mono);
+  }
+
+  /* Truncate with ellipsis */
+  .text-truncate {
+    @apply truncate;
+  }
+
+  /* Clamp to N lines */
+  .text-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .text-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. Animations (existing)
+   -------------------------------------------------------------------------- */
 @keyframes slide-in-right {
   from {
     transform: translateX(100%);
@@ -71,4 +205,18 @@
 
 .animate-slide-in-right {
   animation: slide-in-right 0.2s ease-out;
+}
+
+/* --------------------------------------------------------------------------
+   5. Reduced Motion
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

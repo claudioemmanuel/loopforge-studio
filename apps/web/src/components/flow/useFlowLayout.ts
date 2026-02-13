@@ -4,10 +4,11 @@ import type { TaskFlowData } from '@loopforge/shared'
 import type { Node, Edge } from '@xyflow/react'
 import { STAGE_ORDER } from './stage-config'
 
-const X_SPACING = 280
-const PRIMARY_Y = 200
-const STUCK_Y = 450
-const START_X = 50
+// Vertical layout (top to bottom): TODO at top (lower y), DONE at bottom (higher y)
+const Y_SPACING = 280
+const PRIMARY_X = 200
+const STUCK_X = 520
+const START_Y = 0 // Starting Y for TODO (top)
 
 export function useFlowLayout(flowData: TaskFlowData | null) {
   return useMemo(() => {
@@ -16,31 +17,42 @@ export function useFlowLayout(flowData: TaskFlowData | null) {
     const nodes: Node[] = []
     const edges: Edge[] = []
 
-    // Position primary stages left-to-right
+    // Find current stage index to determine which stages to show
+    const currentStageIdx = STAGE_ORDER.indexOf(flowData.task.stage)
+
+    // Check if STUCK was visited
+    const visitedStuck = flowData.transitions.some(
+      (t) => t.from === Stage.STUCK || t.to === Stage.STUCK,
+    ) || flowData.task.stage === Stage.STUCK
+
+    // Position primary stages top-to-bottom (vertically) - show all stages up to current
     STAGE_ORDER.forEach((stage, i) => {
       const stageData = flowData.stages.find((s) => s.stage === stage)
       if (!stageData) return
 
-      nodes.push({
-        id: stage,
-        type: 'stage',
-        position: { x: START_X + i * X_SPACING, y: PRIMARY_Y },
-        data: {
-          stageData,
-          stats: flowData.stats,
-          onClick: () => {},
-        },
-      })
+      // Show all stages up to and including current stage
+      if (i <= currentStageIdx) {
+        nodes.push({
+          id: stage,
+          type: 'stage',
+          position: { x: PRIMARY_X, y: START_Y + i * Y_SPACING },
+          data: {
+            stageData,
+            stats: flowData.stats,
+            onClick: () => {},
+          },
+        })
+      }
     })
 
-    // Position STUCK below EXECUTING
+    // Position STUCK to the right of EXECUTING - only if visited
     const stuckData = flowData.stages.find((s) => s.stage === Stage.STUCK)
-    if (stuckData) {
+    if (stuckData && visitedStuck) {
       const executingIdx = STAGE_ORDER.indexOf(Stage.EXECUTING)
       nodes.push({
         id: Stage.STUCK,
         type: 'stage',
-        position: { x: START_X + executingIdx * X_SPACING, y: STUCK_Y },
+        position: { x: STUCK_X, y: START_Y + executingIdx * Y_SPACING },
         data: {
           stageData: stuckData,
           stats: flowData.stats,
@@ -50,9 +62,6 @@ export function useFlowLayout(flowData: TaskFlowData | null) {
     }
 
     // Forward edges between consecutive primary stages
-    const currentStage = flowData.task.stage
-    const currentStageIdx = STAGE_ORDER.indexOf(currentStage)
-
     for (let i = 0; i < STAGE_ORDER.length - 1; i++) {
       let edgeStatus: 'completed' | 'active' | 'pending' = 'pending'
 
@@ -75,7 +84,7 @@ export function useFlowLayout(flowData: TaskFlowData | null) {
     }
 
     // Edge from EXECUTING to STUCK
-    const isStuck = currentStage === Stage.STUCK
+    const isStuck = flowData.task.stage === Stage.STUCK
     edges.push({
       id: `${Stage.EXECUTING}-${Stage.STUCK}`,
       source: Stage.EXECUTING,

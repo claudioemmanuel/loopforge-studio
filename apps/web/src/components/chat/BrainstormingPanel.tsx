@@ -25,6 +25,7 @@ export function BrainstormingPanel({ task }: BrainstormingPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { transitionTaskStage } = useBoardStore()
   const cleanupRef = useRef<(() => void) | null>(null)
+  const isCurrentStage = task.stage === Stage.BRAINSTORMING
 
   useEffect(() => {
     apiClient
@@ -36,8 +37,11 @@ export function BrainstormingPanel({ task }: BrainstormingPanelProps) {
   }, [task.id])
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, streamingContent])
+    // Only auto-scroll when it's the current stage
+    if (isCurrentStage) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    }
+  }, [messages, streamingContent, isCurrentStage])
 
   const handleSend = (content: string) => {
     if (!selectedProvider || !selectedModel) return
@@ -117,24 +121,33 @@ export function BrainstormingPanel({ task }: BrainstormingPanelProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b px-4 py-2">
-        <ProviderSelector
-          selectedProvider={selectedProvider}
-          selectedModel={selectedModel}
-          onSelect={(p, m) => {
-            setSelectedProvider(p)
-            setSelectedModel(m)
-          }}
-        />
-        <button
-          onClick={handleFinalize}
-          disabled={isFinalizingPlan}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-        >
-          {isFinalizingPlan && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {isFinalizingPlan ? 'Generating plan…' : 'Finalize → Planning'}
-        </button>
-      </div>
+      {!isCurrentStage && (
+        <div className="border-b bg-muted/30 px-4 py-2">
+          <p className="text-xs text-muted-foreground">
+            📜 Viewing historical brainstorming session
+          </p>
+        </div>
+      )}
+      {isCurrentStage && (
+        <div className="flex items-center justify-between border-b px-4 py-2">
+          <ProviderSelector
+            selectedProvider={selectedProvider}
+            selectedModel={selectedModel}
+            onSelect={(p, m) => {
+              setSelectedProvider(p)
+              setSelectedModel(m)
+            }}
+          />
+          <button
+            onClick={handleFinalize}
+            disabled={isFinalizingPlan}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            {isFinalizingPlan && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isFinalizingPlan ? 'Generating plan…' : 'Finalize → Planning'}
+          </button>
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto touch-pan-y p-4">
         {coldStartMessage && (
@@ -150,9 +163,11 @@ export function BrainstormingPanel({ task }: BrainstormingPanelProps) {
         {streamingContent && <StreamingMessage content={streamingContent} />}
       </div>
 
-      <div className="sticky bottom-0">
-        <ChatInput onSend={handleSend} isStreaming={isStreaming} />
-      </div>
+      {isCurrentStage && (
+        <div className="sticky bottom-0">
+          <ChatInput onSend={handleSend} isStreaming={isStreaming} />
+        </div>
+      )}
     </div>
   )
 }

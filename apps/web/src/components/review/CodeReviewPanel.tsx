@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 
 export function CodeReviewPanel({ task }: { task: Task }) {
   const { transitionTaskStage } = useBoardStore()
+  const isCurrentStage = task.stage === Stage.CODE_REVIEW
 
   const handleApproveAndMerge = async () => {
     try {
@@ -23,6 +24,13 @@ export function CodeReviewPanel({ task }: { task: Task }) {
 
   return (
     <div className="p-6 space-y-4">
+      {!isCurrentStage && (
+        <div className="mb-4 rounded-lg bg-muted/30 px-4 py-3">
+          <p className="text-xs text-muted-foreground">
+            📜 Viewing historical code review (PR has been merged)
+          </p>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Code Review</h2>
         {task.autonomousMode && (
@@ -50,7 +58,7 @@ export function CodeReviewPanel({ task }: { task: Task }) {
                 This PR will be automatically merged once CI checks pass. No manual action required.
               </p>
             </div>
-          ) : (
+          ) : isCurrentStage ? (
             <div className="space-y-2">
               <p className="text-sm text-gray-600">
                 Review the changes in the pull request. Once you're satisfied, approve and merge manually.
@@ -59,6 +67,10 @@ export function CodeReviewPanel({ task }: { task: Task }) {
                 Approve & Merge
               </Button>
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              This PR was reviewed and merged successfully.
+            </p>
           )}
         </div>
       ) : (

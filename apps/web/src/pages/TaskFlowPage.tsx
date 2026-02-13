@@ -7,7 +7,7 @@ import { TaskFlowSkeleton } from '../components/skeletons/TaskFlowSkeleton'
 
 export function TaskFlowPage() {
   const { taskId } = useParams<{ taskId: string }>()
-  const { flowData, isLoading, sidePanelOpen, fetchFlow, subscribeToFlowUpdates } =
+  const { flowData, isLoading, fetchFlow, subscribeToFlowUpdates, openSidePanel } =
     useTaskFlowStore()
 
   useEffect(() => {
@@ -17,6 +17,13 @@ export function TaskFlowPage() {
       return unsubscribe
     }
   }, [taskId, fetchFlow, subscribeToFlowUpdates])
+
+  // Auto-select current stage when flow data loads
+  useEffect(() => {
+    if (flowData) {
+      openSidePanel(flowData.task.stage)
+    }
+  }, [flowData, openSidePanel])
 
   if (isLoading && !flowData) {
     return <TaskFlowSkeleton />
@@ -32,10 +39,13 @@ export function TaskFlowPage() {
 
   return (
     <div className="flex h-[calc(100vh-57px)]">
-      <div className="flex-1 relative">
+      {/* Flow Canvas - Left side */}
+      <div className="flex-1 relative flex items-center justify-center">
         <TaskFlowCanvas flowData={flowData} />
       </div>
-      {sidePanelOpen && <StageSidePanel flowData={flowData} />}
+
+      {/* Sidebar - Right side (fixed, always visible) */}
+      <StageSidePanel flowData={flowData} />
     </div>
   )
 }

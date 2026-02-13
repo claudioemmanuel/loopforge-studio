@@ -16,6 +16,7 @@ export function PlanReviewPanel({ task }: PlanReviewPanelProps) {
   const [showReject, setShowReject] = useState(false)
   const [isActing, setIsActing] = useState(false)
   const { fetchTasks } = useBoardStore()
+  const isCurrentStage = task.stage === 'PLANNING'
 
   useEffect(() => {
     apiClient
@@ -64,10 +65,19 @@ export function PlanReviewPanel({ task }: PlanReviewPanelProps) {
 
   return (
     <div className="flex h-full flex-col">
+      {!isCurrentStage && (
+        <div className="border-b bg-muted/30 px-4 py-3">
+          <p className="text-xs text-muted-foreground">
+            📜 Viewing approved execution plan (historical)
+          </p>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto p-6">
         <h2 className="mb-1 text-base font-semibold">Execution Plan</h2>
         <p className="mb-6 text-sm text-muted-foreground">
-          Review the AI-generated plan. Approve to begin execution, or request changes.
+          {isCurrentStage
+            ? 'Review the AI-generated plan. Approve to begin execution, or request changes.'
+            : 'This plan was approved and has been executed.'}
         </p>
 
         <div className="space-y-1">
@@ -77,28 +87,30 @@ export function PlanReviewPanel({ task }: PlanReviewPanelProps) {
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 border-t p-4">
-        <button
-          onClick={() => setShowReject(true)}
-          disabled={isActing}
-          className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
-        >
-          <XCircle className="h-4 w-4 text-destructive" />
-          Request Changes
-        </button>
-        <button
-          onClick={handleApprove}
-          disabled={isActing}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-        >
-          {isActing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <CheckCircle2 className="h-4 w-4" />
-          )}
-          Approve Plan
-        </button>
-      </div>
+      {isCurrentStage && (
+        <div className="flex items-center justify-end gap-3 border-t p-4">
+          <button
+            onClick={() => setShowReject(true)}
+            disabled={isActing}
+            className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50"
+          >
+            <XCircle className="h-4 w-4 text-destructive" />
+            Request Changes
+          </button>
+          <button
+            onClick={handleApprove}
+            disabled={isActing}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            {isActing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            Approve Plan
+          </button>
+        </div>
+      )}
 
       {showReject && (
         <PlanRejectDialog

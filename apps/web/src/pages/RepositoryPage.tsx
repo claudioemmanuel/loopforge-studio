@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { useRepositoryStore } from '../store/repository.store'
-import { RepoTaskCard } from '../components/repository/RepoTaskCard'
+import { RepoTaskListItem } from '../components/repository/RepoTaskListItem'
 import { TaskFilterBar } from '../components/repository/TaskFilterBar'
 import { CreateTaskDialog } from '../components/board/CreateTaskDialog'
 import { Plus, Inbox } from 'lucide-react'
@@ -78,11 +78,24 @@ export function RepositoryPage() {
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto">
         {isLoading && tasks.length === 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-[140px] rounded-lg" />
+          <div className="divide-y">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-5 px-6 py-3.5">
+                <div>
+                  <Skeleton className="h-4 w-[60%]" />
+                  <Skeleton className="mt-1.5 h-3 w-[80%]" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-6 w-24 rounded-full" />
+                  <Skeleton className="h-2 w-16" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-[140px]" />
+                </div>
+              </div>
             ))}
           </div>
         ) : tasks.length === 0 ? (
@@ -91,9 +104,9 @@ export function RepositoryPage() {
             <p className="text-sm text-muted-foreground">No tasks found</p>
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="divide-y">
             {tasks.map((task) => (
-              <RepoTaskCard key={task.id} task={task} repoId={repoId!} />
+              <RepoTaskListItem key={task.id} task={task} repoId={repoId!} />
             ))}
           </div>
         )}

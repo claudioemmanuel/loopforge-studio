@@ -13,20 +13,28 @@ interface StageContentProps {
 }
 
 export function StageContent({ task, stage }: StageContentProps) {
+  const isCurrentStage = task.stage === stage
+
   switch (stage) {
     case Stage.TODO:
       return (
         <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
           <p className="text-sm text-muted-foreground">{task.description}</p>
-          <button
-            onClick={async () => {
-              const { transitionTaskStage } = useBoardStore.getState()
-              await transitionTaskStage(task.id, Stage.BRAINSTORMING)
-            }}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
-            Start Brainstorming
-          </button>
+          {isCurrentStage ? (
+            <button
+              onClick={async () => {
+                const { transitionTaskStage } = useBoardStore.getState()
+                await transitionTaskStage(task.id, Stage.BRAINSTORMING)
+              }}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            >
+              Start Brainstorming
+            </button>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              📜 This task has already progressed beyond the TODO stage
+            </p>
+          )}
         </div>
       )
 
@@ -39,12 +47,21 @@ export function StageContent({ task, stage }: StageContentProps) {
     case Stage.READY:
       return (
         <div className="flex h-full flex-col">
-          <div className="px-4 pt-4">
-            <p className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
-              Your plan is approved and queued for execution. No action needed — the worker will
-              start automatically.
-            </p>
-          </div>
+          {isCurrentStage && (
+            <div className="px-4 pt-4">
+              <p className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
+                Your plan is approved and queued for execution. No action needed — the worker will
+                start automatically.
+              </p>
+            </div>
+          )}
+          {!isCurrentStage && (
+            <div className="border-b bg-muted/30 px-4 py-3">
+              <p className="text-xs text-muted-foreground">
+                📜 Task was queued and started execution (historical)
+              </p>
+            </div>
+          )}
           <div className="flex-1 overflow-hidden">
             <ExecutionLogPanel task={task} />
           </div>

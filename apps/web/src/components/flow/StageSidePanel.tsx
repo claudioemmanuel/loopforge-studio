@@ -1,6 +1,5 @@
-import { useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { X, Maximize2 } from 'lucide-react'
+import { Maximize2 } from 'lucide-react'
 import { useTaskFlowStore } from '../../store/taskflow.store'
 import { STAGE_CONFIG } from './stage-config'
 import { StageContent } from './StageContent'
@@ -15,25 +14,12 @@ interface StageSidePanelProps {
 export function StageSidePanel({ flowData }: StageSidePanelProps) {
   const { repoId } = useParams()
   const navigate = useNavigate()
-  const { sidePanelStage, closeSidePanel, navigateSidePanel } = useTaskFlowStore()
+  const { sidePanelStage, navigateSidePanel } = useTaskFlowStore()
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeSidePanel()
-      }
-    },
-    [closeSidePanel],
-  )
+  // Always show current stage if no specific stage is selected
+  const displayStage = sidePanelStage || flowData.task.stage
 
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown])
-
-  if (!sidePanelStage) return null
-
-  const config = STAGE_CONFIG[sidePanelStage]
+  const config = STAGE_CONFIG[displayStage]
   const Icon = config.icon
 
   // Build a Task-like object for stage content components
@@ -53,11 +39,11 @@ export function StageSidePanel({ flowData }: StageSidePanelProps) {
   }
 
   const handleExpand = () => {
-    navigate(`/repo/${repoId}/task/${flowData.task.id}/stage/${sidePanelStage}`)
+    navigate(`/repo/${repoId}/task/${flowData.task.id}/stage/${displayStage}`)
   }
 
   return (
-    <div className="w-[450px] flex-shrink-0 border-l bg-background flex flex-col animate-slide-in-right">
+    <div className="w-1/2 flex-shrink-0 border-l bg-background flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
@@ -74,23 +60,16 @@ export function StageSidePanel({ flowData }: StageSidePanelProps) {
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
-          <button
-            onClick={closeSidePanel}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
-            title="Close panel"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
         </div>
       </div>
 
       {/* Body */}
       <div className="flex-1 overflow-hidden">
-        <StageContent task={task} stage={sidePanelStage} />
+        <StageContent task={task} stage={displayStage} />
       </div>
 
       {/* Footer */}
-      <StagePanelFooter currentStage={sidePanelStage} onNavigate={navigateSidePanel} />
+      <StagePanelFooter currentStage={displayStage} onNavigate={navigateSidePanel} />
     </div>
   )
 }

@@ -9,6 +9,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    include: ['@xyflow/react'],
+  },
   server: {
     port: 3000,
     proxy: {

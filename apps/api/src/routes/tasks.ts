@@ -127,7 +127,9 @@ export async function registerTaskRoutes(app: FastifyInstance) {
       let status: 'completed' | 'active' | 'pending' = 'pending'
 
       if (stage === currentStage) {
-        status = 'active'
+        // Only EXECUTING shows as "active" (with pulsing indicator)
+        // Other current stages show as "completed" since they're waiting/done with their purpose
+        status = stage === Stage.EXECUTING ? 'active' : 'completed'
       } else if (stage === Stage.STUCK) {
         status = visitedStages.has(Stage.STUCK) && currentStage !== Stage.STUCK ? 'completed' : 'pending'
       } else if (stageIdx !== -1 && stageIdx < currentStageIdx) {
