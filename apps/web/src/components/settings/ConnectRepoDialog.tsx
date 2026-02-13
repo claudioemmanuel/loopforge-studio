@@ -33,7 +33,7 @@ export function ConnectRepoDialog({ onClose, onConnected }: ConnectRepoDialogPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg rounded-xl border bg-card p-6 shadow-xl">
+      <div className="w-full max-w-lg rounded-md border bg-card p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Connect Repository</h2>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
@@ -41,8 +41,8 @@ export function ConnectRepoDialog({ onClose, onConnected }: ConnectRepoDialogPro
           </button>
         </div>
 
-        <p className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">
-          Loopforge uses GitHub's API — no local clone needed. The AI commits plan artifacts to a
+        <p className="mb-4 rounded-md border border-info/30 bg-info/10 px-4 py-3 text-sm text-foreground">
+          Agent Forge uses GitHub's API — no local clone needed. The AI commits plan artifacts to a
           feature branch on your behalf.
         </p>
 
@@ -59,7 +59,7 @@ export function ConnectRepoDialog({ onClose, onConnected }: ConnectRepoDialogPro
             {repos.map((repo) => (
               <div
                 key={repo.githubRepoId}
-                className="flex items-center justify-between rounded-lg border p-3"
+                className="flex items-center justify-between rounded-md border p-3"
               >
                 <div>
                   <p className="text-sm font-medium">{repo.fullName}</p>

@@ -41,7 +41,7 @@ export function CreateTaskDialog({ onClose }: CreateTaskDialogProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-xl border bg-card p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-md border bg-card p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">New Task</h2>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
@@ -93,7 +93,7 @@ export function CreateTaskDialog({ onClose }: CreateTaskDialogProps) {
             </div>
           )}
 
-          <div className="flex items-start space-x-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+          <div className="flex items-start space-x-2 rounded-md border border-warning/30 bg-warning/10 p-3">
             <input
               type="checkbox"
               id="autonomousMode"
@@ -102,8 +102,8 @@ export function CreateTaskDialog({ onClose }: CreateTaskDialogProps) {
               className="mt-0.5 h-4 w-4 rounded border-gray-300"
             />
             <label htmlFor="autonomousMode" className="flex-1 text-sm">
-              <span className="font-medium text-yellow-900">Enable Autonomous Mode</span>
-              <p className="mt-1 text-xs text-yellow-700">
+              <span className="font-medium text-foreground">Enable Autonomous Mode</span>
+              <p className="mt-1 text-xs text-muted-foreground">
                 PRs will be automatically merged after passing CI checks. Use with caution!
               </p>
             </label>

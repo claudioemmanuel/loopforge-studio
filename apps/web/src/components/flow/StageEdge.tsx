@@ -41,7 +41,7 @@ function StageEdgeComponent({
       stroke = '#22c55e'
       break
     case 'active':
-      stroke = '#3b82f6'
+      stroke = '#14b8a6'
       strokeDasharray = '5 5'
       animation = 'dash 1s linear infinite'
       break

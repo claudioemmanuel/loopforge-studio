@@ -4,6 +4,7 @@ import { useTaskFlowStore } from '../store/taskflow.store'
 import { TaskFlowCanvas } from '../components/flow/TaskFlowCanvas'
 import { StageSidePanel } from '../components/flow/StageSidePanel'
 import { TaskFlowSkeleton } from '../components/skeletons/TaskFlowSkeleton'
+import { Breadcrumb } from '../components/layout/Breadcrumb'
 
 export function TaskFlowPage() {
   const { taskId } = useParams<{ taskId: string }>()
@@ -31,21 +32,29 @@ export function TaskFlowPage() {
 
   if (!flowData) {
     return (
-      <div className="flex h-[calc(100vh-57px)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <p className="text-muted-foreground">Task not found</p>
       </div>
     )
   }
 
   return (
-    <div className="flex h-[calc(100vh-57px)]">
-      {/* Flow Canvas - Left side */}
-      <div className="flex-1 relative flex items-center justify-center">
-        <TaskFlowCanvas flowData={flowData} />
+    <div className="flex h-full flex-col">
+      {/* Compact header bar */}
+      <div className="flex items-center gap-3 border-b px-4 py-2">
+        <Breadcrumb />
       </div>
 
-      {/* Sidebar - Right side (fixed, always visible) */}
-      <StageSidePanel flowData={flowData} />
+      {/* Flow content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Flow Canvas - Left side */}
+        <div className="flex-1 relative flex items-center justify-center">
+          <TaskFlowCanvas flowData={flowData} />
+        </div>
+
+        {/* Sidebar - Right side (fixed, always visible) */}
+        <StageSidePanel flowData={flowData} />
+      </div>
     </div>
   )
 }

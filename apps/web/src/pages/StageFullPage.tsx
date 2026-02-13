@@ -23,7 +23,7 @@ export function StageFullPage() {
 
   if (!flowData || !stage) {
     return (
-      <div className="flex h-[calc(100vh-57px)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <p className="text-muted-foreground">Loading...</p>
       </div>
     )
@@ -34,7 +34,7 @@ export function StageFullPage() {
 
   if (!config) {
     return (
-      <div className="flex h-[calc(100vh-57px)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <p className="text-muted-foreground">Unknown stage</p>
       </div>
     )
@@ -58,7 +58,7 @@ export function StageFullPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-57px)] flex-col">
+    <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b px-4 py-3 md:px-6">
         <button
           onClick={() => navigate(`/repo/${repoId}/task/${taskId}`)}

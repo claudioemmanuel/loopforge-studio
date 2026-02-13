@@ -2,22 +2,32 @@ import { Skeleton } from '../ui/skeleton'
 
 export function DashboardSkeleton() {
   return (
-    <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="rounded-xl border bg-card p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-2.5 w-2.5 rounded-full" />
+    <div>
+      {/* Page header skeleton */}
+      <div className="border-b px-6 py-4">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="mt-2 h-6 w-32" />
+        <Skeleton className="mt-1 h-4 w-48" />
+      </div>
+
+      {/* List row skeletons */}
+      <div className="divide-y">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-6 py-3.5">
+            <Skeleton className="h-4 w-4 rounded" />
+            <div className="flex-1 min-w-0">
+              <Skeleton className="h-4 w-[40%]" />
+              <Skeleton className="mt-1 h-3 w-[25%]" />
+            </div>
+            <Skeleton className="hidden sm:block h-1.5 w-32 rounded-full" />
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-3 w-16" />
+            </div>
           </div>
-          <Skeleton className="h-4 w-24" />
-          <div className="grid grid-cols-3 gap-3">
-            <Skeleton className="h-14 rounded-lg" />
-            <Skeleton className="h-14 rounded-lg" />
-            <Skeleton className="h-14 rounded-lg" />
-          </div>
-          <Skeleton className="h-2 w-full rounded-full" />
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }

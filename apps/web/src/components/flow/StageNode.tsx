@@ -20,19 +20,22 @@ function StageNodeComponent({ data }: NodeProps<StageNodeType>) {
 
   return (
     <div
-      className={`w-[220px] rounded-lg border-2 bg-card shadow-md cursor-pointer transition-shadow hover:shadow-lg ${
+      className={`w-[200px] rounded-md border bg-card cursor-pointer transition-shadow hover:shadow-md ${
         stageData.status === 'active' ? config.borderColor : 'border-border'
       }`}
       onClick={() => onClick(stageData.stage)}
     >
-      {/* Color header bar */}
-      <div className={`flex items-center gap-2 rounded-t-md px-3 py-2 ${config.color}`}>
-        <Icon className="h-4 w-4 text-white" />
-        <span className="text-sm font-medium text-white">{config.label}</span>
+      {/* Thin color top border */}
+      <div className={`h-[3px] rounded-t-md ${config.color}`} />
+
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2">
+        <Icon className={`h-4 w-4 ${config.textColor}`} />
+        <span className="text-sm font-medium">{config.label}</span>
       </div>
 
       {/* Body */}
-      <div className="p-3 space-y-2">
+      <div className="px-3 pb-3 space-y-2">
         {/* Status indicator */}
         <div className="flex items-center gap-1.5">
           {stageData.status === 'completed' && (
@@ -43,16 +46,13 @@ function StageNodeComponent({ data }: NodeProps<StageNodeType>) {
           )}
           {stageData.status === 'active' && (
             <>
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-500" />
-              </span>
-              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Active</span>
+              <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+              <span className="text-xs text-primary font-medium">Active</span>
             </>
           )}
           {stageData.status === 'pending' && (
             <>
-              <span className="h-3 w-3 rounded-full border-2 border-muted-foreground/30" />
+              <span className="h-2.5 w-2.5 rounded-full border-2 border-muted-foreground/30" />
               <span className="text-xs text-muted-foreground">Pending</span>
             </>
           )}

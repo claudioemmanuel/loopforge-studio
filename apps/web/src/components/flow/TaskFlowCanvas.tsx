@@ -53,7 +53,7 @@ function FlowContent({ flowData }: { flowData: TaskFlowData }) {
       fitViewOptions={{ padding: 0.15, maxZoom: 0.85 }}
       minZoom={0.3}
       maxZoom={1.2}
-      defaultZoom={0.8}
+      defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
       nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable={false}

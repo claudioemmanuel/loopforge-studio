@@ -28,10 +28,10 @@ export function RepoTaskListItem({ task, repoId }: RepoTaskListItemProps) {
         <p className="mt-0.5 text-xs text-muted-foreground truncate">{task.description}</p>
       </div>
 
-      {/* Column 2: Stage Badge + Progress Dots */}
+      {/* Column 2: Stage Badge (rectangle) + Progress Bars */}
       <div className="flex items-center gap-3 flex-shrink-0">
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${stageConfig.bgColor} ${stageConfig.textColor}`}
+          className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium whitespace-nowrap ${stageConfig.bgColor} ${stageConfig.textColor}`}
         >
           <StageIcon className="h-3.5 w-3.5" />
           {stageConfig.label}
@@ -48,7 +48,7 @@ export function RepoTaskListItem({ task, repoId }: RepoTaskListItemProps) {
           </span>
         )}
         {task.featureBranch && (
-          <span className="flex items-center gap-1 max-w-[280px]" title={task.featureBranch}>
+          <span className="flex items-center gap-1 max-w-[280px] rounded bg-muted px-1.5 py-0.5" title={task.featureBranch}>
             <GitBranch className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="truncate font-mono text-[11px]">{task.featureBranch}</span>
           </span>
